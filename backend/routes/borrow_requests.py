@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from database import get_db_connection
+from .auth import require_role
 import qrcode
 import io
 import base64
@@ -189,17 +190,19 @@ def get_borrow_requests():
     "/api/borrow-requests/<int:request_id>/decision",
     methods=["PUT"]
 )
+@require_role("admin")
 def decide_borrow_request(request_id):
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
-    admin_id = data.get("admin_id")
+    # Get authenticated admin ID from the authentication helper
+    admin_id = request.authenticated_user_id
     decision = data.get("decision")
 
-    if not admin_id or not decision:
+    if not decision:
         return jsonify({
             "status": "error",
-            "message": "admin_id and decision are required."
+            "message": "decision is required."
         }), 400
 
     if decision not in ["approved", "declined"]:
@@ -220,33 +223,8 @@ def decide_borrow_request(request_id):
 
     try:
 
-        # Check if admin exists and has admin role
-        cursor.execute(
-            """
-            SELECT id, role
-            FROM users
-            WHERE id = %s
-            """,
-            (admin_id,)
-        )
-
-        admin = cursor.fetchone()
-
-        if not admin:
-            return jsonify({
-                "status": "error",
-                "message": "Admin not found."
-            }), 404
-
-        if admin["role"] != "admin":
-            return jsonify({
-                "status": "error",
-                "message": "Only admin users can approve or decline requests."
-            }), 403
-
-        # Get request
-        cursor.execute(
-            """
+        # Get borrow request
+        cursor.execute("""
             SELECT
                 br.id,
                 br.user_id,
@@ -258,9 +236,7 @@ def decide_borrow_request(request_id):
             INNER JOIN books b
                 ON br.book_id = b.id
             WHERE br.id = %s
-            """,
-            (request_id,)
-        )
+        """, (request_id,))
 
         borrow_request = cursor.fetchone()
 
@@ -276,44 +252,46 @@ def decide_borrow_request(request_id):
                 "message": "This request has already been processed."
             }), 400
 
+        # =========================
+        # DECLINE REQUEST
+        # =========================
 
         if decision == "declined":
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 UPDATE borrow_requests
                 SET
                     status = 'declined',
                     approved_by = %s,
                     approved_at = NOW()
                 WHERE id = %s
-                """,
-                (admin_id, request_id)
-            )
+            """, (admin_id, request_id))
 
             conn.commit()
 
             return jsonify({
                 "status": "success",
-                "message": "Borrow request declined."
+                "message": "Borrow request declined.",
+                "request_id": request_id
             }), 200
 
+        # =========================
+        # APPROVE REQUEST
+        # =========================
 
         if borrow_request["available_quantity"] <= 0:
-
             return jsonify({
                 "status": "error",
                 "message": "Book is no longer available."
             }), 400
 
-        # Generate a unique QR token
+        # Generate unique QR token
         import uuid
 
         qr_token = str(uuid.uuid4())
 
-        # Update request
-        cursor.execute(
-            """
+        # Update borrow request
+        cursor.execute("""
             UPDATE borrow_requests
             SET
                 status = 'approved',
@@ -321,13 +299,10 @@ def decide_borrow_request(request_id):
                 approved_at = NOW(),
                 qr_token = %s
             WHERE id = %s
-            """,
-            (admin_id, qr_token, request_id)
-        )
+        """, (admin_id, qr_token, request_id))
 
-        # Reduce available book quantity
-        cursor.execute(
-            """
+        # Reduce available quantity
+        cursor.execute("""
             UPDATE books
             SET
                 available_quantity = available_quantity - 1,
@@ -337,13 +312,10 @@ def decide_borrow_request(request_id):
                     ELSE 'available'
                 END
             WHERE id = %s
-            """,
-            (borrow_request["book_id"],)
-        )
+        """, (borrow_request["book_id"],))
 
         # Create borrowing record
-        cursor.execute(
-            """
+        cursor.execute("""
             INSERT INTO borrowings
             (
                 user_id,
@@ -362,12 +334,10 @@ def decide_borrow_request(request_id):
                 NULL,
                 'borrowed'
             )
-            """,
-            (
-                borrow_request["user_id"],
-                borrow_request["book_id"]
-            )
-        )
+        """, (
+            borrow_request["user_id"],
+            borrow_request["book_id"]
+        ))
 
         borrowing_id = cursor.lastrowid
 
