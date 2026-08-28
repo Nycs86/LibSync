@@ -7,6 +7,9 @@ from database import get_db_connection
 borrowings_bp = Blueprint("borrowings", __name__)
 
 
+# =========================================================
+# GET ALL BORROWINGS
+# =========================================================
 @borrowings_bp.route("/api/borrowings", methods=["GET"])
 def get_borrowings():
     try:
@@ -18,9 +21,9 @@ def get_borrowings():
                 br.id,
                 br.user_id,
                 br.book_id,
-                br.borrow_date,
+                br.borrowed_at,
                 br.due_date,
-                br.return_date,
+                br.returned_at,
                 br.status,
                 u.name AS user_name,
                 b.title AS book_title
@@ -35,7 +38,10 @@ def get_borrowings():
         cursor.close()
         connection.close()
 
-        return jsonify(borrowings)
+        return jsonify({
+            "status": "success",
+            "borrowings": borrowings
+        }), 200
 
     except mysql.connector.Error as error:
         return jsonify({
@@ -44,6 +50,9 @@ def get_borrowings():
         }), 500
 
 
+# =========================================================
+# ADD BORROWING
+# =========================================================
 @borrowings_bp.route("/api/borrowings", methods=["POST"])
 def add_borrowing():
     try:
@@ -51,19 +60,17 @@ def add_borrowing():
 
         user_id = data.get("user_id")
         book_id = data.get("book_id")
-        borrow_date = data.get("borrow_date")
         due_date = data.get("due_date")
 
-        if not user_id or not book_id or not borrow_date or not due_date:
+        if not user_id or not book_id or not due_date:
             return jsonify({
                 "status": "error",
-                "message": "User, book, borrow date, and due date are required."
+                "message": "User, book, and due date are required."
             }), 400
 
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
 
-        # Check if the book exists and is available
         cursor.execute("""
             SELECT id, available_quantity
             FROM books
@@ -90,20 +97,17 @@ def add_borrowing():
                 "message": "Book is not available."
             }), 400
 
-        # Create borrowing record
         cursor.execute("""
             INSERT INTO borrowings
-            (user_id, book_id, borrow_date, due_date, status)
-            VALUES (%s, %s, %s, %s, %s)
+            (user_id, book_id, borrowed_at, due_date, status)
+            VALUES (%s, %s, NOW(), %s, %s)
         """, (
             user_id,
             book_id,
-            borrow_date,
             due_date,
             "borrowed"
         ))
 
-        # Decrease available copies
         cursor.execute("""
             UPDATE books
             SET available_quantity = available_quantity - 1
@@ -135,7 +139,13 @@ def add_borrowing():
         }), 500
 
 
-@borrowings_bp.route("/api/borrowings/<int:borrowing_id>", methods=["PUT"])
+# =========================================================
+# UPDATE BORROWING / RETURN BOOK
+# =========================================================
+@borrowings_bp.route(
+    "/api/borrowings/<int:borrowing_id>",
+    methods=["PUT"]
+)
 def update_borrowing(borrowing_id):
     try:
         data = request.get_json()
@@ -171,9 +181,8 @@ def update_borrowing(borrowing_id):
         old_status = borrowing["status"]
         book_id = borrowing["book_id"]
 
-        # If changing from borrowed to returned,
-        # increase the available quantity.
         if old_status == "borrowed" and status == "returned":
+
             cursor.execute("""
                 UPDATE books
                 SET available_quantity = available_quantity + 1
@@ -183,11 +192,12 @@ def update_borrowing(borrowing_id):
             cursor.execute("""
                 UPDATE borrowings
                 SET status = %s,
-                    return_date = CURDATE()
+                    returned_at = NOW()
                 WHERE id = %s
             """, (status, borrowing_id))
 
         else:
+
             cursor.execute("""
                 UPDATE borrowings
                 SET status = %s
@@ -202,9 +212,14 @@ def update_borrowing(borrowing_id):
         return jsonify({
             "status": "success",
             "message": "Borrowing updated successfully!"
-        })
+        }), 200
 
     except mysql.connector.Error as error:
+        if "connection" in locals():
+            connection.rollback()
+            cursor.close()
+            connection.close()
+
         return jsonify({
             "status": "error",
             "message": str(error)

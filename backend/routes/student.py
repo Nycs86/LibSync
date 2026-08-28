@@ -149,3 +149,83 @@ def get_student_profile(user_id):
 
         cursor.close()
         conn.close()
+
+# UPDATE OVERDUE BORROWINGS
+@student_bp.route(
+    "/api/student/borrowings/<int:user_id>/status",
+    methods=["GET"]
+)
+@require_role("student")
+def update_student_borrowing_status(user_id):
+
+    authenticated_user_id = request.authenticated_user_id
+
+    if authenticated_user_id != user_id:
+        return jsonify({
+            "status": "error",
+            "message": "You can only view your own borrowings."
+        }), 403
+
+    conn = get_db_connection()
+
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+
+        # Automatically mark overdue books
+        cursor.execute("""
+            UPDATE borrowings
+            SET status = 'overdue'
+            WHERE user_id = %s
+              AND status = 'borrowed'
+              AND due_date < CURDATE()
+              AND returned_at IS NULL
+        """, (user_id,))
+
+        conn.commit()
+
+        # Get updated borrowing records
+        cursor.execute("""
+            SELECT
+                bw.id AS borrowing_id,
+                bw.book_id,
+                b.title,
+                b.author,
+                bw.borrowed_at,
+                bw.due_date,
+                bw.returned_at,
+                bw.status
+            FROM borrowings bw
+            INNER JOIN books b
+                ON bw.book_id = b.id
+            WHERE bw.user_id = %s
+            ORDER BY bw.id DESC
+        """, (user_id,))
+
+        borrowings = cursor.fetchall()
+
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "borrowings": borrowings
+        }), 200
+
+    except mysql.connector.Error as error:
+
+        conn.rollback()
+
+        return jsonify({
+            "status": "error",
+            "message": str(error)
+        }), 500
+
+    finally:
+
+        cursor.close()
+        conn.close()
