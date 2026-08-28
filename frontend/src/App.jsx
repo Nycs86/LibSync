@@ -429,13 +429,7 @@ function App() {
 
         </div>
 
-      </main>
-
-    </div>
-  );
-}
-
-<div className="mt-5">
+        <div className="mt-5">
 
   <div className="d-flex justify-content-between align-items-center mb-3">
 
@@ -502,4 +496,12 @@ function App() {
   </div>
 
 </div>
+
+      </main>
+
+    </div>
+  );
+}
+
+
 export default App;
