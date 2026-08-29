@@ -224,3 +224,121 @@ def update_borrowing(borrowing_id):
             "status": "error",
             "message": str(error)
         }), 500
+
+    # GET BORROWINGS FOR A SPECIFIC STUDENT
+
+@borrowings_bp.route(
+    "/api/student/borrowings/<int:user_id>",
+    methods=["GET"]
+)
+def get_student_borrowings(user_id):
+
+    conn = get_db_connection()
+
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+
+        # Check if user exists
+        cursor.execute(
+            "SELECT id, name FROM users WHERE id = %s",
+            (user_id,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user:
+            return jsonify({
+                "status": "error",
+                "message": "User not found."
+            }), 404
+
+        # Get borrowings belonging only to this student
+        cursor.execute("""
+            SELECT
+                br.id AS borrowing_id,
+                br.book_id,
+                b.title,
+                b.author,
+                br.borrowed_at,
+                br.due_date,
+                br.returned_at,
+                br.status
+            FROM borrowings br
+            INNER JOIN books b
+                ON br.book_id = b.id
+            WHERE br.user_id = %s
+            ORDER BY br.borrowed_at DESC
+        """, (user_id,))
+
+        borrowings = cursor.fetchall()
+
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "borrowings": borrowings
+        }), 200
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
+        # GET ALL OVERDUE BORROWINGS
+
+@borrowings_bp.route("/api/borrowings/overdue", methods=["GET"])
+def get_overdue_borrowings():
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                br.id AS borrowing_id,
+                br.user_id,
+                u.name AS user_name,
+                u.email AS user_email,
+                br.book_id,
+                b.title AS book_title,
+                br.borrowed_at,
+                br.due_date,
+                br.returned_at,
+                br.status
+            FROM borrowings br
+            INNER JOIN users u
+                ON br.user_id = u.id
+            INNER JOIN books b
+                ON br.book_id = b.id
+            WHERE br.status = 'borrowed'
+              AND br.due_date < NOW()
+              AND br.returned_at IS NULL
+            ORDER BY br.due_date ASC
+        """)
+
+        overdue = cursor.fetchall()
+
+        cursor.close()
+        connection.close()
+
+        return jsonify({
+            "status": "success",
+            "overdue": overdue
+        }), 200
+
+    except mysql.connector.Error as error:
+        return jsonify({
+            "status": "error",
+            "message": str(error)
+        }), 500

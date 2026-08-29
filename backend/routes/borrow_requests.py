@@ -371,6 +371,79 @@ def decide_borrow_request(request_id):
     "/api/borrow-requests/<int:request_id>/qr",
     methods=["GET"]
 )
+
+# GET BORROW REQUESTS FOR A SPECIFIC STUDENT
+
+@borrow_requests_bp.route(
+    "/api/student/borrow-requests/<int:user_id>",
+    methods=["GET"]
+)
+def get_student_borrow_requests(user_id):
+
+    conn = get_db_connection()
+
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+
+        # Check if user exists
+        cursor.execute(
+            "SELECT id, name FROM users WHERE id = %s",
+            (user_id,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user:
+            return jsonify({
+                "status": "error",
+                "message": "User not found."
+            }), 404
+
+        # Get requests belonging only to this student
+        cursor.execute("""
+            SELECT
+                br.id,
+                br.user_id,
+                br.book_id,
+                b.title AS book_title,
+                br.status,
+                br.requested_at,
+                br.approved_by,
+                br.approved_at,
+                br.qr_token
+            FROM borrow_requests br
+            INNER JOIN books b
+                ON br.book_id = b.id
+            WHERE br.user_id = %s
+            ORDER BY br.requested_at DESC
+        """, (user_id,))
+
+        requests = cursor.fetchall()
+
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "requests": requests
+        }), 200
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+        
 def generate_borrow_qr(request_id):
 
     conn = get_db_connection()
