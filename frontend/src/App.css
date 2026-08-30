@@ -1,33 +1,114 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f5f7fa;
+  background-color: rgb(250, 248, 242);
 }
 
-.app {
+.welcome-page {
+  position: relative;
+  overflow: hidden;
   min-height: 100vh;
 }
 
-.navbar {
-  min-height: 65px;
+.welcome-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: linear-gradient(
+    rgba(0, 0, 0, 0) 0%,
+    rgba(77, 210, 255, 0.12) 28%,
+    rgb(255, 255, 255) 18%,
+    rgb(53, 230, 192) 68%,
+    rgb(91, 110, 245) 100%
+  );
+
+  mix-blend-mode: multiply;
+  filter: blur(90px);
+
+  transform: translateZ(0);
+  will-change: transform;
+
+  pointer-events: none;
 }
 
-main {
-  max-width: 1200px;
+.welcome-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: linear-gradient(
+    rgba(0, 0, 0, 0) 0%,
+    rgba(77, 210, 255, 0.22) 34%,
+    rgb(255, 255, 255) 66%,
+    rgb(53, 230, 192) 82%,
+    rgb(91, 110, 245) 100%
+  );
+
+  mix-blend-mode: multiply;
+  filter: blur(90px);
+
+  transform: translateZ(0);
+  will-change: transform;
+
+  pointer-events: none;
 }
 
-.table {
-  background: white;
-  border-radius: 10px;
-  overflow: hidden;
+.welcome-page .container {
+  position: relative;
+  z-index: 1;
 }
 
-.table th,
-.table td {
-  padding: 14px;
+.logo {
+  font-size: 65px;
+  color: rgb(53, 230, 192);
+  margin-bottom: 10px;
 }
 
-.badge {
-  text-transform: capitalize;
-  padding: 7px 10px;
+h1 {
+  color: rgb(91, 110, 245);
+  font-size: 42px;
+}
+
+.welcome-page .text-muted {
+  color: rgba(0, 0, 0, 0.55) !important;
+}
+
+h2 {
+  color: rgb(53, 230, 192);
+  font-size: 24px;
+}
+
+.role-card {
+  border: none;
+  background: rgb(255, 255, 255);
+  border-radius: 16px;
+  padding: 45px 20px;
+  cursor: pointer;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
+  transition: all 0.25s ease;
+}
+
+.role-card:hover {
+  transform: translateY(-7px);
+
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+.role-card:active {
+  transform: translateY(-3px);
+}
+
+.role-icon {
+  font-size: 55px;
+  color: rgb(91, 110, 245);
+}
+
+.role-card h3 {
+  color: rgb(53, 230, 192);
+}
+
+.role-card p {
+  color: rgba(0, 0, 0, 0.55) !important;
+  font-size: 15px;
 }
