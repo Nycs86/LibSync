@@ -1,6 +1,9 @@
 import { useState } from "react";
 import "./App.css";
-import Role from "./components/Role";
+import Role from "./components/role";
+import AdminLogin from "./components/admin_login";
+import LibrarianLogin from "./components/librarian_login";
+import StudentLogin from "./components/student_login";
 
 function App() {
   const [selectedRole, setSelectedRole] = useState("");
@@ -9,25 +12,54 @@ function App() {
     {
       name: "Admin",
       icon: "bi-person-gear",
+      description: "Access admin portal",
     },
-
     {
       name: "Librarian",
       icon: "bi-book",
+      description: "Access librarian portal",
     },
-
     {
       name: "Student",
       icon: "bi-mortarboard",
+      description: "Access student portal",
     },
-    
   ];
+
+  // Admin Login
+  if (selectedRole === "Admin") {
+    return (
+      <AdminLogin
+        onBack={() => setSelectedRole("")}
+      />
+    );
+  }
+
+  // Librarian Login
+  if (selectedRole === "Librarian") {
+    return (
+      <LibrarianLogin
+        onBack={() => setSelectedRole("")}
+      />
+    );
+  }
+
+  // Student Login
+  if (selectedRole === "Student") {
+    return (
+      <StudentLogin
+        onBack={() => setSelectedRole("")}
+      />
+    );
+  }
 
   return (
     <div className="welcome-page">
       <div className="container py-5">
 
+        {/* Logo and Title */}
         <div className="text-center mb-5">
+
           <div className="logo">
             <i className="bi bi-book-half"></i>
           </div>
@@ -39,14 +71,19 @@ function App() {
           <p className="text-muted mb-0">
             Library Management System
           </p>
+
         </div>
 
+        {/* Select Role */}
         <div className="text-center mb-4">
+
           <h2 className="fw-semibold">
             Please select from our services
           </h2>
+
         </div>
 
+        {/* Role Cards */}
         <div className="row justify-content-center g-4">
 
           {roles.map((role) => (
@@ -54,34 +91,16 @@ function App() {
               className="col-12 col-md-4"
               key={role.name}
             >
-              <button
-                type="button"
-                className="role-card w-100"
+              <Role
+                name={role.name}
+                icon={role.icon}
+                description={role.description}
                 onClick={() => setSelectedRole(role.name)}
-              >
-                <i
-                  className={`bi ${role.icon} role-icon`}
-                ></i>
-
-                <h3 className="fw-bold mt-3 mb-2">
-                  {role.name}
-                </h3>
-
-                <p className="text-muted mb-0">
-                  Access {role.name.toLowerCase()} portal
-                </p>
-              </button>
+              />
             </div>
           ))}
 
         </div>
-
-        {selectedRole && (
-          <div className="text-center mt-4">
-            Selected:{" "}
-            <strong>{selectedRole}</strong>
-          </div>
-        )}
 
       </div>
     </div>
