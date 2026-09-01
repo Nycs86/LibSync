@@ -21,7 +21,7 @@ function StudentLogin({ onBack }) {
     }
 
     try {
-      const response = await fetch("http://10.170.82.151:5000/api/login", {
+      const response = await fetch("https://identify-spilt-cover.ngrok-free.dev/api/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,7 +90,7 @@ function StudentLogin({ onBack }) {
     }
 
     try {
-      const response = await fetch("http://10.170.82.151:5000/api/users", {
+      const response = await fetch("https://identify-spilt-cover.ngrok-free.dev/api/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -2,11 +2,14 @@ import { useState } from "react";
 import "./App.css";
 import Role from "./components/role";
 import AdminLogin from "./components/admin_login";
+import AdminDashboard from "./components/admin_dashboard";
 import LibrarianLogin from "./components/librarian_login";
+import LibrarianDashboard from "./components/librarian_dashboard";
 import StudentLogin from "./components/student_login";
 
 function App() {
   const [selectedRole, setSelectedRole] = useState("");
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   const roles = [
     {
@@ -26,11 +29,25 @@ function App() {
     },
   ];
 
+  // Admin Dashboard
+  if (isAdminLoggedIn) {
+    return (
+      <AdminDashboard
+        onLogout={() => {
+          localStorage.removeItem("loggedInUser");
+          setIsAdminLoggedIn(false);
+          setSelectedRole("");
+        }}
+      />
+    );
+  }
+
   // Admin Login
   if (selectedRole === "Admin") {
     return (
       <AdminLogin
         onBack={() => setSelectedRole("")}
+        onLoginSuccess={() => setIsAdminLoggedIn(true)}
       />
     );
   }

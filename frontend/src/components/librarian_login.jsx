@@ -6,7 +6,7 @@ function LibrarianLogin({ onBack }) {
   const [registerError, setRegisterError] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     setLoginError("");
@@ -20,37 +20,51 @@ function LibrarianLogin({ onBack }) {
       return;
     }
 
-    const registeredLibrarian = JSON.parse(
-      localStorage.getItem("librarianAccount")
-    );
+    try {
+      const response = await fetch("http://172.20.5.235:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (!registeredLibrarian) {
-      setLoginError(
-        "Account not found. Please register first."
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(
+          data.message || "Invalid email or password."
+        );
+        return;
+      }
+
+      if (data.user.role !== "librarian") {
+        setLoginError(
+          "This account is not registered as a librarian."
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "loggedInUser",
+        JSON.stringify(data.user)
       );
-      return;
-    }
 
-    const isCorrectEmail =
-      email.toLowerCase() ===
-      registeredLibrarian.email.toLowerCase();
+      console.log("Librarian login successful");
 
-    const isCorrectPassword =
-      password === registeredLibrarian.password;
-
-    if (!isCorrectEmail || !isCorrectPassword) {
+      // Librarian Dashboard natin ilalagay dito later
+    } catch (error) {
+      console.error(error);
       setLoginError(
-        "Invalid email or password."
+        "Unable to connect to the server."
       );
-      return;
     }
-
-    console.log("Librarian login successful");
-
-    // Dashboard natin ilalagay dito later
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     setRegisterError("");
@@ -75,38 +89,40 @@ function LibrarianLogin({ onBack }) {
       return;
     }
 
-    const existingLibrarian = JSON.parse(
-      localStorage.getItem("librarianAccount")
-    );
+    try {
+      const response = await fetch("http://172.20.5.235:5000/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          password,
+          role: "librarian",
+        }),
+      });
 
-    if (existingLibrarian) {
-      if (
-        existingLibrarian.email.toLowerCase() ===
-        email.toLowerCase()
-      ) {
+      const data = await response.json();
+
+      if (!response.ok) {
         setRegisterError(
-          "Email address is already registered."
+          data.message || "Unable to create account."
         );
         return;
       }
+
+      setRegisterSuccess(
+        "Account created successfully! You can now login."
+      );
+
+      form.reset();
+    } catch (error) {
+      console.error(error);
+      setRegisterError(
+        "Unable to connect to the server."
+      );
     }
-
-    const librarianAccount = {
-      fullName,
-      email,
-      password,
-    };
-
-    localStorage.setItem(
-      "librarianAccount",
-      JSON.stringify(librarianAccount)
-    );
-
-    setRegisterSuccess(
-      "Account created successfully! You can now login."
-    );
-
-    form.reset();
   };
 
   if (showRegister) {
