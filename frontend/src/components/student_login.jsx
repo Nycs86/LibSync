@@ -6,13 +6,13 @@ function StudentLogin({ onBack }) {
   const [registerError, setRegisterError] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     setLoginError("");
 
     const form = e.target;
-    const loginId = form.loginId.value.trim();
+    const email = form.email.value.trim();
     const password = form.loginPassword.value;
 
     if (!form.checkValidity()) {
@@ -20,38 +20,51 @@ function StudentLogin({ onBack }) {
       return;
     }
 
-    const registeredStudent = JSON.parse(
-      localStorage.getItem("studentAccount")
-    );
+    try {
+      const response = await fetch("http://10.170.82.151:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-    if (!registeredStudent) {
-      setLoginError(
-        "Account not found. Please register first."
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(
+          data.message || "Invalid email or password."
+        );
+        return;
+      }
+
+      if (data.user.role !== "student") {
+        setLoginError(
+          "This account is not registered as a student."
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "loggedInUser",
+        JSON.stringify(data.user)
       );
-      return;
-    }
 
-    const isCorrectAccount =
-      loginId.toLowerCase() ===
-        registeredStudent.email.toLowerCase() ||
-      loginId === registeredStudent.studentId;
+      console.log("Student login successful");
 
-    const isCorrectPassword =
-      password === registeredStudent.password;
-
-    if (!isCorrectAccount || !isCorrectPassword) {
+      // Student Dashboard natin ilalagay dito later
+    } catch (error) {
+      console.error(error);
       setLoginError(
-        "Invalid Student ID/email or password."
+        "Unable to connect to the server."
       );
-      return;
     }
-
-    console.log("Student login successful");
-
-    // Dashboard natin ilalagay dito later
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
 
     setRegisterError("");
@@ -64,7 +77,6 @@ function StudentLogin({ onBack }) {
       return;
     }
 
-    const studentId = form.studentId.value.trim();
     const fullName = form.fullName.value.trim();
     const email = form.email.value.trim();
     const password = form.password.value;
@@ -77,48 +89,40 @@ function StudentLogin({ onBack }) {
       return;
     }
 
-    const existingStudent = JSON.parse(
-      localStorage.getItem("studentAccount")
-    );
+    try {
+      const response = await fetch("http://10.170.82.151:5000/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          password,
+          role: "student",
+        }),
+      });
 
-    if (existingStudent) {
-      if (
-        existingStudent.studentId === studentId
-      ) {
+      const data = await response.json();
+
+      if (!response.ok) {
         setRegisterError(
-          "Student ID is already registered."
+          data.message || "Unable to create account."
         );
         return;
       }
 
-      if (
-        existingStudent.email.toLowerCase() ===
-        email.toLowerCase()
-      ) {
-        setRegisterError(
-          "Email address is already registered."
-        );
-        return;
-      }
+      setRegisterSuccess(
+        "Account created successfully! You can now login."
+      );
+
+      form.reset();
+    } catch (error) {
+      console.error(error);
+      setRegisterError(
+        "Unable to connect to the server."
+      );
     }
-
-    const studentAccount = {
-      studentId,
-      fullName,
-      email,
-      password,
-    };
-
-    localStorage.setItem(
-      "studentAccount",
-      JSON.stringify(studentAccount)
-    );
-
-    setRegisterSuccess(
-      "Account created successfully! You can now login."
-    );
-
-    form.reset();
   };
 
   if (showRegister) {
@@ -161,17 +165,6 @@ function StudentLogin({ onBack }) {
           )}
 
           <form onSubmit={handleRegister}>
-
-            <div className="form-group">
-              <label>Student ID</label>
-
-              <input
-                type="text"
-                name="studentId"
-                placeholder="Enter your student ID"
-                required
-              />
-            </div>
 
             <div className="form-group">
               <label>Full Name</label>
@@ -280,13 +273,13 @@ function StudentLogin({ onBack }) {
 
           <div className="form-group">
             <label>
-              Student ID or Email Address
+              Email Address
             </label>
 
             <input
-              type="text"
-              name="loginId"
-              placeholder="Enter your ID or email"
+              type="email"
+              name="email"
+              placeholder="Enter your email address"
               required
             />
           </div>
