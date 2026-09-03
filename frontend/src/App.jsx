@@ -67,13 +67,14 @@ function App() {
   }
 
   // Librarian Login
-  if (selectedRole === "Librarian") {
-    return (
-      <LibrarianLogin
-        onBack={() => setSelectedRole("")}
-      />
-    );
-  }
+if (selectedRole === "Librarian") {
+  return (
+    <LibrarianLogin
+      onBack={() => setSelectedRole("")}
+      onLoginSuccess={() => setIsLibrarianLoggedIn(true)}
+    />
+  );
+}
 
   // Student Login
   if (selectedRole === "Student") {
