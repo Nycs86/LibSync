@@ -1,507 +1,141 @@
-import { useEffect, useState } from "react";
-import "bootstrap/dist/css/bootstrap.min.css";
+import { useState } from "react";
 import "./App.css";
+import Role from "./components/role";
+import AdminLogin from "./components/admin_login";
+import AdminDashboard from "./components/admin_dashboard";
+import LibrarianLogin from "./components/librarian_login";
+import LibrarianDashboard from "./components/librarian_dashboard";
+import StudentLogin from "./components/student_login";
 
 function App() {
-  const emptyForm = {
-    title: "",
-    author: "",
-    isbn: "",
-    category: "",
-    publisher: "",
-    year_published: "",
-    quantity: 1,
-  };
+  const [selectedRole, setSelectedRole] = useState("");
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isLibrarianLoggedIn, setIsLibrarianLoggedIn] = useState(false);
 
-  const [books, setBooks] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("info");
+  const roles = [
+    {
+      name: "Admin",
+      icon: "bi-person-gear",
+      description: "Access admin portal",
+    },
+    {
+      name: "Librarian",
+      icon: "bi-book",
+      description: "Access librarian portal",
+    },
+    {
+      name: "Student",
+      icon: "bi-mortarboard",
+      description: "Access student portal",
+    },
+  ];
 
-  const fetchUsers = async () => {
-  try {
-    const response = await fetch(
-      "http://127.0.0.1:5000/api/users"
+  // Admin Dashboard
+  if (isAdminLoggedIn) {
+    return (
+      <AdminDashboard
+        onLogout={() => {
+          localStorage.removeItem("loggedInUser");
+          setIsAdminLoggedIn(false);
+          setSelectedRole("");
+        }}
+      />
     );
-
-    const data = await response.json();
-
-    setUsers(data);
-  } catch (error) {
-    console.error("Error fetching users:", error);
   }
-};
 
-  const fetchBooks = async () => {
-    try {
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/books"
-      );
-
-      const data = await response.json();
-
-      setBooks(data);
-    } catch (error) {
-      console.error(error);
-      showMessage("Unable to connect to the server.", "danger");
-    }
-  };
-
-  useEffect(() => {
-  fetchBooks();
-  fetchUsers();
-}, []);
-
-  const showMessage = (text, type = "info") => {
-    setMessage(text);
-    setMessageType(type);
-
-    setTimeout(() => {
-      setMessage("");
-    }, 3000);
-  };
-
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const url = editingId
-      ? `http://127.0.0.1:5000/api/books/${editingId}`
-      : "http://127.0.0.1:5000/api/books";
-
-    const method = editingId ? "PUT" : "POST";
-
-    try {
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...form,
-          year_published: form.year_published
-            ? Number(form.year_published)
-            : null,
-          quantity: Number(form.quantity),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(data.message, "success");
-
-        setForm(emptyForm);
-        setEditingId(null);
-
-        fetchBooks();
-      } else {
-        showMessage(data.message, "danger");
-      }
-    } catch (error) {
-      console.error(error);
-      showMessage("Unable to connect to the server.", "danger");
-    }
-  };
-
-  const handleEdit = (book) => {
-    setEditingId(book.id);
-
-    setForm({
-      title: book.title || "",
-      author: book.author || "",
-      isbn: book.isbn || "",
-      category: book.category || "",
-      publisher: book.publisher || "",
-      year_published: book.year_published || "",
-      quantity: book.quantity || 1,
-    });
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm(emptyForm);
-  };
-
-  const handleDelete = async (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this book?"
+  // Librarian Dashboard
+  if (isLibrarianLoggedIn) {
+    return (
+      <LibrarianDashboard
+        onLogout={() => {
+          localStorage.removeItem("loggedInUser");
+          setIsLibrarianLoggedIn(false);
+          setSelectedRole("");
+        }}
+      />
     );
+  }
 
-    if (!confirmDelete) {
-      return;
-    }
+  // Admin Login
+  if (selectedRole === "Admin") {
+    return (
+      <AdminLogin
+        onBack={() => setSelectedRole("")}
+        onLoginSuccess={() => setIsAdminLoggedIn(true)}
+      />
+    );
+  }
 
-    try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/books/${id}`,
-        {
-          method: "DELETE",
-        }
-      );
+  // Librarian Login
+  if (selectedRole === "Librarian") {
+    return (
+      <LibrarianLogin
+        onBack={() => setSelectedRole("")}
+      />
+    );
+  }
 
-      const data = await response.json();
-
-      if (response.ok) {
-        showMessage(data.message, "success");
-        fetchBooks();
-      } else {
-        showMessage(data.message, "danger");
-      }
-    } catch (error) {
-      console.error(error);
-      showMessage("Unable to connect to the server.", "danger");
-    }
-  };
+  // Student Login
+  if (selectedRole === "Student") {
+    return (
+      <StudentLogin
+        onBack={() => setSelectedRole("")}
+      />
+    );
+  }
 
   return (
-    <div className="app">
+    <div className="welcome-page">
+      <div className="container py-5">
 
-      {/* NAVBAR */}
-      <nav className="navbar navbar-dark bg-dark px-4">
-        <span className="navbar-brand fw-bold">
-          LibSync
-        </span>
+        {/* Logo and Title */}
+        <div className="text-center mb-5">
 
-        <span className="text-light">
-          Library Management System
-        </span>
-      </nav>
-
-      <main className="container py-5">
-
-        {/* MESSAGE */}
-        {message && (
-          <div className={`alert alert-${messageType}`}>
-            {message}
-          </div>
-        )}
-
-        {/* BOOK FORM */}
-        <div className="card shadow-sm mb-5">
-          <div className="card-body p-4">
-
-            <h2 className="fw-bold mb-4">
-              {editingId ? "Edit Book" : "Add New Book"}
-            </h2>
-
-            <form onSubmit={handleSubmit}>
-
-              <div className="row">
-
-                <div className="col-md-6 mb-3">
-                  <label className="form-label">
-                    Book Title
-                  </label>
-
-                  <input
-                    type="text"
-                    name="title"
-                    className="form-control"
-                    value={form.title}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="col-md-6 mb-3">
-                  <label className="form-label">
-                    Author
-                  </label>
-
-                  <input
-                    type="text"
-                    name="author"
-                    className="form-control"
-                    value={form.author}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="col-md-6 mb-3">
-                  <label className="form-label">
-                    ISBN
-                  </label>
-
-                  <input
-                    type="text"
-                    name="isbn"
-                    className="form-control"
-                    value={form.isbn}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="col-md-6 mb-3">
-                  <label className="form-label">
-                    Category
-                  </label>
-
-                  <input
-                    type="text"
-                    name="category"
-                    className="form-control"
-                    value={form.category}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="col-md-6 mb-3">
-                  <label className="form-label">
-                    Publisher
-                  </label>
-
-                  <input
-                    type="text"
-                    name="publisher"
-                    className="form-control"
-                    value={form.publisher}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="col-md-3 mb-3">
-                  <label className="form-label">
-                    Year Published
-                  </label>
-
-                  <input
-                    type="number"
-                    name="year_published"
-                    className="form-control"
-                    value={form.year_published}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="col-md-3 mb-3">
-                  <label className="form-label">
-                    Quantity
-                  </label>
-
-                  <input
-                    type="number"
-                    name="quantity"
-                    className="form-control"
-                    min="1"
-                    value={form.quantity}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary me-2"
-              >
-                {editingId ? "Update Book" : "Add Book"}
-              </button>
-
-              {editingId && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={cancelEdit}
-                >
-                  Cancel
-                </button>
-              )}
-
-            </form>
-
-          </div>
-        </div>
-
-        {/* BOOK CATALOG */}
-        <div className="d-flex justify-content-between align-items-center mb-3">
-
-          <div>
-            <h2 className="fw-bold mb-1">
-              Book Catalog
-            </h2>
-
-            <p className="text-muted">
-              Books currently registered in LibSync.
-            </p>
+          <div className="logo">
+            <i className="bi bi-book-half"></i>
           </div>
 
-          <span className="badge bg-dark fs-6">
-            {books.length} Books
-          </span>
+          <h1 className="fw-bold mb-1">
+            LibSync
+          </h1>
+
+          <p className="text-muted mb-0">
+            Library Management System
+          </p>
 
         </div>
 
-        <div className="table-responsive">
+        {/* Select Role */}
+        <div className="text-center mb-4">
 
-          <table className="table table-hover align-middle bg-white">
-
-            <thead className="table-dark">
-
-              <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Author</th>
-                <th>Category</th>
-                <th>ISBN</th>
-                <th>Quantity</th>
-                <th>Available</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {books.map((book) => (
-
-                <tr key={book.id}>
-
-                  <td>{book.id}</td>
-
-                  <td className="fw-semibold">
-                    {book.title}
-                  </td>
-
-                  <td>{book.author}</td>
-
-                  <td>{book.category}</td>
-
-                  <td>{book.isbn}</td>
-
-                  <td>{book.quantity}</td>
-
-                  <td>{book.available_quantity}</td>
-
-                  <td>
-                    <span
-                      className={`badge ${
-                        book.status === "available"
-                          ? "bg-success"
-                          : book.status === "borrowed"
-                          ? "bg-warning text-dark"
-                          : "bg-danger"
-                      }`}
-                    >
-                      {book.status}
-                    </span>
-                  </td>
-
-                  <td>
-                    <button
-                      className="btn btn-sm btn-warning me-2"
-                      onClick={() => handleEdit(book)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => handleDelete(book.id)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
+          <h2 className="fw-semibold">
+            Please select from our services
+          </h2>
 
         </div>
 
-        <div className="mt-5">
+        {/* Role Cards */}
+        <div className="row justify-content-center g-4">
 
-  <div className="d-flex justify-content-between align-items-center mb-3">
+          {roles.map((role) => (
+            <div
+              className="col-12 col-md-4"
+              key={role.name}
+            >
+              <Role
+                name={role.name}
+                icon={role.icon}
+                description={role.description}
+                onClick={() => setSelectedRole(role.name)}
+              />
+            </div>
+          ))}
 
-    <div>
-      <h2 className="fw-bold mb-1">
-        Users
-      </h2>
+        </div>
 
-      <p className="text-muted">
-        Registered users in LibSync.
-      </p>
-    </div>
-
-    <span className="badge bg-dark fs-6">
-      {users.length} users
-    </span>
-
-  </div>
-
-  <div className="table-responsive">
-
-    <table className="table table-hover align-middle bg-white">
-
-      <thead className="table-dark">
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Role</th>
-          <th>Created</th>
-        </tr>
-      </thead>
-
-      <tbody>
-
-        {users.map((user) => (
-          <tr key={user.id}>
-
-            <td>{user.id}</td>
-
-            <td className="fw-semibold">
-              {user.name}
-            </td>
-
-            <td>{user.email}</td>
-
-            <td>
-              <span className="badge bg-primary">
-                {user.role}
-              </span>
-            </td>
-
-            <td>
-              {user.created_at}
-            </td>
-
-          </tr>
-        ))}
-
-      </tbody>
-
-    </table>
-
-  </div>
-
-</div>
-
-      </main>
-
+      </div>
     </div>
   );
 }
-
 
 export default App;
