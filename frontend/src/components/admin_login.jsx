@@ -25,13 +25,14 @@ function AdminLogin({ onBack, onLoginSuccess }) {
       console.log("Connecting to backend...");
 
       const response = await fetch(
-        "https://identify-spilt-cover.ngrok-free.dev/api/login",
-        {
+        "https://identify-spilt-cover.ngrok-free.dev/api/login", {
+
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "ngrok-skip-browser-warning": "true",
           },
+          
           body: JSON.stringify({
             email,
             password,

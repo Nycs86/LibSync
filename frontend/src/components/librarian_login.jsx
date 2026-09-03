@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function LibrarianLogin({ onBack }) {
+function LibrarianLogin({ onBack, onLoginSuccess }) {
   const [showRegister, setShowRegister] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
@@ -21,15 +21,20 @@ function LibrarianLogin({ onBack }) {
     }
 
     try {
-      const response = await fetch("http://172.20.5.235:5000/api/login", {
+      const response = await fetch("https://identify-spilt-cover.ngrok-free.dev/api/login", {
+
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
         },
+
         body: JSON.stringify({
           email,
           password,
+
         }),
+
       });
 
       const data = await response.json();
@@ -54,6 +59,9 @@ function LibrarianLogin({ onBack }) {
       );
 
       console.log("Librarian login successful");
+      console.log("Librarian account:", data.user);
+
+      onLoginSuccess();
 
       // Librarian Dashboard natin ilalagay dito later
     } catch (error) {

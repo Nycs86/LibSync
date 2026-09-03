@@ -10,6 +10,7 @@ import StudentLogin from "./components/student_login";
 function App() {
   const [selectedRole, setSelectedRole] = useState("");
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isLibrarianLoggedIn, setIsLibrarianLoggedIn] = useState(false);
 
   const roles = [
     {
@@ -36,6 +37,19 @@ function App() {
         onLogout={() => {
           localStorage.removeItem("loggedInUser");
           setIsAdminLoggedIn(false);
+          setSelectedRole("");
+        }}
+      />
+    );
+  }
+
+  // Librarian Dashboard
+  if (isLibrarianLoggedIn) {
+    return (
+      <LibrarianDashboard
+        onLogout={() => {
+          localStorage.removeItem("loggedInUser");
+          setIsLibrarianLoggedIn(false);
           setSelectedRole("");
         }}
       />
