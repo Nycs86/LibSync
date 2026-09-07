@@ -6,11 +6,13 @@ import AdminDashboard from "./components/admin_dashboard";
 import LibrarianLogin from "./components/librarian_login";
 import LibrarianDashboard from "./components/librarian_dashboard";
 import StudentLogin from "./components/student_login";
+import StudentDashboard from "./components/student_dashboard";
 
 function App() {
   const [selectedRole, setSelectedRole] = useState("");
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isLibrarianLoggedIn, setIsLibrarianLoggedIn] = useState(false);
+  const [isStudentLoggedIn, setIsStudentLoggedIn] = useState(false);
 
   const roles = [
     {
@@ -55,6 +57,18 @@ function App() {
       />
     );
   }
+// Student Dashboard
+  if (isStudentLoggedIn) {
+  return (
+    <StudentDashboard
+      onLogout={() => {
+        localStorage.removeItem("loggedInUser");
+        setIsStudentLoggedIn(false);
+        setSelectedRole("");
+      }}
+    />
+  );
+}
 
   // Admin Login
   if (selectedRole === "Admin") {
@@ -77,14 +91,14 @@ if (selectedRole === "Librarian") {
 }
 
   // Student Login
-  if (selectedRole === "Student") {
-    return (
-      <StudentLogin
-        onBack={() => setSelectedRole("")}
-      />
-    );
-  }
-
+ if (selectedRole === "Student") {
+  return (
+    <StudentLogin
+      onBack={() => setSelectedRole("")}
+      onLoginSuccess={() => setIsStudentLoggedIn(true)}
+    />
+  );
+}
   return (
     <div className="welcome-page">
       <div className="container py-5">

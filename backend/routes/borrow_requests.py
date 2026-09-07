@@ -190,13 +190,13 @@ def get_borrow_requests():
     "/api/borrow-requests/<int:request_id>/decision",
     methods=["PUT"]
 )
-@require_role("admin")
+@require_role("librarian")
 def decide_borrow_request(request_id):
 
     data = request.get_json() or {}
 
-    # Get authenticated admin ID from the authentication helper
-    admin_id = request.authenticated_user_id
+    # Get authenticated librarian ID from the authentication helper
+    librarian_id = request.authenticated_user_id
     decision = data.get("decision")
 
     if not decision:
@@ -265,7 +265,7 @@ def decide_borrow_request(request_id):
                     approved_by = %s,
                     approved_at = NOW()
                 WHERE id = %s
-            """, (admin_id, request_id))
+            """, (librarian_id, request_id))
 
             conn.commit()
 
@@ -299,7 +299,7 @@ def decide_borrow_request(request_id):
                 approved_at = NOW(),
                 qr_token = %s
             WHERE id = %s
-        """, (admin_id, qr_token, request_id))
+        """, (librarian_id, qr_token, request_id))
 
         # Reduce available quantity
         cursor.execute("""
@@ -364,13 +364,6 @@ def decide_borrow_request(request_id):
 
         cursor.close()
         conn.close()
-
-# GENERATE QR CODE FOR APPROVED BORROW REQUEST
-
-@borrow_requests_bp.route(
-    "/api/borrow-requests/<int:request_id>/qr",
-    methods=["GET"]
-)
 
 # GET BORROW REQUESTS FOR A SPECIFIC STUDENT
 
@@ -444,6 +437,11 @@ def get_student_borrow_requests(user_id):
         cursor.close()
         conn.close()
         
+# GENERATE QR CODE FOR APPROVED BORROW REQUEST
+@borrow_requests_bp.route(
+    "/api/borrow-requests/<int:request_id>/qr",
+    methods=["GET"]
+)
 def generate_borrow_qr(request_id):
 
     conn = get_db_connection()

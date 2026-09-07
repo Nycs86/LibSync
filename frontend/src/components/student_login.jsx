@@ -1,10 +1,14 @@
 import { useState } from "react";
 
-function StudentLogin({ onBack }) {
+function StudentLogin({ onBack, onLoginSuccess }) {
   const [showRegister, setShowRegister] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState("");
+
+  const API_URL =
+    "https://identify-spilt-cover.ngrok-free.dev";
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -12,6 +16,7 @@ function StudentLogin({ onBack }) {
     setLoginError("");
 
     const form = e.target;
+
     const email = form.email.value.trim();
     const password = form.loginPassword.value;
 
@@ -21,16 +26,23 @@ function StudentLogin({ onBack }) {
     }
 
     try {
-      const response = await fetch("https://identify-spilt-cover.ngrok-free.dev/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/login`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true",
+          },
+
+          body: JSON.stringify({
+            email,
+            password,
+            role: "student",
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -38,6 +50,7 @@ function StudentLogin({ onBack }) {
         setLoginError(
           data.message || "Invalid email or password."
         );
+
         return;
       }
 
@@ -45,6 +58,7 @@ function StudentLogin({ onBack }) {
         setLoginError(
           "This account is not registered as a student."
         );
+
         return;
       }
 
@@ -55,14 +69,17 @@ function StudentLogin({ onBack }) {
 
       console.log("Student login successful");
 
-      // Student Dashboard natin ilalagay dito later
+      onLoginSuccess();
+
     } catch (error) {
       console.error(error);
+
       setLoginError(
         "Unable to connect to the server."
       );
     }
   };
+
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -77,38 +94,54 @@ function StudentLogin({ onBack }) {
       return;
     }
 
-    const fullName = form.fullName.value.trim();
-    const email = form.email.value.trim();
-    const password = form.password.value;
-    const confirmPassword = form.confirmPassword.value;
+    const fullName =
+      form.fullName.value.trim();
+
+    const email =
+      form.email.value.trim();
+
+    const password =
+      form.password.value;
+
+    const confirmPassword =
+      form.confirmPassword.value;
+
 
     if (password !== confirmPassword) {
       setRegisterError(
         "Passwords do not match."
       );
+
       return;
     }
 
     try {
-      const response = await fetch("https://identify-spilt-cover.ngrok-free.dev/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: fullName,
-          email,
-          password,
-          role: "student",
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/users`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true",
+          },
+
+          body: JSON.stringify({
+            name: fullName,
+            email,
+            password,
+          }),
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
         setRegisterError(
-          data.message || "Unable to create account."
+          data.message ||
+            "Unable to create account."
         );
+
         return;
       }
 
@@ -117,17 +150,21 @@ function StudentLogin({ onBack }) {
       );
 
       form.reset();
+
     } catch (error) {
       console.error(error);
+
       setRegisterError(
         "Unable to connect to the server."
       );
     }
   };
 
+
   if (showRegister) {
     return (
       <div className="login-page">
+
         <div className="login-card">
 
           <button
@@ -142,15 +179,20 @@ function StudentLogin({ onBack }) {
             Back to Login
           </button>
 
+
           <div className="login-icon">
             <i className="bi bi-person-plus"></i>
           </div>
 
-          <h1>Student Registration</h1>
+
+          <h1>
+            Student Registration
+          </h1>
 
           <p>
             Create your LibSync student account
           </p>
+
 
           {registerError && (
             <div className="form-error">
@@ -158,16 +200,21 @@ function StudentLogin({ onBack }) {
             </div>
           )}
 
+
           {registerSuccess && (
             <div className="form-success">
               {registerSuccess}
             </div>
           )}
 
+
           <form onSubmit={handleRegister}>
 
             <div className="form-group">
-              <label>Full Name</label>
+
+              <label>
+                Full Name
+              </label>
 
               <input
                 type="text"
@@ -175,10 +222,15 @@ function StudentLogin({ onBack }) {
                 placeholder="Enter your full name"
                 required
               />
+
             </div>
 
+
             <div className="form-group">
-              <label>Email Address</label>
+
+              <label>
+                Email Address
+              </label>
 
               <input
                 type="email"
@@ -186,10 +238,15 @@ function StudentLogin({ onBack }) {
                 placeholder="Enter your email address"
                 required
               />
+
             </div>
 
+
             <div className="form-group">
-              <label>Password</label>
+
+              <label>
+                Password
+              </label>
 
               <input
                 type="password"
@@ -198,10 +255,15 @@ function StudentLogin({ onBack }) {
                 minLength="8"
                 required
               />
+
             </div>
 
+
             <div className="form-group">
-              <label>Confirm Password</label>
+
+              <label>
+                Confirm Password
+              </label>
 
               <input
                 type="password"
@@ -210,7 +272,9 @@ function StudentLogin({ onBack }) {
                 minLength="8"
                 required
               />
+
             </div>
+
 
             <button
               type="submit"
@@ -221,7 +285,9 @@ function StudentLogin({ onBack }) {
 
           </form>
 
+
           <div className="register-link">
+
             Already have an account?{" "}
 
             <button
@@ -234,15 +300,19 @@ function StudentLogin({ onBack }) {
             >
               Login
             </button>
+
           </div>
 
         </div>
+
       </div>
     );
   }
 
+
   return (
     <div className="login-page">
+
       <div className="login-card">
 
         <button
@@ -253,15 +323,20 @@ function StudentLogin({ onBack }) {
           Back
         </button>
 
+
         <div className="login-icon">
           <i className="bi bi-mortarboard"></i>
         </div>
 
-        <h1>Student Login</h1>
+
+        <h1>
+          Student Login
+        </h1>
 
         <p>
           Access your LibSync student account
         </p>
+
 
         {loginError && (
           <div className="form-error">
@@ -269,9 +344,11 @@ function StudentLogin({ onBack }) {
           </div>
         )}
 
+
         <form onSubmit={handleLogin}>
 
           <div className="form-group">
+
             <label>
               Email Address
             </label>
@@ -282,10 +359,15 @@ function StudentLogin({ onBack }) {
               placeholder="Enter your email address"
               required
             />
+
           </div>
 
+
           <div className="form-group">
-            <label>Password</label>
+
+            <label>
+              Password
+            </label>
 
             <input
               type="password"
@@ -293,7 +375,9 @@ function StudentLogin({ onBack }) {
               placeholder="Enter your password"
               required
             />
+
           </div>
+
 
           <button
             type="submit"
@@ -304,7 +388,9 @@ function StudentLogin({ onBack }) {
 
         </form>
 
+
         <div className="register-link">
+
           Don't have an account?{" "}
 
           <button
@@ -316,9 +402,11 @@ function StudentLogin({ onBack }) {
           >
             Register
           </button>
+
         </div>
 
       </div>
+
     </div>
   );
 }
