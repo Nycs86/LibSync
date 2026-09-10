@@ -1,771 +1,363 @@
 import { useState } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 
 function StudentDashboard({ onLogout }) {
   const user = JSON.parse(
     localStorage.getItem("loggedInUser")
   );
 
-  const API_URL =
-    "https://identify-spilt-cover.ngrok-free.dev";
+  const [activeMenu, setActiveMenu] = useState("books");
 
-  const [activeSection, setActiveSection] = useState("");
-  const [books, setBooks] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [borrowings, setBorrowings] = useState([]);
-  const [profile, setProfile] = useState(null);
+  const [books] = useState([
+    {
+      id: "BK001",
+      title: "Introduction to Algorithms",
+      author: "Thomas H. Cormen",
+      category: "Computer Science",
+      available: true,
+    },
+    {
+      id: "BK002",
+      title: "Clean Code",
+      author: "Robert C. Martin",
+      category: "Programming",
+      available: true,
+    },
+    {
+      id: "BK003",
+      title: "Database System Concepts",
+      author: "Abraham Silberschatz",
+      category: "Database",
+      available: true,
+    },
+    {
+      id: "BK004",
+      title: "Web Development Basics",
+      author: "John Smith",
+      category: "Web Development",
+      available: false,
+    },
+  ]);
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [selectedBooks, setSelectedBooks] = useState([]);
 
+  const addBook = (book) => {
+    const exists = selectedBooks.some(
+      (item) => item.id === book.id
+    );
 
-  // =========================
-  // GET BOOKS
-  // =========================
-
-  const getBooks = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/books`,
-        {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(
-          data.message || "Failed to load books."
-        );
-        return;
-      }
-
-      setBooks(Array.isArray(data) ? data : []);
-
-    } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
-
-    } finally {
-      setLoading(false);
+    if (!exists && book.available) {
+      setSelectedBooks((prev) => [...prev, book]);
     }
   };
 
-
-  // =========================
-  // BORROW BOOK
-  // =========================
-
-  const requestBook = async (bookId) => {
-    try {
-      setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/borrow-requests`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
-          },
-
-          body: JSON.stringify({
-            user_id: user.id,
-            book_id: bookId,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(
-          data.message ||
-            "Unable to submit borrow request."
-        );
-        return;
-      }
-
-      setMessage(
-        "Borrow request submitted successfully."
-      );
-
-      await getBooks();
-
-    } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
-    }
+  const removeBook = (bookId) => {
+    setSelectedBooks((prev) =>
+      prev.filter((book) => book.id !== bookId)
+    );
   };
-
-
-  // =========================
-  // GET STUDENT REQUESTS
-  // =========================
-
-  const getMyRequests = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/student/borrow-requests/${user.id}`,
-        {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(
-          data.message ||
-            "Failed to load borrow requests."
-        );
-        return;
-      }
-
-      setRequests(data.requests || []);
-
-    } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // =========================
-  // GET BORROWED BOOKS
-  // =========================
-
-  const getBorrowings = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/student/borrowings/${user.id}`,
-        {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(
-          data.message ||
-            "Failed to load borrowed books."
-        );
-        return;
-      }
-
-      if (Array.isArray(data)) {
-        setBorrowings(data);
-      } else {
-        setBorrowings(data.borrowings || []);
-      }
-
-    } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // =========================
-  // GET PROFILE
-  // =========================
-
-  const getProfile = async () => {
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/student/profile/${user.id}`,
-        {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setMessage(
-          data.message || "Failed to load profile."
-        );
-        return;
-      }
-
-      setProfile(data.user || data);
-
-    } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // =========================
-  // OPEN SECTIONS
-  // =========================
-
-  const openBooks = () => {
-    setActiveSection("books");
-    getBooks();
-  };
-
-
-  const openRequests = () => {
-    setActiveSection("requests");
-    getMyRequests();
-  };
-
-
-  const openBorrowings = () => {
-    setActiveSection("borrowings");
-    getBorrowings();
-  };
-
-
-  const openProfile = () => {
-    setActiveSection("profile");
-    getProfile();
-  };
-
-
-  // =========================
-  // DATE FORMAT
-  // =========================
-
-  const formatDate = (date) => {
-    if (!date) return "-";
-
-    return new Date(date).toLocaleString();
-  };
-
 
   return (
-    <div className="dashboard-page">
+    <div className="student-dashboard">
 
       {/* HEADER */}
-
-      <div className="dashboard-header">
-
+      <header className="student-header">
         <div>
           <h1>Student Dashboard</h1>
-
           <p>
-            Welcome, {user?.name || "Student"}
+            Welcome, {user?.name || "Student"}!
           </p>
         </div>
-
 
         <button
-          className="logout-button"
+          className="student-logout"
           onClick={onLogout}
         >
+          <i className="bi bi-box-arrow-right"></i>
           Logout
         </button>
+      </header>
 
-      </div>
+      {/* BODY */}
+      <div className="student-body">
 
+        {/* SIDEBAR */}
+        <aside className="student-sidebar">
 
-      {/* DASHBOARD CARDS */}
-
-      <div className="dashboard-cards">
-
-        {/* BOOKS */}
-
-        <div className="dashboard-card">
-
-          <div className="dashboard-card-icon">
+          <button
+            className={
+              activeMenu === "books"
+                ? "student-menu active"
+                : "student-menu"
+            }
+            onClick={() => setActiveMenu("books")}
+          >
             <i className="bi bi-book"></i>
-          </div>
-
-          <h2>Books</h2>
-
-          <p>
-            Browse available library books
-          </p>
-
-          <button onClick={openBooks}>
-            View Books
+            <span>Books</span>
           </button>
 
-        </div>
+          <button
+            className={
+              activeMenu === "selected"
+                ? "student-menu active"
+                : "student-menu"
+            }
+            onClick={() => setActiveMenu("selected")}
+          >
+            <i className="bi bi-cart3"></i>
+            <span>Selected Books</span>
 
-
-        {/* REQUESTS */}
-
-        <div className="dashboard-card">
-
-          <div className="dashboard-card-icon">
-            <i className="bi bi-arrow-left-right"></i>
-          </div>
-
-          <h2>Borrow Requests</h2>
-
-          <p>
-            Check your request status
-          </p>
-
-          <button onClick={openRequests}>
-            My Requests
+            {selectedBooks.length > 0 && (
+              <span className="menu-count">
+                {selectedBooks.length}
+              </span>
+            )}
           </button>
 
-        </div>
-
-
-        {/* BORROWED BOOKS */}
-
-        <div className="dashboard-card">
-
-          <div className="dashboard-card-icon">
-            <i className="bi bi-journal-bookmark"></i>
-          </div>
-
-          <h2>Borrowed Books</h2>
-
-          <p>
-            View borrowed books and due dates
-          </p>
-
-          <button onClick={openBorrowings}>
-            View Borrowed Books
+          <button
+            className={
+              activeMenu === "qr"
+                ? "student-menu active"
+                : "student-menu"
+            }
+            onClick={() => setActiveMenu("qr")}
+          >
+            <i className="bi bi-qr-code"></i>
+            <span>QR Code</span>
           </button>
 
-        </div>
+        </aside>
 
+        {/* MAIN CONTENT */}
+        <main className="student-main">
 
-        {/* PROFILE */}
+          {/* BOOKS */}
+          {activeMenu === "books" && (
+            <section>
+              <div className="student-section-heading">
+                <div>
+                  <h2>Available Books</h2>
+                  <p>
+                    Choose the books you want to borrow.
+                  </p>
+                </div>
+              </div>
 
-        <div className="dashboard-card">
+              <div className="student-books-grid">
+                {books.map((book) => {
+                  const selected = selectedBooks.some(
+                    (item) => item.id === book.id
+                  );
 
-          <div className="dashboard-card-icon">
-            <i className="bi bi-person"></i>
-          </div>
+                  return (
+                    <div
+                      className="student-book-card"
+                      key={book.id}
+                    >
+                      <div className="student-book-icon">
+                        <i className="bi bi-book"></i>
+                      </div>
 
-          <h2>Profile</h2>
+                      <div className="student-book-info">
+                        <h3>{book.title}</h3>
 
-          <p>
-            View your student account
-          </p>
+                        <p className="book-author">
+                          {book.author}
+                        </p>
 
-          <button onClick={openProfile}>
-            View Profile
-          </button>
+                        <p className="book-category">
+                          {book.category}
+                        </p>
 
-        </div>
-
-      </div>
-
-
-      {/* MESSAGE */}
-
-      {message && (
-        <div className="dashboard-message">
-          {message}
-        </div>
-      )}
-
-
-      {/* =========================
-          BOOKS
-      ========================= */}
-
-      {activeSection === "books" && (
-
-        <div className="management-section">
-
-          <div className="management-header">
-
-            <div>
-              <h2>Available Books</h2>
-
-              <p>
-                Select a book you want to borrow.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setActiveSection("")}
-            >
-              Close
-            </button>
-
-          </div>
-
-
-          {loading ? (
-
-            <p>Loading books...</p>
-
-          ) : books.length === 0 ? (
-
-            <p>No books found.</p>
-
-          ) : (
-
-            <table className="management-table">
-
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Title</th>
-                  <th>Author</th>
-                  <th>Category</th>
-                  <th>Available</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-
-
-              <tbody>
-
-                {books.map((book) => (
-
-                  <tr key={book.id}>
-
-                    <td>{book.id}</td>
-
-                    <td>{book.title}</td>
-
-                    <td>{book.author}</td>
-
-                    <td>
-                      {book.category || "-"}
-                    </td>
-
-                    <td>
-                      {book.available_quantity}
-                    </td>
-
-                    <td>
-                      {book.status}
-                    </td>
-
-                    <td>
-
-                      {book.available_quantity > 0 ? (
-
-                        <button
-                          onClick={() =>
-                            requestBook(book.id)
+                        <span
+                          className={
+                            book.available
+                              ? "book-status available"
+                              : "book-status unavailable"
                           }
                         >
-                          Borrow
-                        </button>
-
-                      ) : (
-
-                        <span>
-                          Unavailable
+                          {book.available
+                            ? "Available"
+                            : "Borrowed"}
                         </span>
+                      </div>
 
-                      )}
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
+                      <button
+                        className="select-book-button"
+                        disabled={!book.available || selected}
+                        onClick={() => addBook(book)}
+                      >
+                        {selected
+                          ? "Selected"
+                          : book.available
+                          ? "Select Book"
+                          : "Unavailable"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
-        </div>
+          {/* SELECTED BOOKS */}
+          {activeMenu === "selected" && (
+            <section>
+              <div className="student-section-heading">
+                <div>
+                  <h2>Selected Books</h2>
+                  <p>
+                    These are the books you selected for borrowing.
+                  </p>
+                </div>
+              </div>
 
-      )}
+              {selectedBooks.length === 0 ? (
+                <div className="student-empty-state">
+                  <i className="bi bi-cart-x"></i>
 
+                  <h3>No books selected</h3>
 
-      {/* =========================
-          BORROW REQUESTS
-      ========================= */}
+                  <p>
+                    Go to Books and select a book first.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="selected-books-list">
+                    {selectedBooks.map((book) => (
+                      <div
+                        className="selected-book-row"
+                        key={book.id}
+                      >
+                        <div className="selected-book-icon">
+                          <i className="bi bi-book"></i>
+                        </div>
 
-      {activeSection === "requests" && (
+                        <div className="selected-book-details">
+                          <h3>{book.title}</h3>
+                          <p>{book.author}</p>
+                        </div>
 
-        <div className="management-section">
+                        <button
+                          className="remove-book-button"
+                          onClick={() =>
+                            removeBook(book.id)
+                          }
+                        >
+                          <i className="bi bi-trash"></i>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
 
-          <div className="management-header">
-
-            <div>
-              <h2>My Borrow Requests</h2>
-
-              <p>
-                View the status of your book requests.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setActiveSection("")}
-            >
-              Close
-            </button>
-
-          </div>
-
-
-          {loading ? (
-
-            <p>Loading requests...</p>
-
-          ) : requests.length === 0 ? (
-
-            <p>No borrow requests found.</p>
-
-          ) : (
-
-            <table className="management-table">
-
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Book</th>
-                  <th>Requested</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-
-
-              <tbody>
-
-                {requests.map((request) => (
-
-                  <tr key={request.id}>
-
-                    <td>
-                      {request.id}
-                    </td>
-
-                    <td>
-                      {request.book_title}
-                    </td>
-
-                    <td>
-                      {formatDate(
-                        request.requested_at
-                      )}
-                    </td>
-
-                    <td>
-                      {request.status}
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
+                  <button
+                    className="generate-qr-button"
+                    onClick={() => setActiveMenu("qr")}
+                  >
+                    <i className="bi bi-qr-code"></i>
+                    Generate QR Code
+                  </button>
+                </>
+              )}
+            </section>
           )}
 
-        </div>
+          {/* QR CODE */}
+          {activeMenu === "qr" && (
+            <section>
+              <div className="student-section-heading">
+                <div>
+                  <h2>QR Code</h2>
+                  <p>
+                    Generate your borrowing request QR code.
+                  </p>
+                </div>
+              </div>
 
-      )}
+              {selectedBooks.length === 0 ? (
+                <div className="student-empty-state">
+                  <i className="bi bi-qr-code"></i>
 
+                  <h3>No borrowing request</h3>
 
-      {/* =========================
-          BORROWED BOOKS
-      ========================= */}
+                  <p>
+                    Select books first before generating
+                    your QR code.
+                  </p>
 
-      {activeSection === "borrowings" && (
+                  <button
+                    className="go-books-button"
+                    onClick={() => setActiveMenu("books")}
+                  >
+                    Browse Books
+                  </button>
+                </div>
+              ) : (
+                <div className="qr-page">
 
-        <div className="management-section">
+                  <div className="qr-card">
+                    <h2>Borrowing Request</h2>
 
-          <div className="management-header">
+                    <p className="qr-student-name">
+                      Student:{" "}
+                      <strong>
+                        {user?.name || "Student"}
+                      </strong>
+                    </p>
 
-            <div>
-              <h2>Borrowed Books</h2>
+                    <div className="qr-real-container">
+                      <QRCodeCanvas
+                        value={JSON.stringify({
+                          request_type: "BORROW",
+                          student_id: user?.id,
+                          student_name: user?.name,
+                          books: selectedBooks.map((book) => ({
+                            book_id: book.id,
+                            book_title: book.title,
+                            author: book.author,
+                          })),
+                        })}
+                        size={220}
+                        level="H"
+                      />
+                    </div>
 
-              <p>
-                View your borrowed books and return dates.
-              </p>
-            </div>
+                    <p className="qr-note">
+                      This QR code will contain your selected
+                      books and borrowing request information.
+                    </p>
 
-            <button
-              onClick={() => setActiveSection("")}
-            >
-              Close
-            </button>
+                    <div className="qr-book-summary">
+                      <h3>Selected Books</h3>
 
-          </div>
+                      {selectedBooks.map((book) => (
+                        <div
+                          className="qr-book-item"
+                          key={book.id}
+                        >
+                          <i className="bi bi-book"></i>
+                          <span>{book.title}</span>
+                        </div>
+                      ))}
+                    </div>
 
+                    <button
+                      className="generate-real-qr-button"
+                    >
+                      <i className="bi bi-qr-code"></i>
+                      Generate QR
+                    </button>
+                  </div>
 
-          {loading ? (
-
-            <p>Loading borrowed books...</p>
-
-          ) : borrowings.length === 0 ? (
-
-            <p>No borrowing records found.</p>
-
-          ) : (
-
-            <table className="management-table">
-
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Book</th>
-                  <th>Borrowed</th>
-                  <th>Due Date</th>
-                  <th>Returned</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-
-
-              <tbody>
-
-                {borrowings.map((borrowing) => (
-
-                  <tr key={borrowing.id}>
-
-                    <td>
-                      {borrowing.id}
-                    </td>
-
-                    <td>
-                      {borrowing.book_title ||
-                        borrowing.title ||
-                        `Book #${borrowing.book_id}`}
-                    </td>
-
-                    <td>
-                      {formatDate(
-                        borrowing.borrowed_at
-                      )}
-                    </td>
-
-                    <td>
-                      {formatDate(
-                        borrowing.due_date
-                      )}
-                    </td>
-
-                    <td>
-                      {borrowing.returned_at
-                        ? formatDate(
-                            borrowing.returned_at
-                          )
-                        : "Not returned"}
-                    </td>
-
-                    <td>
-                      {borrowing.status}
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
+                </div>
+              )}
+            </section>
           )}
 
-        </div>
-
-      )}
-
-
-      {/* =========================
-          PROFILE
-      ========================= */}
-
-      {activeSection === "profile" && (
-
-        <div className="management-section">
-
-          <div className="management-header">
-
-            <div>
-              <h2>Student Profile</h2>
-
-              <p>
-                Your LibSync account information.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setActiveSection("")}
-            >
-              Close
-            </button>
-
-          </div>
-
-
-          {loading ? (
-
-            <p>Loading profile...</p>
-
-          ) : profile ? (
-
-            <div>
-
-              <p>
-                <strong>ID:</strong>{" "}
-                {profile.id}
-              </p>
-
-              <p>
-                <strong>Name:</strong>{" "}
-                {profile.name}
-              </p>
-
-              <p>
-                <strong>Email:</strong>{" "}
-                {profile.email}
-              </p>
-
-              <p>
-                <strong>Role:</strong>{" "}
-                {profile.role}
-              </p>
-
-            </div>
-
-          ) : (
-
-            <p>Profile not found.</p>
-
-          )}
-
-        </div>
-
-      )}
-
+        </main>
+      </div>
     </div>
   );
 }
