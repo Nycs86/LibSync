@@ -4,23 +4,40 @@ from .auth import require_role
 import qrcode
 import io
 import base64
+import uuid
 
 
 borrow_requests_bp = Blueprint("borrow_requests", __name__)
 
 @borrow_requests_bp.route("/api/borrow-requests", methods=["POST"])
 def create_borrow_request():
-
-    data = request.get_json()
+    data = request.get_json() or {}
 
     user_id = data.get("user_id")
-    book_id = data.get("book_id")
+    book_ids = data.get("book_ids")
 
-    if not user_id or not book_id:
+    # Backward compatibility:
+    # kung isang book_id lang ang sinend ng old frontend
+    if not book_ids:
+        single_book_id = data.get("book_id")
+
+        if single_book_id:
+            book_ids = [single_book_id]
+
+    if not user_id or not book_ids:
         return jsonify({
             "status": "error",
-            "message": "user_id and book_id are required."
+            "message": "user_id and book_ids are required."
         }), 400
+
+    if not isinstance(book_ids, list):
+        return jsonify({
+            "status": "error",
+            "message": "book_ids must be a list."
+        }), 400
+
+    # Remove duplicate book IDs
+    book_ids = list(dict.fromkeys(book_ids))
 
     conn = get_db_connection()
 
@@ -34,84 +51,160 @@ def create_borrow_request():
 
     try:
 
-        # Check if user exists
-        cursor.execute(
-            "SELECT id FROM users WHERE id = %s",
-            (user_id,)
-        )
+        # =========================
+        # CHECK STUDENT
+        # =========================
 
-        user = cursor.fetchone()
-
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "User not found."
-            }), 404
-
-        # Check book
-        cursor.execute(
-            """
-            SELECT id, title, available_quantity
-            FROM books
+        cursor.execute("""
+            SELECT id, name, role
+            FROM users
             WHERE id = %s
-            """,
-            (book_id,)
-        )
+        """, (user_id,))
 
-        book = cursor.fetchone()
+        student = cursor.fetchone()
 
-        if not book:
+        if not student:
             return jsonify({
                 "status": "error",
-                "message": "Book not found."
+                "message": "Student not found."
             }), 404
+
+        if student["role"] != "student":
+            return jsonify({
+                "status": "error",
+                "message": "Only students can create borrow requests."
+            }), 403
+
+
+        # =========================
+        # CHECK ALL BOOKS
+        # =========================
+
+        placeholders = ",".join(["%s"] * len(book_ids))
+
+        cursor.execute(
+            f"""
+            SELECT
+                id,
+                title,
+                available_quantity,
+                status
+            FROM books
+            WHERE id IN ({placeholders})
+            """,
+            tuple(book_ids)
+        )
+
+        books = cursor.fetchall()
+
+        if len(books) != len(book_ids):
+            return jsonify({
+                "status": "error",
+                "message": "One or more selected books do not exist."
+            }), 404
+
 
         # Check availability
-        if book["available_quantity"] <= 0:
+        unavailable_books = []
+
+        for book in books:
+            if book["available_quantity"] <= 0:
+                unavailable_books.append(book["title"])
+
+        if unavailable_books:
             return jsonify({
                 "status": "error",
-                "message": "Book is currently unavailable."
+                "message": "Some selected books are unavailable.",
+                "books": unavailable_books
             }), 400
 
-        # Check existing pending request
+
+        # =========================
+        # CHECK EXISTING REQUESTS
+        # =========================
+
         cursor.execute(
-            """
-            SELECT id
-            FROM borrow_requests
-            WHERE user_id = %s
-            AND book_id = %s
-            AND status = 'pending'
+            f"""
+            SELECT
+                br.book_id,
+                b.title
+            FROM borrow_requests br
+            INNER JOIN books b
+                ON br.book_id = b.id
+            WHERE br.user_id = %s
+            AND br.book_id IN ({placeholders})
+            AND br.status = 'pending'
             """,
-            (user_id, book_id)
+            tuple([user_id] + book_ids)
         )
 
-        existing_request = cursor.fetchone()
+        existing_requests = cursor.fetchall()
 
-        if existing_request:
+        if existing_requests:
             return jsonify({
                 "status": "error",
-                "message": "You already have a pending request for this book."
+                "message": "You already have pending requests for some selected books.",
+                "books": [
+                    item["title"]
+                    for item in existing_requests
+                ]
             }), 400
 
-        # Create request
-        cursor.execute(
-            """
-            INSERT INTO borrow_requests
-            (user_id, book_id, status)
-            VALUES (%s, %s, 'pending')
-            """,
-            (user_id, book_id)
-        )
+
+        # =========================
+        # CREATE BORROW BATCH
+        # =========================
+
+        cursor.execute("""
+            INSERT INTO borrow_batches (
+                user_id,
+                status
+            )
+            VALUES (%s, 'pending')
+        """, (user_id,))
+
+        batch_id = cursor.lastrowid
+
+
+        # =========================
+        # CREATE REQUEST PER BOOK
+        # =========================
+
+        request_ids = []
+
+        for book_id in book_ids:
+
+            cursor.execute("""
+                INSERT INTO borrow_requests (
+                    batch_id,
+                    user_id,
+                    book_id,
+                    status
+                )
+                VALUES (%s, %s, %s, 'pending')
+            """, (
+                batch_id,
+                user_id,
+                book_id
+            ))
+
+            request_ids.append(
+                cursor.lastrowid
+            )
+
 
         conn.commit()
 
-        request_id = cursor.lastrowid
 
         return jsonify({
             "status": "success",
-            "message": "Borrow request submitted successfully.",
-            "request_id": request_id
+            "message": "Borrow batch submitted successfully.",
+            "batch_id": batch_id,
+            "request_ids": request_ids,
+            "total_books": len(book_ids),
+            "qr_available": False
         }), 201
+
 
     except Exception as e:
 
@@ -122,8 +215,8 @@ def create_borrow_request():
             "message": str(e)
         }), 500
 
-    finally:
 
+    finally:
         cursor.close()
         conn.close()
 
@@ -195,7 +288,6 @@ def decide_borrow_request(request_id):
 
     data = request.get_json() or {}
 
-    # Get authenticated librarian ID from the authentication helper
     librarian_id = request.authenticated_user_id
     decision = data.get("decision")
 
@@ -223,10 +315,14 @@ def decide_borrow_request(request_id):
 
     try:
 
-        # Get borrow request
+        # =========================
+        # GET REQUEST
+        # =========================
+
         cursor.execute("""
             SELECT
                 br.id,
+                br.batch_id,
                 br.user_id,
                 br.book_id,
                 br.status,
@@ -246,17 +342,71 @@ def decide_borrow_request(request_id):
                 "message": "Borrow request not found."
             }), 404
 
+
+        if not borrow_request["batch_id"]:
+            return jsonify({
+                "status": "error",
+                "message": "This request is not connected to a borrow batch."
+            }), 400
+
+
         if borrow_request["status"] != "pending":
             return jsonify({
                 "status": "error",
                 "message": "This request has already been processed."
             }), 400
 
+
+        batch_id = borrow_request["batch_id"]
+
+
         # =========================
-        # DECLINE REQUEST
+        # APPROVE
         # =========================
 
-        if decision == "declined":
+        if decision == "approved":
+
+            if borrow_request["available_quantity"] <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "Book is no longer available."
+                }), 400
+
+
+            cursor.execute("""
+                UPDATE borrow_requests
+                SET
+                    status = 'approved',
+                    approved_by = %s,
+                    approved_at = NOW()
+                WHERE id = %s
+            """, (
+                librarian_id,
+                request_id
+            ))
+
+
+            # Reserve one copy
+            cursor.execute("""
+                UPDATE books
+                SET
+                    available_quantity = available_quantity - 1,
+                    status = CASE
+                        WHEN available_quantity - 1 <= 0
+                        THEN 'unavailable'
+                        ELSE 'available'
+                    END
+                WHERE id = %s
+            """, (
+                borrow_request["book_id"],
+            ))
+
+
+        # =========================
+        # DECLINE
+        # =========================
+
+        else:
 
             cursor.execute("""
                 UPDATE borrow_requests
@@ -265,91 +415,136 @@ def decide_borrow_request(request_id):
                     approved_by = %s,
                     approved_at = NOW()
                 WHERE id = %s
-            """, (librarian_id, request_id))
+            """, (
+                librarian_id,
+                request_id
+            ))
 
-            conn.commit()
-
-            return jsonify({
-                "status": "success",
-                "message": "Borrow request declined.",
-                "request_id": request_id
-            }), 200
 
         # =========================
-        # APPROVE REQUEST
+        # CHECK WHOLE BATCH
         # =========================
 
-        if borrow_request["available_quantity"] <= 0:
-            return jsonify({
-                "status": "error",
-                "message": "Book is no longer available."
-            }), 400
-
-        # Generate unique QR token
-        import uuid
-
-        qr_token = str(uuid.uuid4())
-
-        # Update borrow request
         cursor.execute("""
-            UPDATE borrow_requests
-            SET
-                status = 'approved',
-                approved_by = %s,
-                approved_at = NOW(),
-                qr_token = %s
-            WHERE id = %s
-        """, (librarian_id, qr_token, request_id))
+            SELECT
+                COUNT(*) AS total_requests,
 
-        # Reduce available quantity
-        cursor.execute("""
-            UPDATE books
-            SET
-                available_quantity = available_quantity - 1,
-                status = CASE
-                    WHEN available_quantity - 1 <= 0
-                    THEN 'unavailable'
-                    ELSE 'available'
-                END
-            WHERE id = %s
-        """, (borrow_request["book_id"],))
+                SUM(
+                    CASE
+                        WHEN status = 'pending'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending_count,
 
-        # Create borrowing record
-        cursor.execute("""
-            INSERT INTO borrowings
-            (
-                user_id,
-                book_id,
-                borrowed_at,
-                due_date,
-                returned_at,
-                status
-            )
-            VALUES
-            (
-                %s,
-                %s,
-                NOW(),
-                DATE_ADD(NOW(), INTERVAL 7 DAY),
-                NULL,
-                'borrowed'
-            )
-        """, (
-            borrow_request["user_id"],
-            borrow_request["book_id"]
-        ))
+                SUM(
+                    CASE
+                        WHEN status = 'approved'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS approved_count,
 
-        borrowing_id = cursor.lastrowid
+                SUM(
+                    CASE
+                        WHEN status = 'declined'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS declined_count
+
+            FROM borrow_requests
+            WHERE batch_id = %s
+        """, (batch_id,))
+
+        summary = cursor.fetchone()
+
+
+        qr_token = None
+        batch_status = "pending"
+
+
+        # =========================
+        # ALL REQUESTS PROCESSED
+        # =========================
+
+        if summary["pending_count"] == 0:
+
+            # At least one book approved
+            if summary["approved_count"] > 0:
+
+                cursor.execute("""
+                    SELECT qr_token
+                    FROM borrow_batches
+                    WHERE id = %s
+                """, (batch_id,))
+
+                batch = cursor.fetchone()
+
+
+                if batch["qr_token"]:
+                    qr_token = batch["qr_token"]
+
+                else:
+                    qr_token = str(uuid.uuid4())
+
+
+                cursor.execute("""
+                    UPDATE borrow_batches
+                    SET
+                        status = 'approved',
+                        qr_token = %s,
+                        approved_by = %s,
+                        approved_at = NOW()
+                    WHERE id = %s
+                """, (
+                    qr_token,
+                    librarian_id,
+                    batch_id
+                ))
+
+                batch_status = "approved"
+
+
+            # All books declined
+            else:
+
+                cursor.execute("""
+                    UPDATE borrow_batches
+                    SET
+                        status = 'declined',
+                        approved_by = %s,
+                        approved_at = NOW()
+                    WHERE id = %s
+                """, (
+                    librarian_id,
+                    batch_id
+                ))
+
+                batch_status = "declined"
+
 
         conn.commit()
 
+
         return jsonify({
             "status": "success",
-            "message": "Borrow request approved.",
+            "message": (
+                "Borrow request approved."
+                if decision == "approved"
+                else "Borrow request declined."
+            ),
             "request_id": request_id,
-            "borrowing_id": borrowing_id,
+            "batch_id": batch_id,
+            "decision": decision,
+            "batch_status": batch_status,
+            "pending_requests": summary["pending_count"],
+            "approved_requests": summary["approved_count"],
+            "declined_requests": summary["declined_count"],
+            "qr_available": qr_token is not None,
             "qr_token": qr_token
         }), 200
+
 
     except Exception as e:
 
@@ -360,10 +555,104 @@ def decide_borrow_request(request_id):
             "message": str(e)
         }), 500
 
-    finally:
 
+    finally:
         cursor.close()
         conn.close()
+
+# =========================================
+# GET BORROW BATCHES FOR A SPECIFIC STUDENT
+# =========================================
+
+@borrow_requests_bp.route(
+    "/api/student/borrow-batches/<int:user_id>",
+    methods=["GET"]
+)
+@require_role("student")
+def get_student_borrow_batches(user_id):
+
+    authenticated_user_id = request.authenticated_user_id
+
+    # Student can only view their own borrow batches
+    if authenticated_user_id != user_id:
+        return jsonify({
+            "status": "error",
+            "message": "You are not allowed to view this student's borrow batches."
+        }), 403
+
+    conn = get_db_connection()
+
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("""
+            SELECT
+                id,
+                user_id,
+                qr_token,
+                status,
+                requested_at,
+                approved_by,
+                approved_at
+            FROM borrow_batches
+            WHERE user_id = %s
+            ORDER BY requested_at DESC
+        """, (user_id,))
+
+        batches = cursor.fetchall()
+
+        if not batches:
+            return jsonify({
+                "status": "success",
+                "batches": []
+            }), 200
+
+        for batch in batches:
+            cursor.execute("""
+                SELECT
+                    br.id AS request_id,
+                    br.book_id,
+                    b.title,
+                    b.author,
+                    br.status
+                FROM borrow_requests br
+                INNER JOIN books b
+                    ON br.book_id = b.id
+                WHERE br.batch_id = %s
+                ORDER BY br.id ASC
+            """, (batch["id"],))
+
+            books = cursor.fetchall()
+            batch["books"] = books
+            batch["qr_available"] = (
+                batch["qr_token"] is not None
+                and batch["status"] in [
+                    "approved",
+                    "partially_returned"
+                ]
+            )
+
+        return jsonify({
+            "status": "success",
+            "batches": batches
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # GET BORROW REQUESTS FOR A SPECIFIC STUDENT
 
@@ -436,13 +725,19 @@ def get_student_borrow_requests(user_id):
     finally:
         cursor.close()
         conn.close()
-        
-# GENERATE QR CODE FOR APPROVED BORROW REQUEST
+
+# =========================================
+# GENERATE ONE QR CODE FOR AN APPROVED BATCH
+# =========================================
+
 @borrow_requests_bp.route(
-    "/api/borrow-requests/<int:request_id>/qr",
+    "/api/borrow-batches/<int:batch_id>/qr",
     methods=["GET"]
 )
-def generate_borrow_qr(request_id):
+@require_role("student")
+def generate_batch_qr(batch_id):
+
+    student_id = request.authenticated_user_id
 
     conn = get_db_connection()
 
@@ -455,91 +750,111 @@ def generate_borrow_qr(request_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT
-                br.id,
-                br.user_id,
+                bb.id,
+                bb.user_id,
+                bb.qr_token,
+                bb.status,
+                bb.requested_at,
+                bb.approved_at,
+                u.name AS student_name,
+                u.email AS student_email
+            FROM borrow_batches bb
+            INNER JOIN users u
+                ON bb.user_id = u.id
+            WHERE bb.id = %s
+        """, (batch_id,))
+
+        batch = cursor.fetchone()
+
+        if not batch:
+            return jsonify({
+                "status": "error",
+                "message": "Borrow batch not found."
+            }), 404
+
+        if batch["user_id"] != student_id:
+            return jsonify({
+                "status": "error",
+                "message": "You are not allowed to access this QR code."
+            }), 403
+
+        if batch["status"] == "pending":
+            return jsonify({
+                "status": "error",
+                "message": "Borrow request is still pending."
+            }), 400
+
+        if batch["status"] == "declined":
+            return jsonify({
+                "status": "error",
+                "message": "This borrow batch was declined."
+            }), 400
+
+        if not batch["qr_token"]:
+            return jsonify({
+                "status": "error",
+                "message": "QR code is not available yet."
+            }), 400
+
+        cursor.execute("""
+            SELECT
+                br.id AS request_id,
                 br.book_id,
-                br.status,
-                br.qr_token,
-                b.title AS book_title,
-                u.name AS user_name
+                b.title,
+                b.author,
+                br.status
             FROM borrow_requests br
             INNER JOIN books b
                 ON br.book_id = b.id
-            INNER JOIN users u
-                ON br.user_id = u.id
-            WHERE br.id = %s
-            """,
-            (request_id,)
-        )
+            WHERE br.batch_id = %s
+            AND br.status = 'approved'
+            ORDER BY br.id ASC
+        """, (batch_id,))
 
-        borrow_request = cursor.fetchone()
+        approved_books = cursor.fetchall()
 
-        if not borrow_request:
-            return jsonify({
-                "status": "error",
-                "message": "Borrow request not found."
-            }), 404
-
-        if borrow_request["status"] != "approved":
-            return jsonify({
-                "status": "error",
-                "message": "QR code is only available for approved requests."
-            }), 400
-
-        if not borrow_request["qr_token"]:
-            return jsonify({
-                "status": "error",
-                "message": "QR token not found."
-            }), 400
-
-        # QR content
-        qr_data = borrow_request["qr_token"]
-
-        # Create QR code
         qr = qrcode.QRCode(
             version=1,
             box_size=10,
             border=4
         )
-
-        qr.add_data(qr_data)
+        qr.add_data(batch["qr_token"])
         qr.make(fit=True)
 
         qr_image = qr.make_image()
-
-        # Convert image to bytes
         image_bytes = io.BytesIO()
         qr_image.save(image_bytes, format="PNG")
         image_bytes.seek(0)
 
-        # Convert image to Base64
         qr_base64 = base64.b64encode(
             image_bytes.getvalue()
         ).decode("utf-8")
 
         return jsonify({
             "status": "success",
-            "request_id": borrow_request["id"],
-            "user_id": borrow_request["user_id"],
-            "book_id": borrow_request["book_id"],
-            "book_title": borrow_request["book_title"],
-            "user_name": borrow_request["user_name"],
-            "qr_token": borrow_request["qr_token"],
+            "batch": {
+                "id": batch["id"],
+                "student_id": batch["user_id"],
+                "student_name": batch["student_name"],
+                "student_email": batch["student_email"],
+                "status": batch["status"],
+                "requested_at": batch["requested_at"],
+                "approved_at": batch["approved_at"]
+            },
+            "books": approved_books,
+            "qr_token": batch["qr_token"],
             "qr_code": f"data:image/png;base64,{qr_base64}"
         }), 200
 
     except Exception as e:
-
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
 
     finally:
-
         cursor.close()
         conn.close()
+
