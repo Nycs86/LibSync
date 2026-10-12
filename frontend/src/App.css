@@ -1016,3 +1016,201 @@ body {
   border: 1px solid #edf0f5;
   box-shadow: 0 8px 20px rgba(70, 90, 120, 0.08);
 }
+
+/* ================================
+   LIBRARIAN MANAGEMENT SECTIONS
+================================ */
+
+.management-section {
+  margin-top: 32px;
+  padding: 30px;
+  background: #ffffff;
+  border: 1px solid #edf0f7;
+  border-radius: 20px;
+  box-shadow: 0 12px 35px rgba(65, 85, 120, 0.08);
+  overflow: hidden;
+  animation: managementFadeIn 0.25s ease;
+}
+
+.management-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 26px;
+}
+
+.management-header h2,
+.management-section > h2 {
+  margin: 0 0 8px;
+  color: #202b46;
+  font-size: 27px;
+  font-weight: 700;
+}
+
+.management-header p,
+.management-section > p {
+  margin: 0;
+  color: #7a8499;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.management-section button {
+  padding: 10px 17px;
+  border: none;
+  border-radius: 9px;
+  background: #5968f5;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.management-section button:hover:not(:disabled) {
+  background: #4353e4;
+  transform: translateY(-1px);
+}
+
+.management-section button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* TABLE CONTAINER */
+
+.management-section table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.management-section {
+  overflow-x: auto;
+}
+
+.management-table thead th {
+  padding: 16px 14px;
+  background: #f3f5ff;
+  color: #46516c;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #e8ebf5;
+  white-space: nowrap;
+}
+
+.management-table thead th:first-child {
+  border-top-left-radius: 10px;
+}
+
+.management-table thead th:last-child {
+  border-top-right-radius: 10px;
+}
+
+.management-table tbody td {
+  padding: 16px 14px;
+  color: #515d73;
+  border-bottom: 1px solid #edf0f6;
+  vertical-align: middle;
+}
+
+.management-table tbody tr {
+  background: #ffffff;
+  transition: background 0.2s ease;
+}
+
+.management-table tbody tr:hover {
+  background: #f8f9ff;
+}
+
+.management-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* APPROVE AND DECLINE BUTTONS */
+
+.management-table td button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.management-table td button:first-child {
+  background: #16a777;
+}
+
+.management-table td button:first-child:hover:not(:disabled) {
+  background: #10865f;
+}
+
+.management-table td button:last-child {
+  background: #fff0f0;
+  color: #d44848;
+}
+
+.management-table td button:last-child:hover:not(:disabled) {
+  background: #ffe0e0;
+}
+
+/* DASHBOARD FEEDBACK */
+
+.dashboard-message {
+  margin-top: 24px;
+  margin-bottom: 20px;
+  padding: 15px 18px;
+  background: #eef3ff;
+  border: 1px solid #dbe4ff;
+  border-radius: 12px;
+  color: #4357bd;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* SMOOTH ENTRANCE */
+
+@keyframes managementFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 768px) {
+  .management-section {
+    padding: 18px;
+    margin-top: 22px;
+    border-radius: 15px;
+  }
+
+  .management-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .management-header h2,
+  .management-section > h2 {
+    font-size: 23px;
+  }
+
+  .management-section table {
+    font-size: 12px;
+  }
+
+  .management-table thead th,
+  .management-table tbody td {
+    padding: 12px 10px;
+  }
+}

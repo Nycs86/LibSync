@@ -7,9 +7,7 @@ from database import get_db_connection
 borrowings_bp = Blueprint("borrowings", __name__)
 
 
-# =========================================================
-# GET ALL BORROWINGS
-# =========================================================
+
 @borrowings_bp.route("/api/borrowings", methods=["GET"])
 def get_borrowings():
     try:
