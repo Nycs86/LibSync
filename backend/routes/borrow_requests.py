@@ -777,6 +777,3 @@ def lookup_borrow_batch_by_qr():
         cursor.close()
         conn.close()
 
-# ==========================================
-
-# LOOK UP BORROWING BATCH USING QR TOKEN
