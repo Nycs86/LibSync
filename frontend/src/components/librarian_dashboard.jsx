@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import OnlineBookSearch from "./OnlineBookSearch";
+import "./online_book_search.css";
 
 const API_URL =
   "https://identify-spilt-cover.ngrok-free.dev";
