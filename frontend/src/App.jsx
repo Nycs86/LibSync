@@ -1,5 +1,7 @@
+
 import { useState } from "react";
 import "./App.css";
+
 import Role from "./components/role";
 import AdminLogin from "./components/admin_login";
 import AdminDashboard from "./components/admin_dashboard";
@@ -9,17 +11,15 @@ import StudentLogin from "./components/student_login";
 import StudentDashboard from "./components/student_dashboard";
 
 function App() {
-  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedRole, setSelectedRole] = useState(() =>
+  window.location.hash === "#admin-login" ? "Admin" : ""
+);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isLibrarianLoggedIn, setIsLibrarianLoggedIn] = useState(false);
   const [isStudentLoggedIn, setIsStudentLoggedIn] = useState(false);
 
+  // Admin is hidden from the welcome page.
   const roles = [
-    {
-      name: "Admin",
-      icon: "bi-person-gear",
-      description: "Access admin portal",
-    },
     {
       name: "Librarian",
       icon: "bi-book",
@@ -57,81 +57,90 @@ function App() {
       />
     );
   }
-// Student Dashboard
+
+  // Student Dashboard
   if (isStudentLoggedIn) {
+    return (
+      <StudentDashboard
+        onLogout={() => {
+          localStorage.removeItem("loggedInUser");
+          setIsStudentLoggedIn(false);
+          setSelectedRole("");
+        }}
+      />
+    );
+  }
+
+  // Admin Login
+  // Admin Login — accessible through the hidden URL
+if (selectedRole === "Admin") {
   return (
-    <StudentDashboard
-      onLogout={() => {
-        localStorage.removeItem("loggedInUser");
-        setIsStudentLoggedIn(false);
+    <AdminLogin
+      onBack={() => {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
         setSelectedRole("");
+      }}
+      onLoginSuccess={() => {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+        setIsAdminLoggedIn(true);
       }}
     />
   );
 }
 
-  // Admin Login
-  if (selectedRole === "Admin") {
+  // Librarian Login
+  if (selectedRole === "Librarian") {
     return (
-      <AdminLogin
+      <LibrarianLogin
         onBack={() => setSelectedRole("")}
-        onLoginSuccess={() => setIsAdminLoggedIn(true)}
+        onLoginSuccess={() => setIsLibrarianLoggedIn(true)}
       />
     );
   }
 
-  // Librarian Login
-if (selectedRole === "Librarian") {
-  return (
-    <LibrarianLogin
-      onBack={() => setSelectedRole("")}
-      onLoginSuccess={() => setIsLibrarianLoggedIn(true)}
-    />
-  );
-}
-
   // Student Login
- if (selectedRole === "Student") {
-  return (
-    <StudentLogin
-      onBack={() => setSelectedRole("")}
-      onLoginSuccess={() => setIsStudentLoggedIn(true)}
-    />
-  );
-}
+  if (selectedRole === "Student") {
+    return (
+      <StudentLogin
+        onBack={() => setSelectedRole("")}
+        onLoginSuccess={() => setIsStudentLoggedIn(true)}
+      />
+    );
+  }
+
   return (
     <div className="welcome-page">
       <div className="container py-5">
-
         {/* Logo and Title */}
         <div className="text-center mb-5">
-
           <div className="logo">
             <i className="bi bi-book-half"></i>
           </div>
 
-          <h1 className="fw-bold mb-1">
-            LibSync
-          </h1>
+          <h1 className="fw-bold mb-1">LibSync</h1>
 
           <p className="text-muted mb-0">
             Library Management System
           </p>
-
         </div>
 
         {/* Select Role */}
         <div className="text-center mb-4">
-
           <h2 className="fw-semibold">
             Please select from our services
           </h2>
-
         </div>
 
         {/* Role Cards */}
         <div className="row justify-content-center g-4">
-
           {roles.map((role) => (
             <div
               className="col-12 col-md-4"
@@ -145,9 +154,7 @@ if (selectedRole === "Librarian") {
               />
             </div>
           ))}
-
         </div>
-
       </div>
     </div>
   );
