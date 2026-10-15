@@ -235,6 +235,8 @@ function StudentDashboard({ onLogout }) {
   const [studentRequests, setStudentRequests] = useState([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [loanDays, setLoanDays] = useState(1);
+  const [showReturnQr, setShowReturnQr] = useState(false);
+  const [returnQrMessage, setReturnQrMessage] = useState("");
   const [studentBatches, setStudentBatches] = useState([]);
   const [isBatchesLoading, setIsBatchesLoading] = useState(false);
   const [batchStatusError, setBatchStatusError] = useState("");
@@ -721,6 +723,8 @@ function StudentDashboard({ onLogout }) {
         books: [...selectedBooks],
       });
       setSelectedBooks([]);
+      setShowReturnQr(false);
+      setReturnQrMessage("");
       setActiveMenu("qr");
     } catch (error) {
       console.error("Generate QR error:", error);
@@ -1261,15 +1265,66 @@ function StudentDashboard({ onLogout }) {
                       {activeQrBatch.status === "returned" ? "All books returned" : activeQrBatch.status === "partially_returned" ? "Books still to return" : activeQrBatch.status === "approved" ? "Ready to return" : activeQrBatch.status === "declined" ? "Not available" : "Available after approval"}
                     </span>
 
-                    {activeQrBatch.returnQrPayload && ["approved", "partially_returned"].includes(activeQrBatch.status) ? (
-                      <div className="qr-real-container qr-real-container--return">
-                        <QRCodeCanvas value={activeQrBatch.returnQrPayload} size={220} level="H" includeMargin />
+                    {showReturnQr && activeQrBatch.returnQrPayload && ["approved", "partially_returned"].includes(activeQrBatch.status) ? (
+                      <>
+                        <div className="qr-real-container qr-real-container--return">
+                          <QRCodeCanvas value={activeQrBatch.returnQrPayload} size={220} level="H" includeMargin />
+                        </div>
+                        <p className="qr-return-ready-note">
+                          <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
+                          This is your separate Return QR. Show it to the librarian when returning your book(s).
+                        </p>
+                        <button
+                          type="button"
+                          className="qr-generate-return-button qr-generate-return-button--secondary"
+                          onClick={() => setShowReturnQr(false)}
+                        >
+                          <i className="bi bi-eye-slash" aria-hidden="true"></i> Hide Return QR
+                        </button>
+                      </>
+                    ) : activeQrBatch.status === "returned" ? (
+                      <div className="qr-return-unavailable">
+                        <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
+                        <strong>Return completed</strong>
+                        <span>All approved books in this batch have been returned.</span>
+                      </div>
+                    ) : activeQrBatch.status === "declined" ? (
+                      <div className="qr-return-unavailable">
+                        <i className="bi bi-x-circle" aria-hidden="true"></i>
+                        <strong>Return QR unavailable</strong>
+                        <span>This borrowing request was declined.</span>
                       </div>
                     ) : (
-                      <div className="qr-return-unavailable">
-                        <i className={`bi ${activeQrBatch.status === "returned" ? "bi-check-circle" : "bi-qr-code"}`}></i>
-                        <strong>{activeQrBatch.status === "returned" ? "Return completed" : activeQrBatch.status === "declined" ? "No return QR for declined requests" : "Return QR not ready yet"}</strong>
-                        <span>{activeQrBatch.status === "returned" ? "All approved books in this batch have been returned." : "The separate return QR appears after the librarian approves your borrowing request."}</span>
+                      <div className="qr-return-cta">
+                        <div className="qr-return-cta-icon">
+                          <i className="bi bi-qr-code" aria-hidden="true"></i>
+                        </div>
+                        <strong>{activeQrBatch.returnQrPayload ? "Ready to return your books?" : "Generate your Return QR"}</strong>
+                        <span>
+                          {activeQrBatch.returnQrPayload
+                            ? "Press the button when you're ready. Your Return QR will appear here and will be different from your Borrowing QR."
+                            : "A separate Return QR will appear when the backend has issued a return token for this checked-out batch."}
+                        </span>
+                        <button
+                          type="button"
+                          className="qr-generate-return-button"
+                          disabled={!(["approved", "partially_returned"].includes(activeQrBatch.status))}
+                          onClick={() => {
+                            if (!activeQrBatch.returnQrPayload) {
+                              setReturnQrMessage("Return QR is not available from the backend yet. Refresh borrowing status after the librarian checks out your books.");
+                              setBatchRefreshVersion((value) => value + 1);
+                              return;
+                            }
+                            setReturnQrMessage("");
+                            setShowReturnQr(true);
+                          }}
+                        >
+                          <i className="bi bi-qr-code-scan" aria-hidden="true"></i>
+                          Generate Return QR
+                        </button>
+                        {returnQrMessage && (
+                          <p className="qr-return-action-message" role="status">{returnQrMessage}</p>
+                        )}
                       </div>
                     )}
 

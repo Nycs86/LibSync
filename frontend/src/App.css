@@ -3423,3 +3423,134 @@ p {
     align-self: flex-start;
   }
 }
+
+/* Return QR is revealed only after the student presses its action button. */
+.qr-return-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 246px;
+  margin: 17px auto;
+  padding: 24px 22px;
+  border: 1px dashed #B9DCC5;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #F6FCF7, #EDF9F1);
+  text-align: center;
+}
+
+.qr-return-cta-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: #D8F5E3;
+  color: #065F46;
+  font-size: 27px;
+}
+
+.qr-return-cta > strong {
+  color: #18392D;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.qr-return-cta > span {
+  display: block;
+  max-width: 310px;
+  color: #65776B;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.qr-generate-return-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 11px 18px;
+  border: 1px solid #065F46;
+  border-radius: 10px;
+  background: #065F46;
+  color: #FFFFFF;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.qr-generate-return-button:hover:not(:disabled) {
+  background: #044C39;
+  box-shadow: 0 6px 16px rgba(6, 95, 70, 0.16);
+  transform: translateY(-1px);
+}
+
+.qr-generate-return-button:focus-visible {
+  outline: 3px solid #A7F3D0;
+  outline-offset: 3px;
+}
+
+.qr-generate-return-button:disabled {
+  border-color: #C8D8CD;
+  background: #E7EEE9;
+  color: #84968A;
+  cursor: not-allowed;
+}
+
+.qr-generate-return-button--secondary {
+  border-color: #B8DCC5;
+  background: #EFF9F2;
+  color: #065F46;
+}
+
+.qr-generate-return-button--secondary:hover:not(:disabled) {
+  border-color: #065F46;
+  background: #DFF4E6;
+  color: #044C39;
+}
+
+.qr-return-ready-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 350px;
+  margin: 0 auto 8px;
+  color: #557365;
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.qr-return-ready-note i {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #477F68;
+}
+
+.qr-return-action-message {
+  max-width: 320px;
+  margin: 3px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #D7E9DC;
+  border-radius: 9px;
+  background: #FFFFFF;
+  color: #526D5D;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .qr-return-cta {
+    min-height: 215px;
+    padding: 20px 14px;
+  }
+
+  .qr-generate-return-button {
+    width: 100%;
+  }
+}
