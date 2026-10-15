@@ -233,6 +233,65 @@ def get_borrow_requests():
     finally:
         cursor.close()
         conn.close()
+        
+@borrow_requests_bp.route("/api/borrow-records", methods=["GET"])
+@require_role("librarian")
+def get_borrow_records():
+    """Return approved borrowing transactions with their due/return dates."""
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT
+                br.id AS request_id,
+                br.batch_id,
+                br.user_id,
+                u.name AS student_name,
+                u.email AS student_email,
+                br.book_id,
+                b.title AS book_title,
+                br.requested_at,
+                COALESCE(br.approved_at, br.requested_at) AS borrow_date,
+                br.approved_at,
+                br.returned_at,
+                bb.due_date,
+                br.status AS request_status,
+                CASE
+                    WHEN br.returned_at IS NOT NULL THEN 'returned'
+                    WHEN br.status = 'approved'
+                         AND bb.due_date IS NOT NULL
+                         AND bb.due_date < CURDATE() THEN 'overdue'
+                    WHEN br.status = 'approved' THEN 'borrowed'
+                    ELSE LOWER(br.status)
+                END AS status
+            FROM borrow_requests br
+            INNER JOIN users u ON u.id = br.user_id
+            INNER JOIN books b ON b.id = br.book_id
+            LEFT JOIN borrow_batches bb ON bb.id = br.batch_id
+            WHERE br.status = 'approved'
+            ORDER BY COALESCE(br.approved_at, br.requested_at) DESC, br.id DESC
+        """)
+        records = cursor.fetchall()
+        return jsonify({
+            "status": "success",
+            "records": records
+        }), 200
+    except Exception as error:
+        print("Load borrowing records error:", error)
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve borrowing records."
+        }), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 @borrow_requests_bp.route(
     "/api/borrow-requests/<int:request_id>/decision",
