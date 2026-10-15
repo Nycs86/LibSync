@@ -5,6 +5,7 @@ import qrcode
 import io
 import base64
 import uuid
+
 borrow_requests_bp = Blueprint("borrow_requests", __name__)
 
 @borrow_requests_bp.route("/api/borrow-requests", methods=["POST"])
@@ -13,6 +14,18 @@ def create_borrow_request():
     data = request.get_json() or {}
     user_id = data.get("user_id")
     book_ids = data.get("book_ids")
+    try:
+        loan_days = int(data.get("loan_days", 1))
+    except (TypeError, ValueError):
+        return jsonify({
+            "status": "error",
+            "message": "Return period must be between 1 and 5 days."
+        }), 400
+    if loan_days < 1 or loan_days > 5:
+        return jsonify({
+            "status": "error",
+            "message": "Return period must be between 1 and 5 days."
+        }), 400
     # Backward compatibility:
     # kung isang book_id lang ang sinend ng old frontend
     if not book_ids:
@@ -124,10 +137,12 @@ def create_borrow_request():
             INSERT INTO borrow_batches (
                 user_id,
                 status,
-                qr_token
+                qr_token,
+                loan_days,
+                due_date
             )
-            VALUES (%s, 'pending', %s)
-        """, (user_id, qr_token))
+            VALUES (%s, 'pending', %s, %s, NULL)
+        """, (user_id, qr_token, loan_days))
         batch_id = cursor.lastrowid
         # =========================
         # CREATE REQUEST PER BOOK
@@ -157,6 +172,8 @@ def create_borrow_request():
             "batch_id": batch_id,
             "request_ids": request_ids,
             "total_books": len(book_ids),
+            "loan_days": loan_days,
+            "due_date": None,
             "qr_available": True,
             "qr_payload": qr_token
         }), 201
@@ -384,7 +401,8 @@ def decide_borrow_request(request_id):
                         status = 'approved',
                         qr_token = %s,
                         approved_by = %s,
-                        approved_at = NOW()
+                        approved_at = NOW(),
+                        due_date = DATE_ADD(CURDATE(), INTERVAL loan_days DAY)
                     WHERE id = %s
                 """, (
                     qr_token,
@@ -471,7 +489,9 @@ def get_student_borrow_batches(user_id):
                 status,
                 requested_at,
                 approved_by,
-                approved_at
+                approved_at,
+                loan_days,
+                due_date
             FROM borrow_batches
             WHERE user_id = %s
             ORDER BY requested_at DESC
@@ -489,7 +509,8 @@ def get_student_borrow_batches(user_id):
                     br.book_id,
                     b.title,
                     b.author,
-                    br.status
+                    CASE WHEN br.returned_at IS NOT NULL THEN 'returned' ELSE br.status END AS status,
+                    br.returned_at
                 FROM borrow_requests br
                 INNER JOIN books b
                     ON br.book_id = b.id
@@ -552,14 +573,19 @@ def get_student_borrow_requests(user_id):
                 br.user_id,
                 br.book_id,
                 b.title AS book_title,
-                br.status,
+                CASE WHEN br.returned_at IS NOT NULL THEN 'returned' ELSE br.status END AS status,
                 br.requested_at,
                 br.approved_by,
                 br.approved_at,
-                br.qr_token
+                br.qr_token,
+                br.returned_at,
+                bb.loan_days,
+                bb.due_date
             FROM borrow_requests br
             INNER JOIN books b
                 ON br.book_id = b.id
+            LEFT JOIN borrow_batches bb
+                ON bb.id = br.batch_id
             WHERE br.user_id = %s
             ORDER BY br.requested_at DESC
         """, (user_id,))
@@ -608,6 +634,8 @@ def generate_batch_qr(batch_id):
                 bb.status,
                 bb.requested_at,
                 bb.approved_at,
+                bb.loan_days,
+                bb.due_date,
                 u.name AS student_name,
                 u.email AS student_email
             FROM borrow_batches bb
@@ -673,7 +701,9 @@ def generate_batch_qr(batch_id):
                 "student_email": batch["student_email"],
                 "status": batch["status"],
                 "requested_at": batch["requested_at"],
-                "approved_at": batch["approved_at"]
+                "approved_at": batch["approved_at"],
+                "loan_days": batch["loan_days"],
+                "due_date": batch["due_date"]
             },
             "books": approved_books,
             "qr_token": batch["qr_token"],
@@ -727,6 +757,8 @@ def lookup_borrow_batch_by_qr():
                 bb.requested_at,
                 bb.approved_by,
                 bb.approved_at,
+                bb.loan_days,
+                bb.due_date,
                 u.name AS student_name,
                 u.email AS student_email
             FROM borrow_batches bb
@@ -749,10 +781,11 @@ def lookup_borrow_batch_by_qr():
                 br.book_id,
                 b.title AS book_title,
                 b.author,
-                br.status,
+                CASE WHEN br.returned_at IS NOT NULL THEN 'returned' ELSE br.status END AS status,
                 br.requested_at,
                 br.approved_by,
-                br.approved_at
+                br.approved_at,
+                br.returned_at
             FROM borrow_requests br
             INNER JOIN books b
                 ON b.id = br.book_id
@@ -777,3 +810,142 @@ def lookup_borrow_batch_by_qr():
         cursor.close()
         conn.close()
 
+# ==========================================
+
+# LOOK UP BORROWING BATCH USING QR TOKEN
+
+
+# =========================================================
+# RETURN BOOKS FROM A SCANNED BORROW-BATCH QR (LIBRARIAN)
+# =========================================================
+@borrow_requests_bp.route(
+    "/api/borrow-batches/<int:batch_id>/return",
+    methods=["PUT"]
+)
+@require_role("librarian")
+def return_borrow_batch_by_qr(batch_id):
+    data = request.get_json(silent=True) or {}
+    requested_book_ids = data.get("book_ids")
+    if requested_book_ids is not None and not isinstance(requested_book_ids, list):
+        return jsonify({
+            "status": "error",
+            "message": "book_ids must be a list when supplied."
+        }), 400
+    if requested_book_ids == []:
+        return jsonify({
+            "status": "error",
+            "message": "Select at least one book to return."
+        }), 400
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT id, status, due_date
+            FROM borrow_batches
+            WHERE id = %s
+            FOR UPDATE
+        """, (batch_id,))
+        batch = cursor.fetchone()
+        if not batch:
+            return jsonify({
+                "status": "error",
+                "message": "Borrowing batch not found."
+            }), 404
+
+        if batch["status"] not in ("approved", "partially_returned"):
+            return jsonify({
+                "status": "error",
+                "message": "Only approved, not-yet-returned borrowing batches can be returned."
+            }), 400
+
+        sql = """
+            SELECT br.id AS request_id, br.book_id, b.title
+            FROM borrow_requests br
+            INNER JOIN books b ON b.id = br.book_id
+            WHERE br.batch_id = %s
+              AND br.status = 'approved'
+              AND br.returned_at IS NULL
+        """
+        params = [batch_id]
+        if requested_book_ids:
+            valid_ids = []
+            for item in requested_book_ids:
+                try:
+                    valid_ids.append(int(item))
+                except (TypeError, ValueError):
+                    return jsonify({
+                        "status": "error",
+                        "message": "Every book_id must be a valid integer."
+                    }), 400
+            placeholders = ",".join(["%s"] * len(valid_ids))
+            sql += f" AND br.book_id IN ({placeholders})"
+            params.extend(valid_ids)
+        sql += " ORDER BY br.id ASC FOR UPDATE"
+        cursor.execute(sql, tuple(params))
+        returnable = cursor.fetchall()
+
+        if not returnable:
+            return jsonify({
+                "status": "error",
+                "message": "No approved, unreturned books were found for this batch."
+            }), 400
+
+        returned_books = []
+        for item in returnable:
+            cursor.execute("""
+                UPDATE borrow_requests
+                SET returned_at = NOW()
+                WHERE id = %s AND returned_at IS NULL
+            """, (item["request_id"],))
+            if cursor.rowcount == 0:
+                continue
+            cursor.execute("""
+                UPDATE books
+                SET available_quantity = available_quantity + 1,
+                    status = 'available'
+                WHERE id = %s
+            """, (item["book_id"],))
+            returned_books.append({"book_id": item["book_id"], "title": item["title"]})
+
+        cursor.execute("""
+            SELECT
+                SUM(CASE WHEN br.status = 'approved' AND br.returned_at IS NULL THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN br.status = 'approved' AND br.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS returned_count
+            FROM borrow_requests br
+            WHERE br.batch_id = %s
+        """, (batch_id,))
+        counts = cursor.fetchone() or {}
+        active_count = int(counts.get("active_count") or 0)
+        returned_count = int(counts.get("returned_count") or 0)
+        if active_count == 0 and returned_count > 0:
+            new_status = "returned"
+        else:
+            new_status = "partially_returned"
+        cursor.execute("UPDATE borrow_batches SET status = %s WHERE id = %s", (new_status, batch_id))
+        conn.commit()
+        return jsonify({
+            "status": "success",
+            "message": "Books returned successfully.",
+            "batch_id": batch_id,
+            "batch_status": new_status,
+            "returned_books": returned_books,
+            "remaining_books": active_count,
+            "due_date": batch["due_date"]
+        }), 200
+    except Exception as error:
+        conn.rollback()
+        print("Return borrowing batch error:", error)
+        return jsonify({
+            "status": "error",
+            "message": "Unable to return books for this batch."
+        }), 500
+    finally:
+        cursor.close()
+        conn.close()
