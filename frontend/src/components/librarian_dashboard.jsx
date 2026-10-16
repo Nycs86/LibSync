@@ -9,7 +9,7 @@ import "./librarian_dashboard.css";
 
 const API_URL =
 
-  "https://identify-spilt-cover.ngrok-free.dev";
+  "https://libsync-backend.onrender.com";
 
 
 
@@ -249,7 +249,7 @@ function LibrarianDashboard({ onLogout }) {
 
     "X-User-ID": String(userId),
 
-    "ngrok-skip-browser-warning": "true",
+    
 
   };
 
@@ -263,7 +263,7 @@ function LibrarianDashboard({ onLogout }) {
         method: "GET",
         headers: {
           Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
+          
         },
       });
 
@@ -303,7 +303,7 @@ function LibrarianDashboard({ onLogout }) {
         headers: {
           "X-User-ID": String(userId),
           Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
+          
         },
       });
       const data = await response.json().catch(() => ({}));
@@ -408,7 +408,7 @@ function LibrarianDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
+          
         },
         body: JSON.stringify(payload),
       });
@@ -454,7 +454,7 @@ function LibrarianDashboard({ onLogout }) {
         method: "DELETE",
         headers: {
           Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
+          
         },
       });
       const data = await response.json().catch(() => ({}));
@@ -547,7 +547,7 @@ function LibrarianDashboard({ onLogout }) {
 
             Accept: "application/json",
 
-            "ngrok-skip-browser-warning": "true",
+            
 
           },
 

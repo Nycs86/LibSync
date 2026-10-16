@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API_URL = "https://identify-spilt-cover.ngrok-free.dev";
+const API_URL = "https://libsync-backend.onrender.com";
 
 function OnlineBookSearch({ onBookAdded }) {
   const [query, setQuery] = useState("");

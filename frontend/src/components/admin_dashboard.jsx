@@ -5,7 +5,7 @@ function AdminDashboard({ onLogout }) {
     localStorage.getItem("loggedInUser")
   );
 
-  const API_URL = "https://identify-spilt-cover.ngrok-free.dev";
+  const API_URL = "https://libsync-backend.onrender.com";
 
   const [activeSection, setActiveSection] = useState("");
   const [users, setUsers] = useState([]);
@@ -21,7 +21,7 @@ function AdminDashboard({ onLogout }) {
       const response = await fetch(`${API_URL}/api/users`, {
         method: "GET",
         headers: {
-          "ngrok-skip-browser-warning": "true",
+          
         },
       });
 
@@ -66,7 +66,7 @@ function AdminDashboard({ onLogout }) {
           headers: {
             "Content-Type": "application/json",
             "X-User-ID": user.id,
-            "ngrok-skip-browser-warning": "true",
+            
           },
         }
       );
@@ -99,7 +99,7 @@ function AdminDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           "X-User-ID": user.id,
-          "ngrok-skip-browser-warning": "true",
+          
         },
       }
     );

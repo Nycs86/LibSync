@@ -7,7 +7,7 @@ function StudentLogin({ onBack, onLoginSuccess }) {
   const [registerSuccess, setRegisterSuccess] = useState("");
 
   const API_URL =
-    "https://identify-spilt-cover.ngrok-free.dev";
+    "https://libsync-backend.onrender.com";
 
 
   const handleLogin = async (e) => {
@@ -33,7 +33,7 @@ function StudentLogin({ onBack, onLoginSuccess }) {
 
           headers: {
             "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
+            
           },
 
           body: JSON.stringify({
@@ -123,7 +123,7 @@ function StudentLogin({ onBack, onLoginSuccess }) {
 
           headers: {
             "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
+            
           },
 
           body: JSON.stringify({

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 
-const API_BASE_URL = "https://identify-spilt-cover.ngrok-free.dev";
+const API_BASE_URL = "https://libsync-backend.onrender.com";
 
 const COVER_COLORS = [
   "#E1F2E7",
@@ -255,7 +255,7 @@ function StudentDashboard({ onLogout }) {
           method: "GET",
           headers: {
             Accept: "application/json",
-            "ngrok-skip-browser-warning": "true",
+            
           },
           signal: controller.signal,
         });
@@ -459,7 +459,7 @@ function StudentDashboard({ onLogout }) {
             method: "GET",
             headers: {
               Accept: "application/json",
-              "ngrok-skip-browser-warning": "true",
+              
             },
             signal: controller.signal,
           }
@@ -501,7 +501,7 @@ function StudentDashboard({ onLogout }) {
             headers: {
               Accept: "application/json",
               "X-User-ID": String(userId),
-              "ngrok-skip-browser-warning": "true",
+              
             },
             signal: controller.signal,
           }
@@ -687,7 +687,7 @@ function StudentDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
+          
         },
         body: JSON.stringify({
           user_id: Number(user.id),
