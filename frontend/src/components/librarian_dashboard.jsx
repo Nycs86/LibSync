@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 import "./online_book_search.css";
 import "./librarian_dashboard.css";
@@ -19,152 +19,184 @@ const API_URL =
 
 // ==========================================
 
+// Serialize scanner setup/cleanup so React StrictMode cannot start
+// two camera sessions during development remounts.
+let libSyncQrScannerLifecycle = Promise.resolve();
+
 function QRScanner({ onScan }) {
-
   const onScanRef = useRef(onScan);
-
   const hasScannedRef = useRef(false);
-
-
+  const [scannerError, setScannerError] = useState("");
+  const [scannerStatus, setScannerStatus] = useState(
+    "Requesting camera access..."
+  );
+  const [didScan, setDidScan] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
-
     onScanRef.current = onScan;
-
   }, [onScan]);
 
-
-
   useEffect(() => {
-
-    let scanner;
-
     let disposed = false;
+    let scanner = null;
+    let stopPromise = null;
 
-
-
-    try {
-
-      scanner = new Html5QrcodeScanner(
-
-        "libsync-qr-reader",
-
-        {
-
-          fps: 10,
-
-          qrbox: {
-
-            width: 250,
-
-            height: 250,
-
-          },
-
-          aspectRatio: 1,
-
-        },
-
-        false
-
-      );
-
-
-
-      scanner.render(
-
-        async (decodedText) => {
-
-          // Ignore duplicate detections.
-
-          if (hasScannedRef.current || disposed) {
-
-            return;
-
-          }
-
-
-
-          hasScannedRef.current = true;
-
-
-
-          try {
-
-            await scanner.clear();
-
-          } catch (error) {
-
-            console.warn("Scanner cleanup:", error);
-
-          }
-
-
-
-          if (!disposed) {
-
-            onScanRef.current(decodedText);
-
-          }
-
-        },
-
-        () => {
-
-          // Normal: no QR detected in this frame.
-
-        }
-
-      );
-
-    } catch (error) {
-
-      console.error("Scanner initialization error:", error);
-
-    }
-
-
-
-    return () => {
-
-      disposed = true;
-
-
-
-      if (scanner) {
-
-        scanner.clear().catch(() => {});
-
+    const stopScanner = async () => {
+      if (!scanner) return;
+      // If a scan callback already started stopping the camera, wait for it.
+      if (stopPromise) {
+        await stopPromise;
+        return;
       }
+      if (!scanner.isScanning) return;
 
+      stopPromise = scanner.stop().catch((error) => {
+        console.warn("QR camera stop:", error);
+      });
+      await stopPromise;
     };
 
-  }, []);
+    hasScannedRef.current = false;
 
+    const previousLifecycle = libSyncQrScannerLifecycle;
+    const initializationPromise = previousLifecycle
+      .catch(() => undefined)
+      .then(async () => {
+        if (disposed) return;
 
+        const readerElement = document.getElementById("libsync-qr-reader");
+        if (!readerElement) return;
+
+        scanner = new Html5Qrcode("libsync-qr-reader", {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
+        });
+
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (disposed) return;
+
+          if (!cameras || cameras.length === 0) {
+            throw new Error("No camera was detected on this device.");
+          }
+
+          // Prefer a rear camera on phones; use the first available camera
+          // on laptops/desktops.
+          const selectedCamera =
+            cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
+            cameras[0];
+
+          const startPromise = scanner.start(
+            selectedCamera.id,
+            {
+              fps: 10,
+              qrbox: (viewfinderWidth, viewfinderHeight) => {
+                const size = Math.floor(
+                  Math.min(viewfinderWidth, viewfinderHeight, 280)
+                );
+                return { width: size, height: size };
+              },
+              aspectRatio: 1,
+              disableFlip: false,
+            },
+            async (decodedText) => {
+              if (disposed || hasScannedRef.current) return;
+
+              hasScannedRef.current = true;
+              setDidScan(true);
+              setScannerStatus("QR detected. Looking up borrowing details...");
+
+              await stopScanner();
+              if (!disposed) {
+                await onScanRef.current(decodedText);
+              }
+            },
+            () => {
+              // No QR in this video frame is normal; don't show an error.
+            }
+          );
+
+          await startPromise;
+          if (disposed) {
+            await stopScanner();
+          } else {
+            setScannerStatus(
+              `Camera ready${selectedCamera.label ? `: ${selectedCamera.label}` : ""}. Point it at the student's QR code.`
+            );
+          }
+        } catch (error) {
+          if (!disposed) {
+            console.error("QR scanner initialization error:", error);
+            const detail = error?.message || "Unable to start the camera.";
+            const permissionProblem = /permission|notallowed|denied/i.test(detail);
+            setScannerError(
+              permissionProblem
+                ? "Camera permission was denied. Allow camera access in your browser, then try again."
+                : detail
+            );
+            setScannerStatus("Camera unavailable");
+          }
+        }
+      });
+
+    return () => {
+      disposed = true;
+      const cleanupPromise = initializationPromise
+        .catch(() => undefined)
+        .then(async () => {
+          if (!scanner) return;
+          try {
+            await stopScanner();
+          } catch (error) {
+            console.warn("QR scanner stop cleanup:", error);
+          }
+          try {
+            await scanner.clear();
+          } catch (error) {
+            // The scanner may already have cleared its UI during startup.
+            console.warn("QR scanner clear cleanup:", error);
+          }
+        });
+
+      libSyncQrScannerLifecycle = cleanupPromise;
+    };
+  }, [retryNonce]);
+
+  const retryCamera = () => {
+    setScannerError("");
+    setScannerStatus("Requesting camera access...");
+    setDidScan(false);
+    hasScannedRef.current = false;
+    setRetryNonce((current) => current + 1);
+  };
 
   return (
+    <div className="ls-qr-camera-shell">
+      <div
+        id="libsync-qr-reader"
+        className="ls-qr-camera-viewfinder"
+        aria-label="QR code camera preview"
+      />
 
-    <div
+      <p className="ls-qr-camera-status" role="status">
+        {scannerStatus}
+      </p>
 
-      id="libsync-qr-reader"
+      {scannerError && (
+        <div className="ls-qr-camera-error" role="alert">
+          {scannerError}
+        </div>
+      )}
 
-      style={{
-
-        width: "100%",
-
-        maxWidth: "500px",
-
-        margin: "20px auto",
-
-      }}
-
-    />
-
+      {(scannerError || didScan) && (
+        <button type="button" className="ls-qr-camera-retry" onClick={retryCamera}>
+          {didScan ? "Scan Another QR Code" : "Try Camera Again"}
+        </button>
+      )}
+    </div>
   );
-
 }
-
 
 
 // ==========================================
@@ -1388,10 +1420,8 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-          <p>
-
-            Allow camera access in your browser when prompted.
-
+          <p className="ls-qr-camera-help">
+            Keep the student's QR code centered inside the camera frame.
           </p>
 
         </div>
