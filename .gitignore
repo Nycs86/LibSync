@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 .env
 .vscode/
+backend/import_aiven.py
+backend/test_aiven.py
