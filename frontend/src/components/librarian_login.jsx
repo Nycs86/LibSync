@@ -53,6 +53,14 @@ function LibrarianLogin({ onBack, onLoginSuccess }) {
         return;
       }
 
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed.");
+      }
+
+      if (!data.user || data.user.role !== "librarian") {
+        throw new Error("This account is not a librarian account.");
+      }
+
       localStorage.setItem(
         "loggedInUser",
         JSON.stringify(data.user)
