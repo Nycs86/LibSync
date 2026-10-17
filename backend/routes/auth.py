@@ -10,10 +10,11 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/api/login", methods=["POST"])
 def login():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
 
         email = data.get("email")
         password = data.get("password")
+        requested_role = data.get("role")
 
         if not email or not password:
             return jsonify({
@@ -21,13 +22,26 @@ def login():
                 "message": "Email and password are required."
             }), 400
 
+        if requested_role not in ["student", "librarian", "admin"]:
+            return jsonify({
+                "status": "error",
+                "message": "A valid login role is required."
+            }), 400
+
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
             SELECT id, name, email, password, role, created_at
             FROM users
             WHERE email = %s
+            LIMIT 1
         """, (email,))
 
         user = cursor.fetchone()
@@ -47,6 +61,12 @@ def login():
                 "message": "Invalid email or password."
             }), 401
 
+        if user["role"] != requested_role:
+            return jsonify({
+                "status": "error",
+                "message": f"This account is not registered as a {requested_role}."
+            }), 403
+
         return jsonify({
             "status": "success",
             "message": "Login successful!",
@@ -63,6 +83,7 @@ def login():
             "status": "error",
             "message": str(error)
         }), 500
+
 
 # ROLE PROTECTION HELPER
 
@@ -84,6 +105,12 @@ def require_role(required_role):
 
             try:
                 connection = get_db_connection()
+                if connection is None:
+                    return jsonify({
+                        "status": "error",
+                        "message": "Database connection failed."
+                    }), 500
+
                 cursor = connection.cursor(dictionary=True)
 
                 cursor.execute("""
@@ -108,7 +135,7 @@ def require_role(required_role):
                         "status": "error",
                         "message": "You do not have permission to perform this action."
                     }), 403
-                
+
                 request.authenticated_user_id = user["id"]
 
                 return function(*args, **kwargs)
