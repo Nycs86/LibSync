@@ -1,0 +1,237 @@
+.student-dashboard .student-sidebar {
+  position: sticky;
+  isolation: isolate;
+  overflow: hidden;
+  background: #065F46;
+}
+
+.student-dashboard .student-sidebar > :not(.student-sidebar-leaves) {
+  position: relative;
+  z-index: 1;
+}
+
+.student-dashboard .student-brand {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 4px 7px 31px;
+  text-align: center;
+}
+
+.student-dashboard .student-brand-mark {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 48px;
+  border-radius: 0;
+  color: #FFFFFF;
+  background: transparent;
+  font-size: 39px;
+}
+
+.student-dashboard .student-brand-copy {
+  align-items: center;
+  text-align: center;
+}
+
+.student-dashboard .student-brand-name {
+  color: #FFFFFF;
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.7px;
+  line-height: 1.12;
+}
+
+.student-dashboard .student-brand-caption {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-transform: none;
+}
+
+.student-dashboard .student-sidebar-label {
+  margin: 0 9px 13px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  letter-spacing: 1.25px;
+}
+
+.student-dashboard .student-sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 17px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.student-dashboard .student-sidebar-student {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.19);
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.student-dashboard .student-sidebar-avatar {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #065F46;
+  background: #A7F3D0;
+  font-size: 18px;
+}
+
+.student-dashboard .student-sidebar-user-copy {
+  min-width: 0;
+}
+
+.student-dashboard .student-sidebar-user-copy strong {
+  max-width: 145px;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.student-dashboard .student-sidebar-user-copy span {
+  color: rgba(255, 255, 255, 0.69);
+  font-size: 10px;
+}
+
+.student-dashboard .student-sidebar .student-logout {
+  min-height: 46px;
+  border-color: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.student-dashboard .student-sidebar-leaves {
+  position: absolute;
+  z-index: 0;
+  left: -20px;
+  bottom: 92px;
+  width: 168px;
+  height: 158px;
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.student-dashboard .student-sidebar-leaf {
+  position: absolute;
+  display: block;
+  width: 47px;
+  height: 90px;
+  border-radius: 100% 0 100% 0;
+  background: rgba(167, 243, 208, 0.16);
+  transform-origin: bottom center;
+}
+
+.student-dashboard .student-sidebar-leaf--one {
+  bottom: 0;
+  left: 14px;
+  transform: rotate(-43deg);
+}
+
+.student-dashboard .student-sidebar-leaf--two {
+  bottom: 10px;
+  left: 43px;
+  width: 42px;
+  height: 110px;
+  transform: rotate(8deg);
+}
+
+.student-dashboard .student-sidebar-leaf--three {
+  bottom: 4px;
+  left: 80px;
+  width: 38px;
+  height: 88px;
+  transform: rotate(35deg);
+}
+
+.student-dashboard .student-sidebar-leaf--four {
+  bottom: -18px;
+  left: 43px;
+  width: 34px;
+  height: 80px;
+  background: rgba(167, 243, 208, 0.1);
+  transform: rotate(-78deg);
+}
+
+.student-dashboard .student-topbar {
+  justify-content: flex-start;
+}
+
+.student-dashboard .student-topbar .student-global-search {
+  width: min(650px, 100%);
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-sidebar {
+    overflow: hidden;
+  }
+
+  .student-dashboard .student-brand {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 0 4px 16px;
+    text-align: left;
+  }
+
+  .student-dashboard .student-brand-mark {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    font-size: 30px;
+  }
+
+  .student-dashboard .student-brand-copy {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .student-dashboard .student-brand-name {
+    font-size: 22px;
+  }
+
+  .student-dashboard .student-brand-caption {
+    margin-top: 3px;
+    font-size: 9px;
+  }
+
+  .student-dashboard .student-sidebar-student {
+    display: flex;
+    width: 100%;
+  }
+
+  .student-dashboard .student-sidebar-bottom {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .student-dashboard .student-sidebar .student-logout {
+    width: 100%;
+  }
+
+  .student-dashboard .student-sidebar-leaves {
+    bottom: 88px;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-dashboard .student-sidebar-student {
+    display: flex;
+  }
+
+  .student-dashboard .student-sidebar-bottom .student-logout {
+    width: 100%;
+    min-width: 0;
+  }
+}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import "./student_dashboard.css";
 
-const API_BASE_URL = "https://libsync-backend.onrender.com";
+const API_BASE_URL = "https://identify-spilt-cover.ngrok-free.dev";
 
 const COVER_COLORS = [
   "#E1F2E7",
@@ -255,7 +256,7 @@ function StudentDashboard({ onLogout }) {
           method: "GET",
           headers: {
             Accept: "application/json",
-            
+            "ngrok-skip-browser-warning": "true",
           },
           signal: controller.signal,
         });
@@ -459,7 +460,7 @@ function StudentDashboard({ onLogout }) {
             method: "GET",
             headers: {
               Accept: "application/json",
-              
+              "ngrok-skip-browser-warning": "true",
             },
             signal: controller.signal,
           }
@@ -501,7 +502,7 @@ function StudentDashboard({ onLogout }) {
             headers: {
               Accept: "application/json",
               "X-User-ID": String(userId),
-              
+              "ngrok-skip-browser-warning": "true",
             },
             signal: controller.signal,
           }
@@ -687,7 +688,7 @@ function StudentDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({
           user_id: Number(user.id),
@@ -876,11 +877,11 @@ function StudentDashboard({ onLogout }) {
           </div>
           <div className="student-brand-copy">
             <span className="student-brand-name">LibSync</span>
-            <span className="student-brand-caption">STUDENT PORTAL</span>
+            <span className="student-brand-caption">Library Management System</span>
           </div>
         </div>
 
-        <div className="student-sidebar-label">LIBRARY MENU</div>
+        <div className="student-sidebar-label">WORKSPACE</div>
         <nav className="student-navigation" aria-label="Student navigation">
           <button type="button" className={`student-menu ${activeMenu === "books" ? "active" : ""}`} onClick={() => navigateTo("books")}>
             <i className="bi bi-book"></i><span>Books</span>
@@ -897,6 +898,13 @@ function StudentDashboard({ onLogout }) {
           </button>
         </nav>
 
+        <div className="student-sidebar-leaves" aria-hidden="true">
+          <span className="student-sidebar-leaf student-sidebar-leaf--one"></span>
+          <span className="student-sidebar-leaf student-sidebar-leaf--two"></span>
+          <span className="student-sidebar-leaf student-sidebar-leaf--three"></span>
+          <span className="student-sidebar-leaf student-sidebar-leaf--four"></span>
+        </div>
+
         <div className="student-sidebar-bottom">
           <div className="student-sidebar-student">
             <div className="student-sidebar-avatar"><i className="bi bi-person-fill"></i></div>
@@ -912,8 +920,8 @@ function StudentDashboard({ onLogout }) {
       </aside>
 
       <div className="student-workspace">
-        <div className="student-topbar">
-          {(activeMenu === "books" || activeMenu === "categories") ? (
+        {(activeMenu === "books" || activeMenu === "categories") && (
+          <div className="student-topbar">
             <label className="student-global-search">
               <i className="bi bi-search"></i>
               <input
@@ -929,16 +937,8 @@ function StudentDashboard({ onLogout }) {
                 </button>
               )}
             </label>
-          ) : <div className="student-topbar-spacer"></div>}
-
-          <div className="student-header-user">
-            <div className="student-header-avatar"><i className="bi bi-person-fill"></i></div>
-            <div className="student-header-user-copy">
-              <strong>{user?.name || "Student"}</strong>
-              <span>Student</span>
-            </div>
           </div>
-        </div>
+        )}
 
         <header className="student-header">
           <div className="student-header-copy">
