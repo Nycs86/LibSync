@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from database import get_db_connection
+from email_service import send_borrow_status_email
 from .auth import require_role
 import qrcode
 import io
@@ -56,10 +57,11 @@ def create_borrow_request():
         # CHECK STUDENT
         # =========================
         cursor.execute("""
-            SELECT id, name, role
+            SELECT id, name, email, role
             FROM users
             WHERE id = %s
         """, (user_id,))
+
         student = cursor.fetchone()
         if not student:
             return jsonify({
@@ -166,6 +168,17 @@ def create_borrow_request():
                 cursor.lastrowid
             )
         conn.commit()
+
+        send_borrow_status_email(
+            student_email=student["email"],
+            student_name=student["name"],
+            status="pending",
+            book_titles=[
+                book["title"]
+                for book in books
+            ],
+        )
+
         return jsonify({
             "status": "success",
             "message": "Borrow batch submitted successfully.",
@@ -333,10 +346,14 @@ def decide_borrow_request(request_id):
                 br.book_id,
                 br.status,
                 b.title,
-                b.available_quantity
+                b.available_quantity,
+                u.name AS student_name,
+                u.email AS student_email
             FROM borrow_requests br
             INNER JOIN books b
                 ON br.book_id = b.id
+            INNER JOIN users u
+                ON br.user_id = u.id
             WHERE br.id = %s
         """, (request_id,))
         borrow_request = cursor.fetchone()
@@ -484,6 +501,16 @@ def decide_borrow_request(request_id):
                 ))
                 batch_status = "declined"
         conn.commit()
+
+        send_borrow_status_email(
+            student_email=borrow_request["student_email"],
+            student_name=borrow_request["student_name"],
+            status=decision,
+            book_titles=[
+                borrow_request["title"]
+            ],
+        )
+
         return jsonify({
             "status": "success",
             "message": (
