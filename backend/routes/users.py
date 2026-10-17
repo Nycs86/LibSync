@@ -54,20 +54,51 @@ def add_user():
                 "message": "Name, email, and password are required."
             }), 400
 
-        # New registered users are students by default
+        # Normal registration is always Student
         role = "student"
 
         connection = get_db_connection()
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
 
+        # Get Student role ID
         cursor.execute("""
-            INSERT INTO users (name, email, password, role)
-            VALUES (%s, %s, %s, %s)
-        """, (name, email, password, role))
+            SELECT id
+            FROM roles
+            WHERE LOWER(role_name) = 'student'
+            LIMIT 1
+        """)
+
+        student_role = cursor.fetchone()
+
+        if not student_role:
+            return jsonify({
+                "status": "error",
+                "message": "Student role is not configured in the database."
+            }), 500
+
+        role_id = student_role["id"]
+
+        # Create user
+        cursor.execute("""
+            INSERT INTO users (
+                name,
+                email,
+                password,
+                role,
+                role_id
+            )
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            name,
+            email,
+            password,
+            role,
+            role_id
+        ))
 
         user_id = cursor.lastrowid
 
-        # Also insert into students table
+        # Also create student profile
         cursor.execute("""
             INSERT INTO students (user_id)
             VALUES (%s)
@@ -82,11 +113,12 @@ def add_user():
                 "id": user_id,
                 "name": name,
                 "email": email,
-                "role": "student"
+                "role": role,
+                "role_id": role_id
             }
         }), 201
 
-    except mysql.connector.IntegrityError:
+    except mysql.connector.IntegrityError as error:
         if connection:
             connection.rollback()
 
