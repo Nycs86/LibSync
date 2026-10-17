@@ -1,7 +1,7 @@
 import os
 import smtplib
 from email.message import EmailMessage
-from email_service import send_borrow_status_email
+
 
 
 MAIL_USERNAME = os.getenv("MAIL_USERNAME")
