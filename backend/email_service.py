@@ -1,11 +1,21 @@
+
+import json
 import os
-import smtplib
-from email.message import EmailMessage
+import urllib.error
+import urllib.request
 
 
+BREVO_API_KEY = os.getenv("BREVO_API_KEY")
+BREVO_SENDER_EMAIL = os.getenv(
+    "BREVO_SENDER_EMAIL",
+    "libsync.notifications@gmail.com",
+)
+BREVO_SENDER_NAME = os.getenv(
+    "BREVO_SENDER_NAME",
+    "LibSync",
+)
 
-MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 SYSTEM_NAME = "LibSync"
 SYSTEM_DESCRIPTION = "Library Borrowing and Monitoring System"
@@ -18,16 +28,28 @@ def send_borrow_status_email(
     book_titles=None,
     due_date=None,
 ):
-    if not MAIL_USERNAME or not MAIL_PASSWORD:
-        print("Email notification skipped: MAIL_USERNAME or MAIL_PASSWORD is missing.")
+    if not BREVO_API_KEY:
+        print(
+            "Email notification skipped: "
+            "BREVO_API_KEY is missing."
+        )
+        return False
+
+    if not BREVO_SENDER_EMAIL:
+        print(
+            "Email notification skipped: "
+            "BREVO_SENDER_EMAIL is missing."
+        )
         return False
 
     if not student_email:
-        print("Email notification skipped: student email is missing.")
+        print(
+            "Email notification skipped: "
+            "student email is missing."
+        )
         return False
 
     book_titles = book_titles or []
-
     status_key = str(status).lower()
 
     subjects = {
@@ -35,7 +57,9 @@ def send_borrow_status_email(
         "approved": "Borrow Request Approved",
         "declined": "Borrow Request Declined",
         "returned": "Book Return Confirmed",
-        "partially_returned": "Partial Book Return Confirmed",
+        "partially_returned": (
+            "Partial Book Return Confirmed"
+        ),
         "borrowed": "Books Released",
         "overdue": "Borrowing Overdue Reminder",
     }
@@ -55,9 +79,12 @@ def send_borrow_status_email(
     message_lines = [
         f"Hello {student_name},",
         "",
-        f"Your LibSync borrowing status has been updated.",
+        "Your LibSync borrowing status has been updated.",
         "",
-        f"Status: {status_key.replace('_', ' ').title()}",
+        (
+            "Status: "
+            f"{status_key.replace('_', ' ').title()}"
+        ),
         "",
         "Book(s):",
         books_text,
@@ -73,31 +100,93 @@ def send_borrow_status_email(
         "",
         "Please open LibSync for more details.",
         "",
-        "LibSync",
+        SYSTEM_NAME,
         SYSTEM_DESCRIPTION,
     ])
 
-    email = EmailMessage()
-    email["Subject"] = f"LibSync - {subject_status}"
-    email["From"] = MAIL_USERNAME
-    email["To"] = student_email
-    email.set_content("\n".join(message_lines))
+    recipient = {
+        "email": student_email,
+    }
+
+    if student_name:
+        recipient["name"] = student_name
+
+    payload = {
+        "sender": {
+            "name": BREVO_SENDER_NAME,
+            "email": BREVO_SENDER_EMAIL,
+        },
+        "to": [
+            recipient,
+        ],
+        "subject": f"LibSync - {subject_status}",
+        "textContent": "\n".join(message_lines),
+    }
+
+    request = urllib.request.Request(
+        BREVO_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": BREVO_API_KEY,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as smtp:
-            smtp.starttls()
-            smtp.login(
-                MAIL_USERNAME,
-                MAIL_PASSWORD,
+        with urllib.request.urlopen(
+            request,
+            timeout=20,
+        ) as response:
+            response_body = response.read().decode(
+                "utf-8"
             )
-            smtp.send_message(email)
+
+            if 200 <= response.status < 300:
+                print(
+                    f"Email sent to {student_email}: "
+                    f"{subject_status}"
+                )
+
+                if response_body:
+                    print(
+                        "Brevo response:",
+                        response_body,
+                    )
+
+                return True
+
+            print(
+                "Email notification error: "
+                f"Brevo returned HTTP "
+                f"{response.status}"
+            )
+            return False
+
+    except urllib.error.HTTPError as error:
+        try:
+            error_body = error.read().decode("utf-8")
+        except Exception:
+            error_body = ""
 
         print(
-            f"Email sent to {student_email}: {subject_status}"
+            "Email notification error: "
+            f"Brevo HTTP {error.code} "
+            f"{error_body}"
         )
+        return False
 
-        return True
+    except urllib.error.URLError as error:
+        print(
+            "Email notification network error:",
+            error.reason,
+        )
+        return False
 
     except Exception as error:
-        print("Email notification error:", error)
+        print(
+            "Email notification error:",
+            error,
+        )
         return False
