@@ -21,6 +21,7 @@ class StudentShell extends StatefulWidget {
 
 class _StudentShellState extends State<StudentShell> {
   int _currentIndex = 0;
+  int _qrRefreshVersion = 0;
 
   final List<Book> _selectedBooks = [];
 
@@ -56,9 +57,11 @@ class _StudentShellState extends State<StudentShell> {
     });
   }
 
-  void _clearSelectedBooks() {
+  void _handleRequestSuccess() {
     setState(() {
       _selectedBooks.clear();
+      _currentIndex = 3;
+      _qrRefreshVersion += 1;
     });
   }
 
@@ -76,10 +79,13 @@ class _StudentShellState extends State<StudentShell> {
         userId: _userId,
         selectedBooks: _selectedBooks,
         onRemoveBook: _removeBook,
-        onRequestSuccess: _clearSelectedBooks,
+        onRequestSuccess: _handleRequestSuccess,
       ),
 
-      const StudentQrScreen(),
+      StudentQrScreen(
+        userId: _userId,
+        refreshVersion: _qrRefreshVersion,
+      ),
 
       const StudentProfile(),
     ];
@@ -96,6 +102,10 @@ class _StudentShellState extends State<StudentShell> {
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
+
+            if (index == 3) {
+              _qrRefreshVersion += 1;
+            }
           });
         },
         destinations: [

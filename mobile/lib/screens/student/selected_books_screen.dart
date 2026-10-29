@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/book.dart';
 import '../../services/borrow_service.dart';
 
-class SelectedBooksScreen
-    extends StatefulWidget {
+class SelectedBooksScreen extends StatefulWidget {
   final int userId;
   final List<Book> selectedBooks;
   final ValueChanged<Book> onRemoveBook;
@@ -23,16 +22,14 @@ class SelectedBooksScreen
       _SelectedBooksScreenState();
 }
 
-class _SelectedBooksScreenState
-    extends State<SelectedBooksScreen> {
-  final BorrowService _borrowService =
-      BorrowService();
+class _SelectedBooksScreenState extends State<SelectedBooksScreen> {
+  final BorrowService _borrowService = BorrowService();
 
   int _loanDays = 1;
   bool _submitting = false;
 
   Future<void> _submitRequest() async {
-    if (widget.selectedBooks.isEmpty) {
+    if (widget.selectedBooks.isEmpty || _submitting) {
       return;
     }
 
@@ -44,8 +41,7 @@ class _SelectedBooksScreenState
         .map((book) => book.id)
         .toList();
 
-    final result =
-        await _borrowService.submitBorrowRequest(
+    final result = await _borrowService.submitBorrowRequest(
       userId: widget.userId,
       bookIds: bookIds,
       loanDays: _loanDays,
@@ -62,18 +58,16 @@ class _SelectedBooksScreenState
     if (result['success'] == true) {
       widget.onRequestSuccess();
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             result['message'] ??
-                'Borrow request submitted.',
+                'Borrow request submitted. Wait for librarian approval.',
           ),
         ),
       );
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             result['message'] ??
@@ -114,9 +108,7 @@ class _SelectedBooksScreenState
           Icon(
             Icons.shopping_bag_outlined,
             size: 64,
-            color: Theme.of(context)
-                .colorScheme
-                .primary,
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(height: 16),
           const Center(
@@ -131,28 +123,19 @@ class _SelectedBooksScreenState
         ] else ...[
           ...books.map(
             (book) => Card(
-              margin:
-                  const EdgeInsets.only(
+              margin: const EdgeInsets.only(
                 bottom: 10,
               ),
               child: ListTile(
                 leading: const Icon(
                   Icons.menu_book,
                 ),
-                title: Text(
-                  book.title,
-                ),
-                subtitle: Text(
-                  book.author,
-                ),
+                title: Text(book.title),
+                subtitle: Text(book.author),
                 trailing: IconButton(
-                  icon: const Icon(
-                    Icons.close,
-                  ),
+                  icon: const Icon(Icons.close),
                   onPressed: () {
-                    widget.onRemoveBook(
-                      book,
-                    );
+                    widget.onRemoveBook(book);
                   },
                 ),
               ),
@@ -163,11 +146,11 @@ class _SelectedBooksScreenState
 
           DropdownButtonFormField<int>(
             initialValue: _loanDays,
-            decoration:
-                const InputDecoration(
-              labelText: 'Borrow period',
-              border:
-                  OutlineInputBorder(),
+            decoration: const InputDecoration(
+              labelText: 'Return period',
+              border: OutlineInputBorder(),
+              helperText:
+                  'The due date starts when the librarian releases the approved books.',
             ),
             items: List.generate(
               5,
@@ -177,7 +160,7 @@ class _SelectedBooksScreenState
                 return DropdownMenuItem(
                   value: days,
                   child: Text(
-                    '$days day${days > 1 ? 's' : ''}',
+                    '$days day${days > 1 ? 's' : ''} after release',
                   ),
                 );
               },
@@ -205,18 +188,15 @@ class _SelectedBooksScreenState
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child:
-                          CircularProgressIndicator(
+                      child: CircularProgressIndicator(
                         strokeWidth: 2,
                       ),
                     )
-                  : const Icon(
-                      Icons.send,
-                    ),
+                  : const Icon(Icons.send),
               label: Text(
                 _submitting
                     ? 'Submitting...'
-                    : 'Request Borrow',
+                    : 'Submit Borrow Request',
               ),
             ),
           ),

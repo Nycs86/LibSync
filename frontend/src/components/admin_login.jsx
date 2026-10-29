@@ -33,9 +33,10 @@ function AdminLogin({ onBack, onLoginSuccess }) {
             
           },
           
-          body: JSON.stringify({
+         body: JSON.stringify({
             email,
             password,
+            role: "admin",
           }),
         }
       );
