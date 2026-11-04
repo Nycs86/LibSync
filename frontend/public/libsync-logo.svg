@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="112" viewBox="0 0 520 112" role="img" aria-labelledby="title desc">
+  <title id="title">LibSync</title>
+  <desc id="desc">LibSync School Library Management System logo with a stacked-book S symbol.</desc>
+  <defs>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#23B982"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(5 4)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M94 8H43C24 8 12 21 12 38s13 29 31 29h49c17 0 29 10 29 23s-12 18-29 18H19"
+      stroke="url(#mint)" stroke-width="10"/>
+    <path d="M37 25H105M37 38H105M37 51H95" stroke="#087B5D" stroke-width="7"/>
+    <path d="M29 78H95M29 91H95" stroke="#087B5D" stroke-width="7"/>
+    <path d="M87 22v24l8-6 8 6V22" fill="#23B982" stroke="#23B982" stroke-width="2"/>
+    <path d="M33 75v23l8-6 8 6V75" fill="#A7F3D0" stroke="#A7F3D0" stroke-width="2"/>
+    <path d="M47 31h35M47 44h43M51 84h34" stroke="#A7F3D0" stroke-width="2.5"/>
+  </g>
+  <g fill="#064B3C">
+    <text x="155" y="57" font-family="Arial, Helvetica, sans-serif" font-size="47" font-weight="800" letter-spacing="1.6">LIBSYNC</text>
+    <text x="157" y="82" font-family="Arial, Helvetica, sans-serif" font-size="12.5" font-weight="700" letter-spacing="2.1">SCHOOL LIBRARY MANAGEMENT SYSTEM</text>
+  </g>
+</svg>

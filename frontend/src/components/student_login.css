@@ -1,0 +1,135 @@
+.ls-student-login-switch,
+.ls-student-register-switch {
+  margin-top: 22px;
+  color: #637a71;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.ls-student-login-switch button,
+.ls-student-register-switch button {
+  padding: 2px 3px;
+  border: 0;
+  color: #07845f;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ls-student-login-switch button:hover,
+.ls-student-register-switch button:hover {
+  color: #064b3c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ls-student-login-notice {
+  margin-top: 22px;
+}
+
+/* Registration has four fields, so allow the page and panel to grow. */
+.ls-student-register-page {
+  align-items: flex-start;
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
+
+.ls-student-register-card {
+  min-height: 720px;
+  height: auto;
+}
+
+.ls-student-register-panel {
+  align-items: flex-start;
+  padding-top: 38px;
+  padding-bottom: 38px;
+}
+
+.ls-student-register-content {
+  max-width: 620px;
+}
+
+.ls-student-register-content .ls-login-subtitle {
+  margin-bottom: 25px;
+}
+
+.ls-student-register-form {
+  gap: 15px;
+}
+
+.ls-student-register-form .ls-login-input-wrap {
+  height: 50px;
+}
+
+.ls-student-register-form .ls-login-submit {
+  margin-top: 5px;
+}
+
+.ls-student-register-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: -10px 0 18px;
+  padding: 12px 15px;
+  border: 1px solid #a8dfc2;
+  border-radius: 11px;
+  color: #075c42;
+  background: #eaf8ef;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.ls-student-register-success i {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+@media (max-width: 980px) {
+  .ls-student-register-page {
+    padding: 22px;
+  }
+
+  .ls-student-register-card {
+    min-height: 680px;
+  }
+
+  .ls-student-register-panel {
+    padding-top: 32px;
+    padding-bottom: 32px;
+  }
+}
+
+@media (max-width: 700px) {
+  .ls-student-register-page {
+    padding: 16px;
+  }
+
+  .ls-student-register-card {
+    min-height: auto;
+  }
+
+  .ls-student-register-panel {
+    padding: 32px 25px 28px;
+  }
+
+  .ls-student-register-content .ls-login-subtitle {
+    margin-bottom: 22px;
+  }
+}
+
+@media (max-width: 420px) {
+  .ls-student-register-page {
+    padding: 10px;
+  }
+
+  .ls-student-register-panel {
+    padding: 27px 18px 22px;
+  }
+
+  .ls-student-login-switch,
+  .ls-student-register-switch {
+    font-size: 13px;
+  }
+}

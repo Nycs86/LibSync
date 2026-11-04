@@ -30,6 +30,33 @@ function getStoredCover(book) {
   );
 }
 
+function mapApiBook(book) {
+  const availableQuantity = Number(book.available_quantity ?? 0);
+  return {
+    id: Number(book.id),
+    title: book.title || "Untitled Book",
+    author: book.author || "Unknown Author",
+    category: book.category || "Uncategorized",
+    isbn: book.isbn || "",
+    publisher: book.publisher || "",
+    yearPublished: book.year_published || book.yearPublished || "",
+    quantity: Number(book.quantity ?? 0),
+    availableQuantity,
+    available: availableQuantity > 0,
+    cover_image_url: book.cover_image_url || "",
+    cover_image: book.cover_image || "",
+    cover_url: book.cover_url || "",
+    image_url: book.image_url || "",
+    thumbnail: book.thumbnail || "",
+    image: book.image || "",
+    book_cover: book.book_cover || "",
+    book_image: book.book_image || "",
+    image_path: book.image_path || "",
+    cover: book.cover || "",
+    photo_url: book.photo_url || "",
+  };
+}
+
 function storedCoverKey(book, googleCover, openLibraryCover) {
   return [
     getStoredCover(book),
@@ -214,7 +241,7 @@ function BookCover({ book, googleCover, openLibraryCover, variant = "card" }) {
 }
 
 function StudentDashboard({ onLogout }) {
-  const user = JSON.parse(localStorage.getItem("loggedInUser") || "null");
+  const user = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
   const userId = user?.id;
 
   const [activeMenu, setActiveMenu] = useState("books");
@@ -243,6 +270,7 @@ function StudentDashboard({ onLogout }) {
   const [isBatchesLoading, setIsBatchesLoading] = useState(false);
   const [batchStatusError, setBatchStatusError] = useState("");
   const [batchRefreshVersion, setBatchRefreshVersion] = useState(0);
+  const [inventoryRefreshVersion, setInventoryRefreshVersion] = useState(0);
 
   // Load the real book catalogue from the existing backend.
   useEffect(() => {
@@ -270,34 +298,7 @@ function StudentDashboard({ onLogout }) {
           throw new Error("The books API returned an unexpected response.");
         }
 
-        const formattedBooks = data.map((book) => {
-          const availableQuantity = Number(book.available_quantity ?? 0);
-          return {
-            id: Number(book.id),
-            title: book.title || "Untitled Book",
-            author: book.author || "Unknown Author",
-            category: book.category || "Uncategorized",
-            isbn: book.isbn || "",
-            publisher: book.publisher || "",
-            yearPublished: book.year_published || book.yearPublished || "",
-            quantity: Number(book.quantity ?? 0),
-            availableQuantity,
-            available: availableQuantity > 0,
-            cover_image_url: book.cover_image_url || "",
-            cover_image: book.cover_image || "",
-            cover_url: book.cover_url || "",
-            image_url: book.image_url || "",
-            thumbnail: book.thumbnail || "",
-            image: book.image || "",
-            book_cover: book.book_cover || "",
-            book_image: book.book_image || "",
-            image_path: book.image_path || "",
-            cover: book.cover || "",
-            photo_url: book.photo_url || "",
-          };
-        });
-
-        setBooks(formattedBooks);
+        setBooks(data.map(mapApiBook));
       } catch (error) {
         if (error.name !== "AbortError") {
           console.error("Load books error:", error);
@@ -311,6 +312,48 @@ function StudentDashboard({ onLogout }) {
     loadBooks();
     return () => controller.abort();
   }, []);
+
+  // Re-fetch the catalogue after the student checks QR status or returns to the
+  // catalogue from the QR page. This makes available_quantity reflect confirmed
+  // returns processed by the librarian without requiring a full page reload.
+  useEffect(() => {
+    if (inventoryRefreshVersion === 0) return undefined;
+
+    const controller = new AbortController();
+
+    const refreshBookInventory = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/books`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Unable to refresh book availability.");
+        }
+        if (!Array.isArray(data)) {
+          throw new Error("The books API returned an unexpected response.");
+        }
+
+        if (!controller.signal.aborted) {
+          setBooks(data.map(mapApiBook));
+        }
+      } catch (error) {
+        if (error.name !== "AbortError" && !controller.signal.aborted) {
+          console.error("Refresh book availability error:", error);
+          setPageError(error.message || "Unable to refresh book availability.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    };
+
+    refreshBookInventory();
+    return () => controller.abort();
+  }, [inventoryRefreshVersion]);
 
   // Load a separate online catalog automatically when the dashboard opens.
   // These records are discovery-only: they are not available for borrowing
@@ -391,7 +434,13 @@ function StudentDashboard({ onLogout }) {
   // A small worker pool avoids firing too many requests at once for larger catalogues.
   useEffect(() => {
     const controller = new AbortController();
-    const booksNeedingLookup = books.filter((book) => !getStoredCover(book) && book.title);
+    const booksNeedingLookup = books.filter(
+      (book) =>
+        !getStoredCover(book) &&
+        !googleBookCovers[book.id] &&
+        !openLibraryBookCovers[book.id] &&
+        book.title
+    );
 
     if (booksNeedingLookup.length === 0) return () => controller.abort();
 
@@ -443,7 +492,7 @@ function StudentDashboard({ onLogout }) {
 
     findCovers();
     return () => controller.abort();
-  }, [books]);
+  }, [books, googleBookCovers, openLibraryBookCovers]);
 
   // Load only the signed-in student's own borrowing requests for the dashboard activity panel.
   useEffect(() => {
@@ -684,6 +733,13 @@ function StudentDashboard({ onLogout }) {
     };
   }, [qrRequest, studentBatches]);
 
+  const booksStillToReturn = (activeQrBatch?.books || []).filter(
+    (book) => !["returned", "declined"].includes(String(book.status || "").toLowerCase())
+  );
+  const booksAlreadyReturned = (activeQrBatch?.books || []).filter(
+    (book) => String(book.status || "").toLowerCase() === "returned"
+  );
+
   const addBook = (book) => {
     setPageError("");
     setSelectedBooks((previous) => {
@@ -769,12 +825,17 @@ function StudentDashboard({ onLogout }) {
   };
 
   const navigateTo = (menu) => {
+    const leavingQrPage = activeMenu === "qr";
     setActiveMenu(menu);
     setPageError("");
     setRequestSuccess("");
     setSearchTerm("");
     if (menu === "books") setSelectedCategory("all");
     if (menu === "categories") setSelectedCategory("all");
+
+    if (leavingQrPage && ["books", "categories"].includes(menu)) {
+      setInventoryRefreshVersion((version) => version + 1);
+    }
   };
 
   const renderBookGrid = (items) => {
@@ -1226,8 +1287,11 @@ function StudentDashboard({ onLogout }) {
                   <h3>No borrowing QR yet</h3>
                   <p>Select books, choose a return period of up to 5 days, and submit your borrowing request.</p>
                   <button type="button" className="go-books-button" onClick={() => navigateTo("books")}>Browse Books</button>
-                  <button type="button" className="qr-refresh-button" disabled={isBatchesLoading} onClick={() => setBatchRefreshVersion((value) => value + 1)}>
-                    <i className="bi bi-arrow-clockwise"></i> {isBatchesLoading ? "Refreshing..." : "Refresh borrowing status"}
+                  <button type="button" className="qr-refresh-button" disabled={isBatchesLoading} onClick={() => {
+                    setBatchRefreshVersion((value) => value + 1);
+                    setInventoryRefreshVersion((value) => value + 1);
+                  }}>
+                    <i className="bi bi-arrow-clockwise"></i> {isBatchesLoading ? "Refreshing..." : "Refresh status and book availability"}
                   </button>
                 </div>
               ) : (
@@ -1316,7 +1380,7 @@ function StudentDashboard({ onLogout }) {
                     <div className="qr-card-banner">
                       <div className="qr-card-banner-icon"><i className="bi bi-arrow-return-left"></i></div>
                       <h2>Return QR</h2>
-                      <p>Present this separate QR to the librarian when returning books.</p>
+                      <p>Show this separate QR to the librarian. The librarian scans and confirms the returned books.</p>
                     </div>
 
                     <p className="qr-student-name">Student: <strong>{user?.name || "Student"}</strong></p>
@@ -1417,17 +1481,44 @@ function StudentDashboard({ onLogout }) {
                     </div>
 
                     <div className="qr-book-summary">
-                      <h3>Books to return</h3>
-                      {activeQrBatch.books.filter((book) => book.status !== "declined").map((book) => (
-                        <div className="qr-book-item" key={book.request_id || book.id}>
-                          <i className={`bi ${book.status === "returned" ? "bi-check-circle-fill" : "bi-book"}`}></i>
-                          <span>{book.title}{book.status === "returned" ? " · Returned" : ""}</span>
-                        </div>
-                      ))}
+                      <h3>Books to return ({booksStillToReturn.length})</h3>
+                      {booksStillToReturn.length > 0 ? (
+                        booksStillToReturn.map((book) => (
+                          <div className="qr-book-item" key={book.request_id || book.id}>
+                            <i className="bi bi-book"></i>
+                            <span>{book.title}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="qr-return-ready-note">No remaining books to return.</p>
+                      )}
                     </div>
-                    <p className="qr-total-books">Total books: {activeQrBatch.books.filter((book) => book.status !== "declined").length}</p>
-                    <button type="button" className="qr-refresh-button" disabled={isBatchesLoading} onClick={() => setBatchRefreshVersion((value) => value + 1)}>
-                      <i className="bi bi-arrow-clockwise"></i> {isBatchesLoading ? "Refreshing status..." : "Refresh status"}
+
+                    {booksAlreadyReturned.length > 0 && (
+                      <div className="qr-book-summary qr-book-summary--returned">
+                        <h3>Returned books ({booksAlreadyReturned.length})</h3>
+                        {booksAlreadyReturned.map((book) => (
+                          <div className="qr-book-item" key={book.request_id || book.id}>
+                            <i className="bi bi-check-circle-fill"></i>
+                            <span>{book.title} · Returned</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="qr-total-books">
+                      Remaining: {booksStillToReturn.length} · Returned: {booksAlreadyReturned.length}
+                    </p>
+                    <button
+                      type="button"
+                      className="qr-refresh-button"
+                      disabled={isBatchesLoading || isLoading}
+                      onClick={() => {
+                        setBatchRefreshVersion((value) => value + 1);
+                        setInventoryRefreshVersion((value) => value + 1);
+                      }}
+                    >
+                      <i className="bi bi-arrow-clockwise"></i>
+                      {isBatchesLoading || isLoading ? "Refreshing..." : "Refresh status and book availability"}
                     </button>
                   </article>
                 </div>

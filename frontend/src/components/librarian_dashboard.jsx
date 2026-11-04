@@ -1,32 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import jsQR from "jsqr";
-
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import LibraryReports from "./library_reports";
 import "./online_book_search.css";
 import "./librarian_dashboard.css";
+import "./librarian_qr_workflow.css";
 
 
-
-const API_URL =
-
-  "https://libsync-backend.onrender.com";
+const API_URL = "https://libsync-backend.onrender.com";
 
 
-
-// ==========================================
-
-// QR SCANNER COMPONENT
-
-// ==========================================
+let libSyncQrScannerLifecycle = Promise.resolve();
 
 function QRScanner({ onScan }) {
   const onScanRef = useRef(onScan);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
-  const animationFrameRef = useRef(null);
   const hasScannedRef = useRef(false);
-
   const [scannerError, setScannerError] = useState("");
   const [scannerStatus, setScannerStatus] = useState(
     "Requesting camera access..."
@@ -38,238 +25,132 @@ function QRScanner({ onScan }) {
     onScanRef.current = onScan;
   }, [onScan]);
 
-  const stopCamera = useCallback(() => {
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    const stream = streamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }, []);
-
-  const submitDecodedQr = useCallback(
-    async (decodedText) => {
-      const token = String(decodedText || "").trim();
-
-      if (!token || hasScannedRef.current) {
-        return;
-      }
-
-      hasScannedRef.current = true;
-      setDidScan(true);
-      setScannerError("");
-      setScannerStatus(
-        "QR detected. Looking up borrowing details..."
-      );
-
-      stopCamera();
-
-      try {
-        await onScanRef.current(token);
-      } catch (error) {
-        console.error("QR result handling error:", error);
-        hasScannedRef.current = false;
-        setDidScan(false);
-        setScannerError(
-          error?.message || "Unable to process the scanned QR code."
-        );
-        setScannerStatus("QR detected, but lookup failed");
-      }
-    },
-    [stopCamera]
-  );
-
   useEffect(() => {
     let disposed = false;
-    let lastScanAt = 0;
+    let scanner = null;
+    let stopPromise = null;
+
+    const stopScanner = async () => {
+      if (!scanner) return;
+      if (stopPromise) {
+        await stopPromise;
+        return;
+      }
+      if (!scanner.isScanning) return;
+
+      stopPromise = scanner.stop().catch((error) => {
+        console.warn("QR camera stop:", error);
+      });
+      await stopPromise;
+    };
 
     hasScannedRef.current = false;
-    setDidScan(false);
-    setScannerError("");
-    setScannerStatus("Requesting camera access...");
 
-    const startCamera = async () => {
-      try {
-        stopCamera();
+    const previousLifecycle = libSyncQrScannerLifecycle;
+    const initializationPromise = previousLifecycle
+      .catch(() => undefined)
+      .then(async () => {
+        if (disposed) return;
 
-        if (
-          !navigator.mediaDevices ||
-          typeof navigator.mediaDevices.getUserMedia !== "function"
-        ) {
-          throw new Error(
-            "Camera access is not supported by this browser."
-          );
-        }
+        const readerElement = document.getElementById("libsync-qr-reader");
+        if (!readerElement) return;
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
+        scanner = new Html5Qrcode("libsync-qr-reader", {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
         });
 
-        if (disposed) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (disposed) return;
 
-        streamRef.current = stream;
-
-        const video = videoRef.current;
-        if (!video) {
-          stream.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-          return;
-        }
-
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true");
-        video.muted = true;
-
-        await video.play();
-
-        if (disposed) {
-          stopCamera();
-          return;
-        }
-
-        const videoTrack = stream.getVideoTracks()[0];
-        const cameraLabel = videoTrack?.label || "camera";
-
-        setScannerStatus(
-          `Camera ready: ${cameraLabel}. Hold the full QR code steady inside the frame.`
-        );
-
-        const scanFrame = (timestamp) => {
-          if (disposed || hasScannedRef.current) {
-            return;
+          if (!cameras || cameras.length === 0) {
+            throw new Error("No camera was detected on this device.");
           }
 
-          animationFrameRef.current = requestAnimationFrame(scanFrame);
+          // Prefer a rear camera on phones; use the first available camera
+          // on laptops/desktops.
+          const selectedCamera =
+            cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
+            cameras[0];
 
-          // About 8 scans per second is enough while keeping CPU usage low.
-          if (timestamp - lastScanAt < 120) {
-            return;
-          }
-          lastScanAt = timestamp;
-
-          const currentVideo = videoRef.current;
-          const canvas = canvasRef.current;
-
-          if (
-            !currentVideo ||
-            !canvas ||
-            currentVideo.readyState < 2 ||
-            currentVideo.videoWidth <= 0 ||
-            currentVideo.videoHeight <= 0
-          ) {
-            return;
-          }
-
-          // Scan the FULL camera frame instead of only a small qrbox.
-          // This is more reliable for fixed-focus laptop webcams.
-          const sourceWidth = currentVideo.videoWidth;
-          const sourceHeight = currentVideo.videoHeight;
-          const maxWidth = 1280;
-          const scale = Math.min(1, maxWidth / sourceWidth);
-
-          const scanWidth = Math.max(
-            1,
-            Math.round(sourceWidth * scale)
-          );
-          const scanHeight = Math.max(
-            1,
-            Math.round(sourceHeight * scale)
-          );
-
-          if (
-            canvas.width !== scanWidth ||
-            canvas.height !== scanHeight
-          ) {
-            canvas.width = scanWidth;
-            canvas.height = scanHeight;
-          }
-
-          const context = canvas.getContext("2d", {
-            willReadFrequently: true,
-          });
-
-          if (!context) {
-            return;
-          }
-
-          context.drawImage(
-            currentVideo,
-            0,
-            0,
-            scanWidth,
-            scanHeight
-          );
-
-          const imageData = context.getImageData(
-            0,
-            0,
-            scanWidth,
-            scanHeight
-          );
-
-          const result = jsQR(
-            imageData.data,
-            imageData.width,
-            imageData.height,
+          const startPromise = scanner.start(
+            selectedCamera.id,
             {
-              inversionAttempts: "attemptBoth",
+              fps: 10,
+              qrbox: (viewfinderWidth, viewfinderHeight) => {
+                const size = Math.floor(
+                  Math.min(viewfinderWidth, viewfinderHeight, 280)
+                );
+                return { width: size, height: size };
+              },
+              aspectRatio: 1,
+              disableFlip: false,
+            },
+            async (decodedText) => {
+              if (disposed || hasScannedRef.current) return;
+
+              hasScannedRef.current = true;
+              setDidScan(true);
+              setScannerStatus("QR detected. Looking up borrowing details...");
+
+              await stopScanner();
+              if (!disposed) {
+                await onScanRef.current(decodedText);
+              }
+            },
+            () => {
+              // No QR in this video frame is normal; don't show an error.
             }
           );
 
-          if (result?.data) {
-            void submitDecodedQr(result.data);
+          await startPromise;
+          if (disposed) {
+            await stopScanner();
+          } else {
+            setScannerStatus(
+              `Camera ready${selectedCamera.label ? `: ${selectedCamera.label}` : ""}. Point it at the student's QR code.`
+            );
           }
-        };
-
-        animationFrameRef.current =
-          requestAnimationFrame(scanFrame);
-      } catch (error) {
-        if (disposed) {
-          return;
+        } catch (error) {
+          if (!disposed) {
+            console.error("QR scanner initialization error:", error);
+            const detail = error?.message || "Unable to start the camera.";
+            const permissionProblem = /permission|notallowed|denied/i.test(detail);
+            setScannerError(
+              permissionProblem
+                ? "Camera permission was denied. Allow camera access in your browser, then try again."
+                : detail
+            );
+            setScannerStatus("Camera unavailable");
+          }
         }
-
-        console.error("QR scanner initialization error:", error);
-
-        const detail =
-          error?.message || "Unable to start the camera.";
-        const permissionProblem =
-          /permission|notallowed|denied/i.test(detail);
-
-        setScannerError(
-          permissionProblem
-            ? "Camera permission was denied. Allow camera access in your browser, then try again."
-            : detail
-        );
-        setScannerStatus("Camera unavailable");
-      }
-    };
-
-    void startCamera();
+      });
 
     return () => {
       disposed = true;
-      stopCamera();
+      const cleanupPromise = initializationPromise
+        .catch(() => undefined)
+        .then(async () => {
+          if (!scanner) return;
+          try {
+            await stopScanner();
+          } catch (error) {
+            console.warn("QR scanner stop cleanup:", error);
+          }
+          try {
+            await scanner.clear();
+          } catch (error) {
+            // The scanner may already have cleared its UI during startup.
+            console.warn("QR scanner clear cleanup:", error);
+          }
+        });
+
+      libSyncQrScannerLifecycle = cleanupPromise;
     };
-  }, [retryNonce, stopCamera, submitDecodedQr]);
+  }, [retryNonce]);
 
   const retryCamera = () => {
-    stopCamera();
     setScannerError("");
     setScannerStatus("Requesting camera access...");
     setDidScan(false);
@@ -277,45 +158,13 @@ function QRScanner({ onScan }) {
     setRetryNonce((current) => current + 1);
   };
 
-
   return (
     <div className="ls-qr-camera-shell">
       <div
+        id="libsync-qr-reader"
         className="ls-qr-camera-viewfinder"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          background: "#111",
-        }}
         aria-label="QR code camera preview"
-      >
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          style={{
-            display: "block",
-            width: "100%",
-            height: "100%",
-            minHeight: "360px",
-            objectFit: "cover",
-          }}
-        />
-
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: "14%",
-            border: "4px solid rgba(255,255,255,0.95)",
-            borderRadius: "8px",
-            pointerEvents: "none",
-          }}
-        />
-
-        <canvas ref={canvasRef} style={{ display: "none" }} />
-      </div>
+      />
 
       <p className="ls-qr-camera-status" role="status">
         {scannerStatus}
@@ -328,56 +177,28 @@ function QRScanner({ onScan }) {
       )}
 
       {(scannerError || didScan) && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginTop: "10px",
-          }}
-        >
-          <button
-            type="button"
-            className="ls-qr-camera-retry"
-            onClick={retryCamera}
-          >
-            {didScan ? "Scan Another QR Code" : "Restart Camera"}
-          </button>
-        </div>
+        <button type="button" className="ls-qr-camera-retry" onClick={retryCamera}>
+          {didScan ? "Scan Another QR Code" : "Try Camera Again"}
+        </button>
       )}
     </div>
   );
 }
 
 
-// ==========================================
-
-// LIBRARIAN DASHBOARD
-
-// ==========================================
-
 function LibrarianDashboard({ onLogout }) {
-
   const user = JSON.parse(
-
-    localStorage.getItem("loggedInUser") || "null"
+    sessionStorage.getItem("loggedInUser") || "null"
 
   );
 
   const userId = user?.id ?? "";
-
-
-
   const [activeSection, setActiveSection] = useState("");
-
   const [borrowRequests, setBorrowRequests] = useState([]);
-
   const [requestsLoaded, setRequestsLoaded] = useState(false);
-
   const [loading, setLoading] = useState(false);
-
   const [message, setMessage] = useState("");
 
-  // Books Management state
   const [books, setBooks] = useState([]);
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksLoaded, setBooksLoaded] = useState(false);
@@ -420,16 +241,13 @@ function LibrarianDashboard({ onLogout }) {
   const [scannedToken, setScannedToken] = useState("");
 
   const [scannedBatch, setScannedBatch] = useState(null);
+  const [releasingBatch, setReleasingBatch] = useState(false);
+  const [processingReturn, setProcessingReturn] = useState(false);
+  const [selectedReturnBookIds, setSelectedReturnBookIds] = useState([]);
 
   const [processingRequestId, setProcessingRequestId] =
 
     useState(null);
-
-
-  const [releasingBatch, setReleasingBatch] = useState(false);
-
-  const [selectedReturnBookIds, setSelectedReturnBookIds] = useState([]);
-  const [processingReturn, setProcessingReturn] = useState(false);
 
 
 
@@ -437,7 +255,7 @@ function LibrarianDashboard({ onLogout }) {
 
     "X-User-ID": String(userId),
 
-    
+    "ngrok-skip-browser-warning": "true",
 
   };
 
@@ -451,7 +269,7 @@ function LibrarianDashboard({ onLogout }) {
         method: "GET",
         headers: {
           Accept: "application/json",
-          
+          "ngrok-skip-browser-warning": "true",
         },
       });
 
@@ -491,7 +309,7 @@ function LibrarianDashboard({ onLogout }) {
         headers: {
           "X-User-ID": String(userId),
           Accept: "application/json",
-          
+          "ngrok-skip-browser-warning": "true",
         },
       });
       const data = await response.json().catch(() => ({}));
@@ -596,7 +414,7 @@ function LibrarianDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify(payload),
       });
@@ -642,7 +460,7 @@ function LibrarianDashboard({ onLogout }) {
         method: "DELETE",
         headers: {
           Accept: "application/json",
-          
+          "ngrok-skip-browser-warning": "true",
         },
       });
       const data = await response.json().catch(() => ({}));
@@ -735,7 +553,7 @@ function LibrarianDashboard({ onLogout }) {
 
             Accept: "application/json",
 
-            
+            "ngrok-skip-browser-warning": "true",
 
           },
 
@@ -792,6 +610,26 @@ function LibrarianDashboard({ onLogout }) {
 
     getBorrowRequests();
 
+  };
+
+
+  const openReports = () => {
+    setMessage("");
+    setActiveSection("reports");
+    setBooksLoading(true);
+    setBooksError("");
+    void loadBooks();
+    void loadBorrowRecords();
+    void getBorrowRequests(false);
+  };
+
+  const refreshReports = () => {
+    setMessage("");
+    setBooksLoading(true);
+    setBooksError("");
+    void loadBooks();
+    void loadBorrowRecords();
+    void getBorrowRequests(false);
   };
 
 
@@ -913,19 +751,12 @@ function LibrarianDashboard({ onLogout }) {
 
 
       setScannedToken(token);
-
       setScannedBatch(batch);
       setSelectedReturnBookIds([]);
-
       setActiveSection("scan-result");
 
-
-
-      setMessage(
-
-        `Borrowing batch #${batch.id} scanned successfully.`
-
-      );
+      const qrLabel = batch.qr_type === "return" ? "Return QR" : "Borrow QR";
+      setMessage(`${qrLabel} for borrowing batch #${batch.id} scanned successfully.`);
 
     } catch (error) {
 
@@ -952,15 +783,24 @@ function LibrarianDashboard({ onLogout }) {
 
 
   // ==========================================
-
   // RELEASE APPROVED BOOKS USING THE BORROW QR
-
   // ==========================================
-
   const handleReleaseBatch = async () => {
-    if (!scannedBatch?.id || !scannedToken || releasingBatch) {
+    if (
+      !scannedBatch?.id ||
+      !scannedToken ||
+      scannedBatch.qr_type !== "borrow" ||
+      scannedBatch.qr_used ||
+      scannedBatch.status !== "approved" ||
+      releasingBatch
+    ) {
       return;
     }
+
+    const confirmed = window.confirm(
+      `Confirm that the approved book(s) for ${scannedBatch.student_name || "this student"} have physically been released? The borrowing period will start now.`
+    );
+    if (!confirmed) return;
 
     try {
       setReleasingBatch(true);
@@ -975,58 +815,41 @@ function LibrarianDashboard({ onLogout }) {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({
-            qr_token: scannedToken,
-          }),
+          body: JSON.stringify({ qr_token: scannedToken }),
         }
       );
-
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to release the approved books."
-        );
+        throw new Error(data.message || "Unable to release the approved books.");
       }
 
-      setScannedBatch((previous) =>
-        previous
-          ? {
-              ...previous,
-              qr_used: true,
-              borrow_qr_used_at:
-                previous.borrow_qr_used_at || new Date().toISOString(),
-              return_qr_token:
-                data.return_qr_token || previous.return_qr_token || null,
-              due_date: data.due_date || previous.due_date || null,
-            }
-          : previous
-      );
-
+      // Re-read the batch so the UI reflects the server's checkout timestamp,
+      // due date, and one-time Borrow QR state.
+      const updatedBatch = await lookupBatchByToken(scannedToken);
+      setScannedBatch(updatedBatch);
+      setSelectedReturnBookIds([]);
       setMessage(
         data.message ||
-          "Books released successfully. The student's Return QR is now available."
+          "Books released successfully. The student's separate Return QR is now available."
       );
+
+      // Checkout does not change availability again; approval already reserved
+      // the copy. Refresh the records for the newly checked-out transaction.
+      void loadBorrowRecords();
     } catch (error) {
       console.error("Release borrowing batch error:", error);
-      setMessage(
-        error.message || "Unable to release the approved books."
-      );
+      setMessage(error.message || "Unable to release the approved books.");
     } finally {
       setReleasingBatch(false);
     }
   };
 
-
   // ==========================================
-
-  // RETURN BOOKS USING THE RETURN QR
-
+  // SELECT BOOKS TO RETURN FROM A RETURN QR
   // ==========================================
-
   const toggleReturnBook = (bookId) => {
     const numericBookId = Number(bookId);
-
     setSelectedReturnBookIds((current) =>
       current.includes(numericBookId)
         ? current.filter((id) => id !== numericBookId)
@@ -1034,15 +857,25 @@ function LibrarianDashboard({ onLogout }) {
     );
   };
 
+  // ==========================================
+  // PROCESS SELECTED BOOK RETURNS USING THE RETURN QR
+  // ==========================================
   const handleReturnBooks = async () => {
     if (
       !scannedBatch?.id ||
       !scannedToken ||
-      processingReturn ||
-      selectedReturnBookIds.length === 0
+      scannedBatch.qr_type !== "return" ||
+      scannedBatch.qr_used ||
+      selectedReturnBookIds.length === 0 ||
+      processingReturn
     ) {
       return;
     }
+
+    const confirmed = window.confirm(
+      `Confirm that ${selectedReturnBookIds.length} selected book(s) have been physically returned? The available book count will be restored after confirmation.`
+    );
+    if (!confirmed) return;
 
     try {
       setProcessingReturn(true);
@@ -1063,44 +896,33 @@ function LibrarianDashboard({ onLogout }) {
           }),
         }
       );
-
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to process the returned books."
-        );
+        throw new Error(data.message || "Unable to process the returned books.");
       }
 
+      // The same Return QR remains valid for the remaining books after a
+      // partial return. It is marked used only when the entire batch is done.
       const updatedBatch = await lookupBatchByToken(scannedToken);
-
       setScannedBatch(updatedBatch);
       setSelectedReturnBookIds([]);
-
       setMessage(
         data.message ||
           (data.batch_status === "returned"
-            ? "All books were returned successfully."
-            : "Selected books were returned successfully. The Return QR remains valid for the remaining books.")
+            ? "All books in this batch have been returned successfully."
+            : `Selected books returned successfully. ${data.remaining_books ?? 0} book(s) remain to be returned.`)
       );
+
+      // Reload inventory so the restored available_quantity is visible in
+      // Books Management immediately after a confirmed return.
+      setBooksLoading(true);
+      void loadBooks();
+      void loadBorrowRecords();
+      void getBorrowRequests(false);
     } catch (error) {
       console.error("Return books error:", error);
-
-      // If the final return completed the batch, the Return QR may be invalidated
-      // before the refresh lookup runs. Keep the success/error message meaningful.
-      if (
-        /already been completed|invalid qr|not found/i.test(
-          String(error?.message || "")
-        )
-      ) {
-        setMessage(
-          "The return was processed. This Return QR is no longer active."
-        );
-      } else {
-        setMessage(
-          error.message || "Unable to process the returned books."
-        );
-      }
+      setMessage(error.message || "Unable to process the returned books.");
     } finally {
       setProcessingReturn(false);
     }
@@ -1498,11 +1320,12 @@ function LibrarianDashboard({ onLogout }) {
           <path className="ls-leaf-shape ls-leaf-seven" d="M 94 102 C 110 71, 140 56, 169 61 C 151 89, 123 103, 94 102 Z" />
         </svg>
         <div className="ls-librarian-brand">
-          <div className="ls-librarian-brand-mark"><i className="bi bi-book-half" /></div>
-          <div className="ls-librarian-brand-copy">
-            <span className="ls-librarian-brand-name">LibSync</span>
-            <span className="ls-librarian-brand-caption">Library Management System</span>
-          </div>
+          <img
+            className="ls-librarian-brand-logo"
+            src="/libsync-logo.svg"
+            alt="LibSync — School Library Management System"
+            draggable="false"
+          />
         </div>
 
         <div className="ls-librarian-sidebar-label">WORKSPACE</div>
@@ -1521,6 +1344,9 @@ function LibrarianDashboard({ onLogout }) {
           </button>
           <button type="button" className={`ls-librarian-nav-item ${activeSection === "scan" || activeSection === "scan-result" ? "active" : ""}`} onClick={() => { setMessage(""); setScannedBatch(null); setScannedToken(""); setActiveSection("scan"); }}>
             <i className="bi bi-qr-code-scan" /><span>QR Scanner</span>
+          </button>
+          <button type="button" className={`ls-librarian-nav-item ${activeSection === "reports" ? "active" : ""}`} onClick={openReports}>
+            <i className="bi bi-bar-chart-line" /><span>Reports & Analytics</span>
           </button>
           <button
             type="button"
@@ -1551,9 +1377,9 @@ function LibrarianDashboard({ onLogout }) {
       <main className="ls-librarian-workspace">
         <header className="ls-librarian-topbar">
           <div>
-            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : "LIBSYNC / LIBRARIAN"}</p>
-            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : "Librarian Dashboard"}</h1>
-            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
+            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "reports" ? "LIBSYNC / REPORTS & ANALYTICS" : "LIBSYNC / LIBRARIAN"}</p>
+            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : activeSection === "reports" ? "Reports & Analytics" : "Librarian Dashboard"}</h1>
+            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "reports" ? "Review library performance, inventory, borrowing, returns, and borrower activity." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
           </div>
         </header>
 
@@ -1654,6 +1480,17 @@ function LibrarianDashboard({ onLogout }) {
       )}
 
             {/* MESSAGE */}
+
+      {activeSection === "reports" && (
+        <LibraryReports
+          books={books}
+          borrowings={borrowingRecords}
+          requests={borrowRequests}
+          loading={booksLoading || recordsLoading || loading}
+          error={[booksError, recordsError].filter(Boolean).join(" ")}
+          onRefresh={refreshReports}
+        />
+      )}
 
       {message && activeSection !== "books" && (
 
@@ -1759,7 +1596,11 @@ function LibrarianDashboard({ onLogout }) {
 
             <div>
 
-              <h2>Scanned Borrowing Request</h2>
+              <h2>
+                {scannedBatch.qr_type === "return"
+                  ? "Scanned Return QR"
+                  : "Scanned Borrow QR"}
+              </h2>
 
 
 
@@ -1817,7 +1658,7 @@ function LibrarianDashboard({ onLogout }) {
 
             <p>
 
-              <strong>Status:</strong>{" "}
+              <strong>Batch Status:</strong>{" "}
 
               {scannedBatch.status}
 
@@ -1843,7 +1684,95 @@ function LibrarianDashboard({ onLogout }) {
 
           </div>
 
+          {scannedBatch.qr_type === "borrow" && (
+            <section className="ls-qr-workflow-card ls-qr-workflow-card--borrow" aria-live="polite">
+              <div className="ls-qr-workflow-card__content">
+                <span className="ls-qr-workflow-eyebrow">BORROW CHECKOUT</span>
+                {scannedBatch.qr_used || scannedBatch.borrow_qr_used_at ? (
+                  <>
+                    <h3>Books already released</h3>
+                    <p>Checkout has already been recorded for this batch. The student can now show the separate Return QR when bringing the books back.</p>
+                    {scannedBatch.due_date && (
+                      <p className="ls-qr-workflow-due">Return by: <strong>{new Date(scannedBatch.due_date).toLocaleDateString()}</strong></p>
+                    )}
+                  </>
+                ) : scannedBatch.status === "approved" ? (
+                  <>
+                    <h3>Approved books awaiting checkout</h3>
+                    <p>Verify the student's identity and physically hand over the approved book(s) before confirming release. The return period starts when you confirm.</p>
+                    <button
+                      type="button"
+                      className="ls-qr-workflow-button ls-qr-workflow-button--primary"
+                      onClick={handleReleaseBatch}
+                      disabled={releasingBatch}
+                    >
+                      {releasingBatch ? "Releasing books..." : "Confirm Release of Books"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3>Checkout is not available</h3>
+                    <p>Only an approved borrowing batch can be released. Current batch status: <strong>{scannedBatch.status || "unknown"}</strong>.</p>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
 
+          {scannedBatch.qr_type === "return" && (
+            <section className="ls-qr-workflow-card ls-qr-workflow-card--return" aria-live="polite">
+              <div className="ls-qr-workflow-card__content">
+                <span className="ls-qr-workflow-eyebrow">RETURN CHECK-IN</span>
+                {scannedBatch.qr_used || scannedBatch.return_qr_used_at || scannedBatch.status === "returned" ? (
+                  <>
+                    <h3>Return completed</h3>
+                    <p>All approved books in this borrowing batch have already been returned.</p>
+                  </>
+                ) : scannedBatch.borrow_qr_used_at ? (
+                  <>
+                    <h3>Select the books physically returned</h3>
+                    <p>Check only the books the student has handed back. Unselected books will remain on loan, and the same Return QR can be scanned again for a later partial return.</p>
+                    <div className="ls-qr-return-list">
+                      {(scannedBatch.requests || [])
+                        .filter((request) => request.status === "approved" && !request.returned_at)
+                        .map((request) => (
+                          <label className="ls-qr-return-item" key={request.request_id}>
+                            <input
+                              type="checkbox"
+                              checked={selectedReturnBookIds.includes(Number(request.book_id))}
+                              onChange={() => toggleReturnBook(request.book_id)}
+                              disabled={processingReturn}
+                            />
+                            <span className="ls-qr-return-item__book">
+                              <strong>{request.book_title}</strong>
+                              <small>{request.author || "Author not specified"} · Book ID #{request.book_id}</small>
+                            </span>
+                            <span className="ls-qr-return-item__status">To return</span>
+                          </label>
+                        ))}
+                    </div>
+                    <div className="ls-qr-return-summary">
+                      <span>Selected: <strong>{selectedReturnBookIds.length}</strong></span>
+                      <span>Remaining after return: <strong>{Math.max(0, (scannedBatch.requests || []).filter((request) => request.status === "approved" && !request.returned_at).length - selectedReturnBookIds.length)}</strong></span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ls-qr-workflow-button ls-qr-workflow-button--return"
+                      onClick={handleReturnBooks}
+                      disabled={processingReturn || selectedReturnBookIds.length === 0}
+                    >
+                      {processingReturn ? "Processing return..." : `Confirm Return of ${selectedReturnBookIds.length || "Selected"} Book(s)`}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <h3>Books have not been checked out</h3>
+                    <p>The librarian must first scan the student's Borrow QR and confirm release before this Return QR can be used.</p>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
 
           <h3>Selected Books</h3>
 
@@ -1919,131 +1848,13 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-          {scannedBatch.qr_type === "borrow" && !scannedBatch.qr_used && (
-            <div
-              style={{
-                marginTop: "24px",
-                paddingTop: "20px",
-                borderTop: "1px solid #e7e1d5",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-                flexWrap: "wrap",
-              }}
-            >
-              <div>
-                <h3 style={{ margin: "0 0 6px" }}>Checkout Confirmation</h3>
-                <p style={{ margin: 0 }}>
-                  Confirm that the approved books are being released to the student.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleReleaseBatch}
-                disabled={releasingBatch}
-              >
-                {releasingBatch ? "Releasing..." : "Release Books"}
-              </button>
-            </div>
-          )}
-
-          {scannedBatch.qr_type === "borrow" && scannedBatch.qr_used && (
-            <div
-              style={{
-                marginTop: "24px",
-                padding: "14px 16px",
-                borderRadius: "12px",
-                background: "#eef9f2",
-              }}
-              role="status"
-            >
-              Books have already been released. The student's Return QR is now available.
-            </div>
-          )}
-
-          {scannedBatch.qr_type === "return" && !scannedBatch.qr_used && (
-            <div
-              style={{
-                marginTop: "24px",
-                paddingTop: "20px",
-                borderTop: "1px solid #e7e1d5",
-              }}
-            >
-              <div style={{ marginBottom: "14px" }}>
-                <h3 style={{ margin: "0 0 6px" }}>Process Book Return</h3>
-                <p style={{ margin: 0 }}>
-                  Select the book or books the student is returning now.
-                </p>
-              </div>
-
-              <div style={{ display: "grid", gap: "10px" }}>
-                {(scannedBatch.requests || [])
-                  .filter(
-                    (request) =>
-                      String(request.status || "").toLowerCase() === "approved" &&
-                      !request.returned_at
-                  )
-                  .map((request) => {
-                    const bookId = Number(request.book_id);
-                    const checked = selectedReturnBookIds.includes(bookId);
-
-                    return (
-                      <label
-                        key={request.request_id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "12px 14px",
-                          border: "1px solid #dfe8e2",
-                          borderRadius: "10px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleReturnBook(bookId)}
-                        />
-                        <span>
-                          <strong>{request.book_title}</strong>
-                          <br />
-                          <small>Book ID: {request.book_id}</small>
-                        </span>
-                      </label>
-                    );
-                  })}
-              </div>
-
-              <div
-                style={{
-                  marginTop: "16px",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleReturnBooks}
-                  disabled={
-                    processingReturn || selectedReturnBookIds.length === 0
-                  }
-                >
-                  {processingReturn
-                    ? "Processing Return..."
-                    : `Process Return${
-                        selectedReturnBookIds.length > 1 ? "s" : ""
-                      }`}
-                </button>
-              </div>
-            </div>
-          )}
-
           <p style={{ marginTop: "20px" }}>
 
-            Approved requests are released only after the Borrow QR is scanned and confirmed.
+            Each book request is processed individually.
+
+            Approved requests create borrowing records;
+
+            declined requests do not reduce availability.
 
           </p>
 

@@ -1,152 +1,180 @@
 import { useState } from "react";
+import "./librarian_login.css";
 
-function AdminLogin({ onBack, onLoginSuccess }) {
+const API_URL = "https://libsync-backend.onrender.com";
+
+function AdminLogin({ onLoginSuccess }) {
   const [loginError, setLoginError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-
     setLoginError("");
 
-    const form = e.target;
+    const form = e.currentTarget;
     const email = form.email.value.trim();
     const password = form.password.value;
 
-    console.log("Admin login attempt");
-    console.log("Email:", email);
-
     if (!form.checkValidity()) {
-      console.log("Form validation failed");
       form.reportValidity();
       return;
     }
 
     try {
-      console.log("Connecting to backend...");
+      setIsLoading(true);
 
-      const response = await fetch(
-        "https://libsync-backend.onrender.com/api/login", {
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          role: "admin",
+        }),
+      });
 
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            
-          },
-          
-         body: JSON.stringify({
-            email,
-            password,
-            role: "admin",
-          }),
-        }
-      );
-
-      console.log("Backend response status:", response.status);
-
-      const data = await response.json();
-
-      console.log("Backend response:", data);
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        console.log("Login failed:", data.message);
-
-        setLoginError(
-          data.message || "Invalid email or password."
-        );
+        setLoginError(data.message || "Invalid email or password.");
         return;
       }
 
-      if (data.user.role !== "admin") {
-        console.log("Role check failed. User is not admin.");
-
-        setLoginError(
-          "This account is not registered as an admin."
-        );
+      if (!data.user || data.user.role !== "admin") {
+        setLoginError("This account is not registered as an administrator.");
         return;
       }
 
-      localStorage.setItem(
-        "loggedInUser",
-        JSON.stringify(data.user)
-      );
+      sessionStorage.setItem("loggedInUser", JSON.stringify(data.user));
 
       console.log("Admin login successful");
       console.log("Admin account:", data.user);
 
       onLoginSuccess();
-
     } catch (error) {
       console.error("Admin login error:", error);
-
-      setLoginError(
-        "Unable to connect to the server."
-      );
+      setLoginError("Unable to connect to the server. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleForgotPassword = () => {
+    setLoginError(
+      "Please contact the system owner to reset your administrator password."
+    );
+  };
+
   return (
-    <div className="login-page">
-      <div className="login-card">
+    <main className="ls-login-page">
+      <section className="ls-login-card" aria-label="LibSync administrator login">
+        {/* Uses the same branded library background as Librarian Login. */}
+        <aside
+          className="ls-login-visual"
+          aria-label="LibSync library branding"
+        />
 
-        <button
-          type="button"
-          className="back-button"
-          onClick={onBack}
-        >
-          Back
-        </button>
+        <section className="ls-login-form-panel">
+          <div className="ls-login-content">
+            <div className="ls-login-badge">ADMINISTRATOR PORTAL</div>
+            <h1>Welcome Back</h1>
+            <p className="ls-login-subtitle">
+              Sign in to manage the LibSync system.
+            </p>
 
-        <div className="login-icon">
-          <i className="bi bi-person-gear"></i>
-        </div>
+            {loginError && (
+              <div className="ls-login-error" role="alert">
+                <i className="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+                <span>{loginError}</span>
+              </div>
+            )}
 
-        <h1>Admin Login</h1>
+            <form className="ls-login-form" onSubmit={handleLogin}>
+              <div className="ls-login-field">
+                <label htmlFor="admin-email">Email Address</label>
+                <div className="ls-login-input-wrap">
+                  <i className="bi bi-envelope" aria-hidden="true"></i>
+                  <input
+                    id="admin-email"
+                    type="email"
+                    name="email"
+                    placeholder="Enter your email address"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+              </div>
 
-        <p>
-          Access the administrator portal
-        </p>
+              <div className="ls-login-field">
+                <label htmlFor="admin-password">Password</label>
+                <div className="ls-login-input-wrap">
+                  <i className="bi bi-lock" aria-hidden="true"></i>
+                  <input
+                    id="admin-password"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="ls-password-toggle"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <i
+                      className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`}
+                      aria-hidden="true"
+                    ></i>
+                  </button>
+                </div>
+              </div>
 
-        {loginError && (
-          <div className="form-error">
-            {loginError}
+              <div className="ls-login-options">
+                <label className="ls-remember-label">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                  <span className="ls-custom-checkbox" aria-hidden="true"></span>
+                  <span>Remember me</span>
+                </label>
+                <button
+                  type="button"
+                  className="ls-forgot-link"
+                  onClick={handleForgotPassword}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <button
+                className="ls-login-submit"
+                type="submit"
+                disabled={isLoading}
+              >
+                <span>{isLoading ? "Signing in..." : "Login"}</span>
+                {!isLoading && (
+                  <i className="bi bi-arrow-right" aria-hidden="true"></i>
+                )}
+              </button>
+            </form>
+
+            <div className="ls-admin-notice">
+              <i className="bi bi-shield-lock" aria-hidden="true"></i>
+              <span>Restricted access. Authorized administrators only.</span>
+            </div>
           </div>
-        )}
-
-        <form onSubmit={handleLogin}>
-
-          <div className="form-group">
-            <label>Email Address</label>
-
-            <input
-              type="email"
-              name="email"
-              placeholder="Enter your email"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Password</label>
-
-            <input
-              type="password"
-              name="password"
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="login-button"
-          >
-            Login
-          </button>
-
-        </form>
-
-      </div>
-    </div>
+        </section>
+      </section>
+    </main>
   );
 }
 

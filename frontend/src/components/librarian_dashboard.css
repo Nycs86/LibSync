@@ -1,7 +1,7 @@
 /* LibSync Librarian Dashboard — matches the Student Dashboard palette */
 .ls-librarian-shell {
-  --ls-lib-emerald: #065F46;
-  --ls-lib-emerald-deep: #054C39;
+  --ls-lib-emerald: #006149;
+  --ls-lib-emerald-deep: #00513C;
   --ls-lib-mint: #A7F3D0;
   --ls-lib-cream: #FFF8E7;
   --ls-lib-bg: #F8FBF8;
@@ -773,3 +773,26 @@
 @media (max-width: 1420px) { .ls-records-toolbar { grid-template-columns: minmax(220px, 1.5fr) minmax(125px, .75fr) minmax(140px, .8fr) minmax(120px, .65fr) minmax(120px, .65fr); } .ls-records-reset-button { grid-column: 1 / -1; justify-self: end; min-width: 100px; } }
 @media (max-width: 1050px) { .ls-records-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ls-records-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ls-records-search-field { grid-column: 1 / -1; } .ls-records-reset-button { grid-column: auto; justify-self: stretch; } }
 @media (max-width: 650px) { .ls-records-stats-grid { grid-template-columns: 1fr; } .ls-records-panel { padding: 14px; } .ls-records-panel-header { align-items: flex-start; flex-direction: column; } .ls-records-panel-actions { width: 100%; } .ls-records-panel-actions button { flex: 1; } .ls-records-toolbar { grid-template-columns: 1fr; } .ls-records-search-field { grid-column: auto; } .ls-records-reset-button { width: 100%; } .ls-records-table-footer { align-items: flex-start; flex-direction: column; } .ls-records-pagination { flex-wrap: wrap; } .ls-records-detail-grid { grid-template-columns: 1fr; padding: 14px; } .ls-records-modal-header { padding: 14px; } }
+
+
+/* Unified LibSync brand mark shared with the Admin dashboard. */
+.ls-librarian-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0 32px;
+}
+.ls-librarian-brand-logo {
+  display: block;
+  width: min(218px, 100%);
+  height: 62px;
+  object-fit: contain;
+  object-position: center;
+  filter: brightness(0) invert(1);
+  user-select: none;
+}
+@media (max-width: 780px) {
+  .ls-librarian-brand { justify-content: flex-start; padding: 0 4px 16px; }
+  .ls-librarian-brand-logo { width: min(225px, 100%); height: 48px; object-position: left center; }
+}

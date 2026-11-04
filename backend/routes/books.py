@@ -4,6 +4,7 @@ import requests
 import time
 
 from database import get_db_connection
+from .auth import require_role
 
 
 books_bp = Blueprint("books", __name__)
@@ -346,6 +347,7 @@ def get_books():
 
 
 @books_bp.route("/api/books", methods=["POST"])
+@require_role("admin", "librarian")
 def add_book():
     connection = None
     cursor = None
@@ -449,6 +451,7 @@ def add_book():
 
 
 @books_bp.route("/api/books/<int:book_id>", methods=["PUT"])
+@require_role("admin", "librarian")
 def update_book(book_id):
     connection = None
     cursor = None
@@ -574,6 +577,7 @@ def update_book(book_id):
 
 
 @books_bp.route("/api/books/<int:book_id>", methods=["DELETE"])
+@require_role("admin", "librarian")
 def delete_book(book_id):
     connection = None
     cursor = None

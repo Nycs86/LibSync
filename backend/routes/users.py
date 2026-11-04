@@ -1,109 +1,142 @@
+import logging
+
 from flask import Blueprint, jsonify, request
 import mysql.connector
+from werkzeug.security import generate_password_hash
 
-from routes.auth import require_role
 from database import get_db_connection
+from routes.auth import require_role
 
 
 users_bp = Blueprint("users", __name__)
+logger = logging.getLogger(__name__)
 
 
-# GET ALL USERS
+_ROLE_NAMES = {"student", "librarian", "admin"}
+
+
+def _get_role_id(cursor, role_name):
+    """Return the canonical role ID from the roles table, or None."""
+    cursor.execute(
+        "SELECT id FROM roles WHERE LOWER(role_name) = %s LIMIT 1",
+        (role_name.lower(),),
+    )
+    role = cursor.fetchone()
+    return role["id"] if role else None
+
+
+# GET ALL USERS: admin only
 @users_bp.route("/api/users", methods=["GET"])
+@require_role("admin")
 def get_users():
+    connection = None
+    cursor = None
+
     try:
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
+            }), 500
 
-        cursor.execute("""
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
             SELECT id, name, email, role, created_at
             FROM users
             ORDER BY id DESC
-        """)
+            """
+        )
+        return jsonify(cursor.fetchall()), 200
 
-        users = cursor.fetchall()
-
-        cursor.close()
-        connection.close()
-
-        return jsonify(users), 200
-
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
+        logger.exception("Database error while retrieving users")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to retrieve users right now.",
         }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 # CREATE USER / STUDENT ACCOUNT
+# Public registration is deliberately restricted to the student role.
 @users_bp.route("/api/users", methods=["POST"])
 def add_user():
     connection = None
     cursor = None
 
     try:
-        data = request.get_json() or {}
-
+        data = request.get_json(silent=True) or {}
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
 
-        if not name or not email or not password:
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(email, str)
+            or not email.strip()
+            or not isinstance(password, str)
+            or not password
+        ):
             return jsonify({
                 "status": "error",
-                "message": "Name, email, and password are required."
+                "message": "Name, email, and password are required.",
             }), 400
 
-        # Normal registration is always Student
-        role = "student"
-
-        connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
-
-        # Get Student role ID
-        cursor.execute("""
-            SELECT id
-            FROM roles
-            WHERE LOWER(role_name) = 'student'
-            LIMIT 1
-        """)
-
-        student_role = cursor.fetchone()
-
-        if not student_role:
+        name = name.strip()
+        email = email.strip()
+        if len(name) > 100 or len(email) > 100:
             return jsonify({
                 "status": "error",
-                "message": "Student role is not configured in the database."
+                "message": "Name and email must not exceed 100 characters.",
+            }), 400
+        if len(password) > 1024:
+            return jsonify({
+                "status": "error",
+                "message": "Password is too long.",
+            }), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
             }), 500
 
-        role_id = student_role["id"]
+        cursor = connection.cursor(dictionary=True)
+        student_role_id = _get_role_id(cursor, "student")
+        if student_role_id is None:
+            return jsonify({
+                "status": "error",
+                "message": "Student role is not configured in the database.",
+            }), 500
 
-        # Create user
-        cursor.execute("""
-            INSERT INTO users (
+        cursor.execute(
+            """
+            INSERT INTO users (name, email, password, role, role_id)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (
                 name,
                 email,
-                password,
-                role,
-                role_id
-            )
-            VALUES (%s, %s, %s, %s, %s)
-        """, (
-            name,
-            email,
-            password,
-            role,
-            role_id
-        ))
-
+                generate_password_hash(password),
+                "student",
+                student_role_id,
+            ),
+        )
         user_id = cursor.lastrowid
 
-        # Also create student profile
-        cursor.execute("""
-            INSERT INTO students (user_id)
-            VALUES (%s)
-        """, (user_id,))
-
+        cursor.execute(
+            "INSERT INTO students (user_id) VALUES (%s)",
+            (user_id,),
+        )
         connection.commit()
 
         return jsonify({
@@ -113,33 +146,37 @@ def add_user():
                 "id": user_id,
                 "name": name,
                 "email": email,
-                "role": role,
-                "role_id": role_id
-            }
+                "role": "student",
+            },
         }), 201
 
     except mysql.connector.IntegrityError as error:
         if connection:
             connection.rollback()
-
+        # MySQL/MariaDB duplicate-key error code.
+        if getattr(error, "errno", None) == 1062:
+            return jsonify({
+                "status": "error",
+                "message": "Email already exists.",
+            }), 409
+        logger.exception("Integrity error while creating student account")
         return jsonify({
             "status": "error",
-            "message": "Email already exists."
-        }), 409
+            "message": "Unable to create account because of a database constraint.",
+        }), 500
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
-
+        logger.exception("Database error while creating student account")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to create account right now. Please try again.",
         }), 500
 
     finally:
         if cursor:
             cursor.close()
-
         if connection:
             connection.close()
 
@@ -153,53 +190,49 @@ def assign_librarian(user_id):
 
     try:
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT id, name, email, role
-            FROM users
-            WHERE id = %s
-        """, (user_id,))
-
+        cursor.execute(
+            "SELECT id, name, email, role FROM users WHERE id = %s FOR UPDATE",
+            (user_id,),
+        )
         user = cursor.fetchone()
 
         if not user:
-            return jsonify({
-                "status": "error",
-                "message": "User not found."
-            }), 404
-
+            return jsonify({"status": "error", "message": "User not found."}), 404
         if user["role"] == "admin":
             return jsonify({
                 "status": "error",
-                "message": "Admin cannot be assigned as librarian."
+                "message": "Admin cannot be assigned as librarian.",
             }), 400
-
         if user["role"] == "librarian":
             return jsonify({
                 "status": "error",
-                "message": "User is already a librarian."
+                "message": "User is already a librarian.",
             }), 400
 
-        # Remove from students table
-        cursor.execute("""
-            DELETE FROM students
-            WHERE user_id = %s
-        """, (user_id,))
+        librarian_role_id = _get_role_id(cursor, "librarian")
+        if librarian_role_id is None:
+            return jsonify({
+                "status": "error",
+                "message": "Librarian role is not configured in the database.",
+            }), 500
 
-        # Change role
-        cursor.execute("""
-            UPDATE users
-            SET role = 'librarian'
-            WHERE id = %s
-        """, (user_id,))
-
-        # Add to librarians table
-        cursor.execute("""
-            INSERT INTO librarians (user_id)
-            VALUES (%s)
-        """, (user_id,))
-
+        # Keep the role string, role_id, and role-specific profile table aligned.
+        cursor.execute("DELETE FROM students WHERE user_id = %s", (user_id,))
+        cursor.execute(
+            "UPDATE users SET role = %s, role_id = %s WHERE id = %s",
+            ("librarian", librarian_role_id, user_id),
+        )
+        cursor.execute(
+            "INSERT IGNORE INTO librarians (user_id) VALUES (%s)",
+            (user_id,),
+        )
         connection.commit()
 
         return jsonify({
@@ -209,26 +242,27 @@ def assign_librarian(user_id):
                 "id": user["id"],
                 "name": user["name"],
                 "email": user["email"],
-                "role": "librarian"
-            }
+                "role": "librarian",
+            },
         }), 200
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
-
+        logger.exception("Database error while assigning librarian role")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to assign librarian role right now.",
         }), 500
 
     finally:
         if cursor:
             cursor.close()
-
         if connection:
             connection.close()
 
+
+# ADMIN REMOVES A LIBRARIAN; THE ACCOUNT RETURNS TO STUDENT ROLE
 @users_bp.route("/api/users/<int:user_id>/remove-librarian", methods=["PUT"])
 @require_role("admin")
 def remove_librarian(user_id):
@@ -237,44 +271,43 @@ def remove_librarian(user_id):
 
     try:
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT id, name, email, role
-            FROM users
-            WHERE id = %s
-        """, (user_id,))
-
+        cursor.execute(
+            "SELECT id, name, email, role FROM users WHERE id = %s FOR UPDATE",
+            (user_id,),
+        )
         user = cursor.fetchone()
 
         if not user:
-            return jsonify({
-                "status": "error",
-                "message": "User not found."
-            }), 404
-
+            return jsonify({"status": "error", "message": "User not found."}), 404
         if user["role"] != "librarian":
             return jsonify({
                 "status": "error",
-                "message": "User is not a librarian."
+                "message": "User is not a librarian.",
             }), 400
 
-        cursor.execute("""
-            DELETE FROM librarians
-            WHERE user_id = %s
-        """, (user_id,))
+        student_role_id = _get_role_id(cursor, "student")
+        if student_role_id is None:
+            return jsonify({
+                "status": "error",
+                "message": "Student role is not configured in the database.",
+            }), 500
 
-        cursor.execute("""
-            UPDATE users
-            SET role = 'student'
-            WHERE id = %s
-        """, (user_id,))
-
-        cursor.execute("""
-            INSERT IGNORE INTO students (user_id)
-            VALUES (%s)
-        """, (user_id,))
-
+        cursor.execute("DELETE FROM librarians WHERE user_id = %s", (user_id,))
+        cursor.execute(
+            "UPDATE users SET role = %s, role_id = %s WHERE id = %s",
+            ("student", student_role_id, user_id),
+        )
+        cursor.execute(
+            "INSERT IGNORE INTO students (user_id) VALUES (%s)",
+            (user_id,),
+        )
         connection.commit()
 
         return jsonify({
@@ -284,22 +317,21 @@ def remove_librarian(user_id):
                 "id": user["id"],
                 "name": user["name"],
                 "email": user["email"],
-                "role": "student"
-            }
+                "role": "student",
+            },
         }), 200
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
-
+        logger.exception("Database error while removing librarian role")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to remove librarian role right now.",
         }), 500
 
     finally:
         if cursor:
             cursor.close()
-
         if connection:
             connection.close()

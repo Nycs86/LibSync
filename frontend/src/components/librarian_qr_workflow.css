@@ -1,0 +1,183 @@
+/* LibSync Librarian QR checkout and return workflow */
+.ls-qr-workflow-card {
+  margin: 24px 0;
+  padding: 22px 24px;
+  border: 1px solid #d9e9e0;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(6, 95, 70, 0.06);
+}
+
+.ls-qr-workflow-card--borrow {
+  background: linear-gradient(135deg, #effaf3 0%, #e4f5eb 100%);
+  border-color: #c6e8d3;
+}
+
+.ls-qr-workflow-card--return {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f2ff 100%);
+  border-color: #cbdcf2;
+}
+
+.ls-qr-workflow-card__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ls-qr-workflow-eyebrow {
+  color: #557568;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+}
+
+.ls-qr-workflow-card h3 {
+  margin: 0;
+  color: #123d32;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ls-qr-workflow-card p {
+  margin: 0;
+  max-width: 900px;
+  color: #536d63;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ls-qr-workflow-due {
+  margin-top: 2px !important;
+  color: #075d45 !important;
+}
+
+.ls-qr-workflow-button {
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 11px 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.ls-qr-workflow-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(6, 95, 70, 0.14);
+}
+
+.ls-qr-workflow-button:focus-visible {
+  outline: 3px solid rgba(6, 95, 70, 0.25);
+  outline-offset: 2px;
+}
+
+.ls-qr-workflow-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ls-qr-workflow-button--primary {
+  color: #fff;
+  background: #006b50;
+}
+
+.ls-qr-workflow-button--return {
+  color: #fff;
+  background: #2563a8;
+}
+
+.ls-qr-return-list {
+  display: grid;
+  width: 100%;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.ls-qr-return-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid #d5e3f2;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
+.ls-qr-return-item:has(input:checked) {
+  border-color: #6c9fd3;
+  background: #f7fbff;
+}
+
+.ls-qr-return-item input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  accent-color: #2563a8;
+}
+
+.ls-qr-return-item__book {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: #193b57;
+}
+
+.ls-qr-return-item__book strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.ls-qr-return-item__book small {
+  color: #6b8194;
+  font-size: 12px;
+}
+
+.ls-qr-return-item__status {
+  flex: 0 0 auto;
+  color: #2563a8;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.ls-qr-return-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 8px;
+  color: #45627d;
+  font-size: 13px;
+}
+
+.ls-qr-return-summary strong {
+  color: #163f66;
+}
+
+@media (max-width: 640px) {
+  .ls-qr-workflow-card {
+    padding: 17px;
+  }
+
+  .ls-qr-workflow-card h3 {
+    font-size: 18px;
+  }
+
+  .ls-qr-return-item {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .ls-qr-return-item__status {
+    display: none;
+  }
+
+  .ls-qr-workflow-button {
+    width: 100%;
+  }
+}
