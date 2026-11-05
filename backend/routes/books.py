@@ -1,13 +1,29 @@
+import logging
+import time
+
 from flask import Blueprint, jsonify, request
 import mysql.connector
 import requests
-import time
 
 from database import get_db_connection
 from .auth import require_role
 
 
 books_bp = Blueprint("books", __name__)
+logger = logging.getLogger(__name__)
+
+
+def _get_json_object():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, (
+            jsonify({
+                "status": "error",
+                "message": "Request body must be a valid JSON object."
+            }),
+            400,
+        )
+    return data, None
 
 # Starter catalog settings.
 # If the books table has fewer than 5 books, LibSync automatically tops it up
@@ -123,8 +139,8 @@ def seed_starter_books(max_new_books):
             # Be polite to the public Open Library API.
             time.sleep(0.4)
 
-    except requests.exceptions.RequestException as error:
-        print("Open Library starter import error:", error)
+    except (requests.exceptions.RequestException, ValueError):
+        logger.exception("Open Library starter import failed")
         return 0
 
     connection = None
@@ -133,6 +149,10 @@ def seed_starter_books(max_new_books):
 
     try:
         connection = get_db_connection()
+        if connection is None:
+            logger.error("Starter catalog import skipped: database connection failed")
+            return 0
+
         cursor = connection.cursor()
 
         for book in collected:
@@ -183,11 +203,21 @@ def seed_starter_books(max_new_books):
         print(f"LibSync starter catalog imported {imported} book(s).")
         return imported
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
 
-        print("Starter catalog database error:", error)
+        logger.exception("Starter catalog database error")
+        return 0
+
+    except Exception:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after starter catalog error")
+
+        logger.exception("Unexpected starter catalog error")
         return 0
 
     finally:
@@ -226,7 +256,15 @@ def search_online_books():
         )
 
         response.raise_for_status()
-        data = response.json()
+
+        try:
+            data = response.json()
+        except ValueError:
+            logger.exception("Open Library returned invalid JSON")
+            return jsonify({
+                "status": "error",
+                "message": "Open Library returned an invalid response."
+            }), 502
 
         results = []
 
@@ -282,14 +320,19 @@ def search_online_books():
             "message": "Open Library request timed out."
         }), 504
 
-    except requests.exceptions.RequestException as error:
-        print("Open Library API error:", error)
-
+    except requests.exceptions.RequestException:
+        logger.exception("Open Library API request failed")
         return jsonify({
             "status": "error",
-            "message": "Unable to connect to Open Library.",
-            "details": str(error)
+            "message": "Unable to connect to Open Library."
         }), 502
+
+    except Exception:
+        logger.exception("Unexpected online book search error")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to search online books right now."
+        }), 500
 
 
 @books_bp.route("/api/books", methods=["GET"])
@@ -299,6 +342,12 @@ def get_books():
 
     try:
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
@@ -320,6 +369,12 @@ def get_books():
             seed_starter_books(needed)
 
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
@@ -332,10 +387,18 @@ def get_books():
 
         return jsonify(books)
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
+        logger.exception("Database error while retrieving books")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to retrieve books right now."
+        }), 500
+
+    except Exception:
+        logger.exception("Unexpected error while retrieving books")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve books right now."
         }), 500
 
     finally:
@@ -353,7 +416,9 @@ def add_book():
     cursor = None
 
     try:
-        data = request.get_json() or {}
+        data, error_response = _get_json_object()
+        if error_response:
+            return error_response
 
         title = data.get("title")
         author = data.get("author")
@@ -384,6 +449,12 @@ def add_book():
             }), 400
 
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor()
 
         query = """
@@ -433,13 +504,27 @@ def add_book():
             "message": "ISBN already exists."
         }), 409
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
 
+        logger.exception("Database error while adding book")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to add the book right now."
+        }), 500
+
+    except Exception:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after add book error")
+
+        logger.exception("Unexpected error while adding book")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to add the book right now."
         }), 500
 
     finally:
@@ -457,7 +542,9 @@ def update_book(book_id):
     cursor = None
 
     try:
-        data = request.get_json() or {}
+        data, error_response = _get_json_object()
+        if error_response:
+            return error_response
 
         title = data.get("title")
         author = data.get("author")
@@ -481,7 +568,19 @@ def update_book(book_id):
                 "message": "Quantity must be a whole number."
             }), 400
 
+        if quantity < 1:
+            return jsonify({
+                "status": "error",
+                "message": "Quantity must be at least 1."
+            }), 400
+
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
@@ -515,7 +614,7 @@ def update_book(book_id):
         status = (
             "available"
             if new_available_quantity > 0
-            else "borrowed"
+            else "unavailable"
         )
 
         cursor.execute("""
@@ -559,13 +658,27 @@ def update_book(book_id):
             "message": "ISBN already exists."
         }), 409
 
-    except mysql.connector.Error as error:
+    except mysql.connector.Error:
         if connection:
             connection.rollback()
 
+        logger.exception("Database error while updating book")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to update the book right now."
+        }), 500
+
+    except Exception:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after update book error")
+
+        logger.exception("Unexpected error while updating book")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to update the book right now."
         }), 500
 
     finally:
@@ -584,6 +697,12 @@ def delete_book(book_id):
 
     try:
         connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute("""
@@ -624,13 +743,39 @@ def delete_book(book_id):
             "message": "Book deleted successfully!"
         })
 
-    except mysql.connector.Error as error:
+    except mysql.connector.IntegrityError:
         if connection:
             connection.rollback()
 
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": (
+                "This book has borrowing history and cannot be deleted. "
+                "Keep the record or mark it unavailable instead."
+            )
+        }), 409
+
+    except mysql.connector.Error:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error while deleting book")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to delete the book right now."
+        }), 500
+
+    except Exception:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after delete book error")
+
+        logger.exception("Unexpected error while deleting book")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to delete the book right now."
         }), 500
 
     finally:

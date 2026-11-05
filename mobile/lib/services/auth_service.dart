@@ -32,6 +32,7 @@ class AuthService {
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final user = data['user'];
+      final accessToken = data['access_token'];
 
       if (user == null) {
         return {
@@ -47,9 +48,19 @@ class AuthService {
         };
       }
 
+      if (accessToken is! String || accessToken.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'Login succeeded, but no access token was returned.',
+        };
+      }
+
       return {
         'success': true,
         'user': user,
+        'accessToken': accessToken,
+        'tokenType': data['token_type'] ?? 'Bearer',
+        'expiresIn': data['expires_in'],
       };
     }
 

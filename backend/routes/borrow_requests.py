@@ -14,6 +14,20 @@ logger = logging.getLogger(__name__)
 borrow_requests_bp = Blueprint("borrow_requests", __name__)
 
 
+def _get_json_object():
+    """Return a JSON object body or a consistent 400 response."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, (
+            jsonify({
+                "status": "error",
+                "message": "Request body must be a valid JSON object."
+            }),
+            400,
+        )
+    return data, None
+
+
 def _send_status_email_safely(**kwargs):
     """Send notification after commit without misreporting a committed action."""
     try:
@@ -55,7 +69,10 @@ def _current_qr_for_batch(batch):
 @borrow_requests_bp.route("/api/borrow-requests", methods=["POST"])
 @require_role("student")
 def create_borrow_request():
-    data = request.get_json(silent=True) or {}
+    data, error_response = _get_json_object()
+    if error_response:
+        return error_response
+
     user_id = request.authenticated_user_id
     requested_user_id = data.get("user_id")
 
@@ -308,10 +325,11 @@ def get_borrow_requests():
             "requests": requests_list
         }), 200
 
-    except Exception as error:
+    except Exception:
+        logger.exception("Unable to retrieve borrow requests")
         return jsonify({
             "status": "error",
-            "message": str(error)
+            "message": "Unable to retrieve borrow requests right now."
         }), 500
 
     finally:
@@ -373,8 +391,8 @@ def get_borrow_records():
             "records": records
         }), 200
 
-    except Exception as error:
-        print("Load borrowing records error:", error)
+    except Exception:
+        logger.exception("Unable to retrieve borrowing records")
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve borrowing records."
@@ -394,7 +412,10 @@ def get_borrow_records():
 )
 @require_role("librarian")
 def decide_borrow_request(request_id):
-    data = request.get_json(silent=True) or {}
+    data, error_response = _get_json_object()
+    if error_response:
+        return error_response
+
     librarian_id = request.authenticated_user_id
     decision = data.get("decision")
 
@@ -986,7 +1007,10 @@ def generate_batch_qr(batch_id):
 )
 @require_role("librarian")
 def lookup_borrow_batch_by_qr():
-    data = request.get_json(silent=True) or {}
+    data, error_response = _get_json_object()
+    if error_response:
+        return error_response
+
     qr_token = data.get("qr_token")
 
     if not isinstance(qr_token, str) or not qr_token.strip():
@@ -1115,7 +1139,10 @@ def lookup_borrow_batch_by_qr():
 )
 @require_role("librarian")
 def release_borrow_batch(batch_id):
-    data = request.get_json(silent=True) or {}
+    data, error_response = _get_json_object()
+    if error_response:
+        return error_response
+
     scanned_token = data.get("qr_token")
 
     if not isinstance(scanned_token, str) or not scanned_token.strip():
@@ -1132,10 +1159,21 @@ def release_borrow_batch(batch_id):
 
     try:
         cursor.execute("""
-            SELECT id, user_id, status, borrow_qr_token, borrow_qr_used_at,
-                   return_qr_token, loan_days, due_date
-            FROM borrow_batches
-            WHERE id = %s
+            SELECT
+                bb.id,
+                bb.user_id,
+                bb.status,
+                bb.borrow_qr_token,
+                bb.borrow_qr_used_at,
+                bb.return_qr_token,
+                bb.loan_days,
+                bb.due_date,
+                u.name AS student_name,
+                u.email AS student_email
+            FROM borrow_batches bb
+            INNER JOIN users u
+                ON u.id = bb.user_id
+            WHERE bb.id = %s
             FOR UPDATE
         """, (batch_id,))
         batch = cursor.fetchone()
@@ -1199,7 +1237,41 @@ def release_borrow_batch(batch_id):
                 "message": "This Borrow QR has already been processed."
             }), 409
 
+        cursor.execute("""
+            SELECT due_date
+            FROM borrow_batches
+            WHERE id = %s
+        """, (batch_id,))
+        updated_batch = cursor.fetchone()
+
+        due_date = (
+            updated_batch["due_date"]
+            if updated_batch
+            else None
+        )
+
+        cursor.execute("""
+            SELECT b.title
+            FROM borrow_requests br
+            INNER JOIN books b ON b.id = br.book_id
+            WHERE br.batch_id = %s
+              AND br.status = 'approved'
+            ORDER BY br.id ASC
+        """, (batch_id,))
+        released_books = cursor.fetchall()
+
         conn.commit()
+
+        _send_status_email_safely(
+            student_email=batch["student_email"],
+            student_name=batch["student_name"],
+            status="borrowed",
+            book_titles=[
+                item["title"]
+                for item in released_books
+            ],
+            due_date=due_date,
+        )
 
         return jsonify({
             "status": "success",
@@ -1207,7 +1279,8 @@ def release_borrow_batch(batch_id):
             "batch_id": batch_id,
             "borrow_qr_used": True,
             "return_qr_available": True,
-            "return_qr_token": return_qr_token
+            "return_qr_token": return_qr_token,
+            "due_date": due_date
         }), 200
 
     except Exception:
@@ -1232,7 +1305,10 @@ def release_borrow_batch(batch_id):
 )
 @require_role("librarian")
 def return_borrow_batch_by_qr(batch_id):
-    data = request.get_json(silent=True) or {}
+    data, error_response = _get_json_object()
+    if error_response:
+        return error_response
+
     raw_book_ids = data.get("book_ids")
     scanned_token = data.get("qr_token")
 

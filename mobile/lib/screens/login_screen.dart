@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/auth_session.dart';
 import 'student/student_shell.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -51,6 +52,24 @@ class _LoginScreenState extends State<LoginScreen> {
           result['user'] as Map,
         );
 
+        final accessToken = result['accessToken'];
+
+        if (accessToken is! String || accessToken.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Login succeeded, but no access token was returned.',
+              ),
+            ),
+          );
+          return;
+        }
+
+        AuthSession.setSession(
+          accessToken: accessToken,
+          user: user,
+        );
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -68,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -128,7 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 32),
-
                       TextField(
                         controller: _emailController,
                         keyboardType:
@@ -140,9 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
                       TextField(
                         controller: _passwordController,
                         obscureText: _hidePassword,
@@ -168,9 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
-
                       SizedBox(
                         height: 50,
                         child: FilledButton(

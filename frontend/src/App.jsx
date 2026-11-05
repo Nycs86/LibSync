@@ -23,10 +23,11 @@ function App() {
     return (
       <AdminDashboard
         onLogout={() => {
-          sessionStorage.removeItem("loggedInUser");
-          setIsAdminLoggedIn(false);
-          setSelectedRole("");
-        }}
+        sessionStorage.removeItem("loggedInUser");
+        sessionStorage.removeItem("accessToken");
+        setIsAdminLoggedIn(false);
+        setSelectedRole("");
+      }}
       />
     );
   }
@@ -36,6 +37,7 @@ function App() {
       <LibrarianDashboard
         onLogout={() => {
           sessionStorage.removeItem("loggedInUser");
+          sessionStorage.removeItem("accessToken");
           setIsLibrarianLoggedIn(false);
           setSelectedRole("");
         }}
@@ -47,10 +49,11 @@ function App() {
     return (
       <StudentDashboard
         onLogout={() => {
-          sessionStorage.removeItem("loggedInUser");
-          setIsStudentLoggedIn(false);
-          setSelectedRole("");
-        }}
+        sessionStorage.removeItem("loggedInUser");
+        sessionStorage.removeItem("accessToken");
+        setIsAdminLoggedIn(false);
+        setSelectedRole("");
+      }}
       />
     );
   }

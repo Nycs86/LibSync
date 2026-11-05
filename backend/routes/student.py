@@ -43,20 +43,25 @@ def _get_student_borrowing_records(cursor, user_id):
                 NULL AS qr_token,
                 CASE
                     WHEN bw.returned_at IS NOT NULL
-                         OR bw.status = 'returned' THEN 'returned'
+                         OR bw.status = 'returned'
+                        THEN 'returned'
                     WHEN bw.due_date IS NOT NULL
-                         AND bw.due_date < CURDATE() THEN 'overdue'
+                         AND bw.due_date < CURDATE()
+                        THEN 'overdue'
                     ELSE 'borrowed'
                 END AS status,
                 CASE
                     WHEN bw.returned_at IS NOT NULL
-                         OR bw.status = 'returned' THEN 'returned'
+                         OR bw.status = 'returned'
+                        THEN 'returned'
                     WHEN bw.due_date IS NOT NULL
-                         AND bw.due_date < CURDATE() THEN 'overdue'
+                         AND bw.due_date < CURDATE()
+                        THEN 'overdue'
                     ELSE 'borrowed'
                 END AS borrowing_status
             FROM borrowings bw
-            INNER JOIN books b ON b.id = bw.book_id
+            INNER JOIN books b
+                ON b.id = bw.book_id
             WHERE bw.user_id = %s
 
             UNION ALL
@@ -77,20 +82,26 @@ def _get_student_borrowing_records(cursor, user_id):
                 req.status AS request_status,
                 NULL AS qr_token,
                 CASE
-                    WHEN req.returned_at IS NOT NULL THEN 'returned'
+                    WHEN req.returned_at IS NOT NULL
+                        THEN 'returned'
                     WHEN batch.due_date IS NOT NULL
-                         AND batch.due_date < CURDATE() THEN 'overdue'
+                         AND batch.due_date < CURDATE()
+                        THEN 'overdue'
                     ELSE 'borrowed'
                 END AS status,
                 CASE
-                    WHEN req.returned_at IS NOT NULL THEN 'returned'
+                    WHEN req.returned_at IS NOT NULL
+                        THEN 'returned'
                     WHEN batch.due_date IS NOT NULL
-                         AND batch.due_date < CURDATE() THEN 'overdue'
+                         AND batch.due_date < CURDATE()
+                        THEN 'overdue'
                     ELSE 'borrowed'
                 END AS borrowing_status
             FROM borrow_requests req
-            INNER JOIN borrow_batches batch ON batch.id = req.batch_id
-            INNER JOIN books b ON b.id = req.book_id
+            INNER JOIN borrow_batches batch
+                ON batch.id = req.batch_id
+            INNER JOIN books b
+                ON b.id = req.book_id
             WHERE req.user_id = %s
               AND req.batch_id IS NOT NULL
               AND req.status = 'approved'
@@ -100,6 +111,7 @@ def _get_student_borrowing_records(cursor, user_id):
         """,
         (user_id, user_id),
     )
+
     return cursor.fetchall()
 
 
@@ -116,7 +128,11 @@ def _load_student_borrowings(user_id):
             }), 500
 
         cursor = connection.cursor(dictionary=True)
-        records = _get_student_borrowing_records(cursor, user_id)
+        records = _get_student_borrowing_records(
+            cursor,
+            user_id,
+        )
+
         return jsonify({
             "status": "success",
             "user_id": user_id,
@@ -125,7 +141,18 @@ def _load_student_borrowings(user_id):
         }), 200
 
     except mysql.connector.Error:
-        logger.exception("Unable to retrieve student borrowing history")
+        logger.exception(
+            "Database error while retrieving student borrowing history"
+        )
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve borrowing history right now.",
+        }), 500
+
+    except Exception:
+        logger.exception(
+            "Unexpected error while retrieving student borrowing history"
+        )
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve borrowing history right now.",
@@ -139,34 +166,49 @@ def _load_student_borrowings(user_id):
 
 
 def _verify_student_owns_path(user_id):
-    authenticated_user_id = getattr(request, "authenticated_user_id", None)
+    authenticated_user_id = getattr(
+        request,
+        "authenticated_user_id",
+        None,
+    )
+
     if authenticated_user_id != user_id:
         return jsonify({
             "status": "error",
             "message": "You can only view your own records.",
         }), 403
+
     return None
 
 
 # =========================================================
-# GET STUDENT BORROWINGS — LEGACY + QR BATCH HISTORY
+# GET STUDENT BORROWINGS - LEGACY + QR BATCH HISTORY
 # =========================================================
-@student_bp.route("/api/student/borrowings/<int:user_id>", methods=["GET"])
+@student_bp.route(
+    "/api/student/borrowings/<int:user_id>",
+    methods=["GET"],
+)
 @require_role("student")
 def get_student_borrowings(user_id):
     ownership_error = _verify_student_owns_path(user_id)
+
     if ownership_error:
         return ownership_error
+
     return _load_student_borrowings(user_id)
 
 
 # =========================================================
 # GET STUDENT PROFILE
 # =========================================================
-@student_bp.route("/api/student/profile/<int:user_id>", methods=["GET"])
+@student_bp.route(
+    "/api/student/profile/<int:user_id>",
+    methods=["GET"],
+)
 @require_role("student")
 def get_student_profile(user_id):
     ownership_error = _verify_student_owns_path(user_id)
+
     if ownership_error:
         return ownership_error
 
@@ -186,7 +228,8 @@ def get_student_profile(user_id):
             """
             SELECT id, name, email, role, created_at
             FROM users
-            WHERE id = %s AND role = 'student'
+            WHERE id = %s
+              AND role = 'student'
             LIMIT 1
             """,
             (user_id,),
@@ -199,10 +242,24 @@ def get_student_profile(user_id):
                 "message": "Student not found.",
             }), 404
 
-        return jsonify({"status": "success", "user": user}), 200
+        return jsonify({
+            "status": "success",
+            "user": user,
+        }), 200
 
     except mysql.connector.Error:
-        logger.exception("Unable to retrieve student profile")
+        logger.exception(
+            "Database error while retrieving student profile"
+        )
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve student profile right now.",
+        }), 500
+
+    except Exception:
+        logger.exception(
+            "Unexpected error while retrieving student profile"
+        )
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve student profile right now.",
@@ -216,7 +273,7 @@ def get_student_profile(user_id):
 
 
 # =========================================================
-# LEGACY COMPATIBILITY ROUTE — NOW READ-ONLY
+# LEGACY COMPATIBILITY ROUTE - NOW READ-ONLY
 # =========================================================
 @student_bp.route(
     "/api/student/borrowings/<int:user_id>/status",
@@ -230,6 +287,8 @@ def get_student_borrowing_status(user_id):
     updated only the legacy `borrowings` table and ignored QR batch loans.
     """
     ownership_error = _verify_student_owns_path(user_id)
+
     if ownership_error:
         return ownership_error
+
     return _load_student_borrowings(user_id)

@@ -241,6 +241,18 @@ function BookCover({ book, googleCover, openLibraryCover, variant = "card" }) {
 }
 
 function StudentDashboard({ onLogout }) {
+
+  const handleUnauthorized = (response) => {
+    if (response.status === 401) {
+      sessionStorage.removeItem("loggedInUser");
+      sessionStorage.removeItem("accessToken");
+      onLogout();
+      return true;
+    }
+
+    return false;
+  };
+
   const user = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
   const userId = user?.id;
 
@@ -285,7 +297,6 @@ function StudentDashboard({ onLogout }) {
           method: "GET",
           headers: {
             Accept: "application/json",
-
           },
           signal: controller.signal,
         });
@@ -329,6 +340,7 @@ function StudentDashboard({ onLogout }) {
           headers: { Accept: "application/json" },
           signal: controller.signal,
         });
+
         const data = await response.json();
 
         if (!response.ok) {
@@ -383,6 +395,9 @@ function StudentDashboard({ onLogout }) {
           if (!response.ok) {
             throw new Error(`Google Books request failed (${response.status}).`);
           }
+          
+          if (handleUnauthorized(response)) return [];
+
           const data = await response.json();
           return Array.isArray(data.items) ? data.items : [];
         })
@@ -510,11 +525,12 @@ function StudentDashboard({ onLogout }) {
             method: "GET",
             headers: {
               Accept: "application/json",
-
+              Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
             },
             signal: controller.signal,
           }
         );
+        if (handleUnauthorized(response)) return;
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.message || "Unable to load borrowing activity.");
@@ -551,12 +567,14 @@ function StudentDashboard({ onLogout }) {
             method: "GET",
             headers: {
               Accept: "application/json",
-              "X-User-ID": String(userId),
-
+              Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
             },
             signal: controller.signal,
           }
         );
+        
+        if (handleUnauthorized(response)) return;
+
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.message || "Unable to load borrowing status.");
@@ -775,6 +793,7 @@ function StudentDashboard({ onLogout }) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
         },
         body: JSON.stringify({
           user_id: Number(user.id),
@@ -782,6 +801,8 @@ function StudentDashboard({ onLogout }) {
           loan_days: Number(loanDays),
         }),
       });
+
+      if (handleUnauthorized(response)) return;
 
       const data = await response.json();
 

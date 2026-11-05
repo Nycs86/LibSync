@@ -193,6 +193,18 @@ function LibrarianDashboard({ onLogout }) {
   );
 
   const userId = user?.id ?? "";
+
+  const handleUnauthorized = (response) => {
+    if (response.status === 401) {
+      sessionStorage.removeItem("loggedInUser");
+      sessionStorage.removeItem("accessToken");
+      onLogout();
+      return true;
+    }
+
+    return false;
+  };
+
   const [activeSection, setActiveSection] = useState("");
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [requestsLoaded, setRequestsLoaded] = useState(false);
@@ -252,11 +264,9 @@ function LibrarianDashboard({ onLogout }) {
 
 
   const librarianHeaders = {
-
-    "X-User-ID": String(userId),
-
+    Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+    Accept: "application/json",
     "ngrok-skip-browser-warning": "true",
-
   };
 
 
@@ -306,12 +316,11 @@ function LibrarianDashboard({ onLogout }) {
     try {
       const response = await fetch(`${API_URL}/api/borrow-records`, {
         method: "GET",
-        headers: {
-          "X-User-ID": String(userId),
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: librarianHeaders,
       });
+
+      if (handleUnauthorized(response)) return;
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -412,12 +421,14 @@ function LibrarianDashboard({ onLogout }) {
       const response = await fetch(url, {
         method: editingBook ? "PUT" : "POST",
         headers: {
+          ...librarianHeaders,
           "Content-Type": "application/json",
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify(payload),
       });
+
+      if (handleUnauthorized(response)) return;
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -458,11 +469,11 @@ function LibrarianDashboard({ onLogout }) {
 
       const response = await fetch(`${API_URL}/api/books/${bookId}`, {
         method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: librarianHeaders,
       });
+
+      if (handleUnauthorized(response)) return;
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -549,17 +560,15 @@ function LibrarianDashboard({ onLogout }) {
 
           method: "GET",
 
-          headers: {
-
-            Accept: "application/json",
-
-            "ngrok-skip-browser-warning": "true",
-
-          },
+          headers: librarianHeaders,
 
         }
 
       );
+
+
+
+      if (handleUnauthorized(response)) return;
 
 
 
@@ -669,6 +678,12 @@ function LibrarianDashboard({ onLogout }) {
       }
 
     );
+
+
+
+    if (handleUnauthorized(response)) {
+      throw new Error("Session expired. Please log in again.");
+    }
 
 
 
@@ -818,6 +833,9 @@ function LibrarianDashboard({ onLogout }) {
           body: JSON.stringify({ qr_token: scannedToken }),
         }
       );
+
+      if (handleUnauthorized(response)) return;
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -896,6 +914,9 @@ function LibrarianDashboard({ onLogout }) {
           }),
         }
       );
+
+      if (handleUnauthorized(response)) return;
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -980,6 +1001,10 @@ function LibrarianDashboard({ onLogout }) {
         }
 
       );
+
+
+
+      if (handleUnauthorized(response)) return;
 
 
 

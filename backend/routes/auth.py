@@ -87,10 +87,23 @@ def login():
     cursor = None
 
     try:
-        data = request.get_json(silent=True) or {}
-        email = data.get("email")
-        password = data.get("password")
-        requested_role = data.get("role")
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+                return jsonify({
+                    "status": "error",
+                    "message": "Request body must be a valid JSON object.",
+                }), 400
+
+                email = data.get("email")
+                password = data.get("password")
+                requested_role = data.get("role")
+
+        if isinstance(email, str):
+                email = email.strip()
+
+        if isinstance(requested_role, str):
+                requested_role = requested_role.strip().lower()
 
         if (
             not isinstance(email, str)
@@ -131,7 +144,7 @@ def login():
             WHERE email = %s
             LIMIT 1
             """,
-            (email.strip(),),
+            (email,),
         )
         user = cursor.fetchone()
 
@@ -193,6 +206,13 @@ def login():
                 connection.rollback()
             except mysql.connector.Error:
                 logger.exception("Rollback failed after login database error")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to process login right now. Please try again.",
+        }), 500
+
+    except Exception:
+        logger.exception("Unexpected error during login")
         return jsonify({
             "status": "error",
             "message": "Unable to process login right now. Please try again.",
@@ -349,7 +369,7 @@ def require_role(*required_roles):
                 request.authenticated_user_id = user["id"]
                 request.authenticated_user = user
                 request.authenticated_via = "jwt" if token_role is not None else "legacy"
-                return function(*args, **kwargs)
+                
 
             except RuntimeError:
                 logger.exception("JWT configuration error during request authorization")
@@ -368,6 +388,8 @@ def require_role(*required_roles):
                     cursor.close()
                 if "connection" in locals() and connection:
                     connection.close()
+
+            return function(*args, **kwargs)
 
         return wrapper
     return decorator

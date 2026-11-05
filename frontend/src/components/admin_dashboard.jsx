@@ -7,6 +7,20 @@ const API_URL = "https://libsync-backend.onrender.com";
 function AdminDashboard({ onLogout }) {
   const user = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
 
+  const handleUnauthorized = useCallback(
+    (response) => {
+      if (response.status === 401) {
+        sessionStorage.removeItem("loggedInUser");
+        sessionStorage.removeItem("accessToken");
+        onLogout();
+        return true;
+      }
+
+      return false;
+    },
+    [onLogout]
+  );
+
   const [activeSection, setActiveSection] = useState("dashboard");
   const [users, setUsers] = useState([]);
   const [books, setBooks] = useState([]);
@@ -23,19 +37,33 @@ function AdminDashboard({ onLogout }) {
   // Fetch helpers return data only. State is updated after the async
   // requests finish, rather than from inside the individual fetch helpers.
   const fetchUsers = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/users`);
-    const data = await response.json();
+    const response = await fetch(`${API_URL}/api/users`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (handleUnauthorized(response)) {
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to load users.");
     }
 
     return Array.isArray(data) ? data : data.users || [];
-  }, []);
+  }, [handleUnauthorized]);
 
   const fetchBooks = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/books`);
-    const data = await response.json();
+    const response = await fetch(`${API_URL}/api/books`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to load books.");
@@ -45,26 +73,46 @@ function AdminDashboard({ onLogout }) {
   }, []);
 
   const fetchBorrowings = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/borrowings`);
-    const data = await response.json();
+    const response = await fetch(`${API_URL}/api/borrowings`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (handleUnauthorized(response)) {
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to load borrowings.");
     }
 
     return Array.isArray(data) ? data : data.borrowings || [];
-  }, []);
+  }, [handleUnauthorized]);
 
   const fetchBorrowRequests = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/borrow-requests`);
-    const data = await response.json();
+    const response = await fetch(`${API_URL}/api/borrow-requests`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (handleUnauthorized(response)) {
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to load borrow requests.");
     }
 
     return Array.isArray(data) ? data : data.requests || [];
-  }, []);
+  }, [handleUnauthorized]);
 
   // Used by the manual Refresh button. Each setter runs only after all
   // requested data has been received successfully.
@@ -221,12 +269,14 @@ function AdminDashboard({ onLogout }) {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "X-User-ID": String(user?.id || ""),
+            Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
           },
         }
       );
 
-      const data = await response.json();
+      if (handleUnauthorized(response)) return;
+
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         setMessage(data.message || "Failed to add librarian.");
@@ -261,12 +311,14 @@ function AdminDashboard({ onLogout }) {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "X-User-ID": String(user?.id || ""),
+            Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
           },
         }
       );
 
-      const data = await response.json();
+      if (handleUnauthorized(response)) return;
+
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         setMessage(data.message || "Failed to remove librarian.");

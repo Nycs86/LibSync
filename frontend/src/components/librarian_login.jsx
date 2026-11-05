@@ -50,6 +50,17 @@ function LibrarianLogin({ onBack, onLoginSuccess }) {
         return;
       }
 
+      if (
+        typeof data.access_token !== "string" ||
+        !data.access_token.trim()
+      ) {
+        setLoginError(
+          "Login succeeded, but the server did not return an access token."
+        );
+        return;
+      }
+
+      sessionStorage.setItem("accessToken", data.access_token);
       sessionStorage.setItem("loggedInUser", JSON.stringify(data.user));
 
       console.log("Librarian login successful");
