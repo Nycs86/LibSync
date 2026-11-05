@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { apiRequest, getStoredUser } from "../services/api";
 import "./student_dashboard.css";
-
-const API_BASE_URL = "https://libsync-backend.onrender.com";
 
 const COVER_COLORS = [
   "#E1F2E7",
@@ -241,19 +240,7 @@ function BookCover({ book, googleCover, openLibraryCover, variant = "card" }) {
 }
 
 function StudentDashboard({ onLogout }) {
-
-  const handleUnauthorized = (response) => {
-    if (response.status === 401) {
-      sessionStorage.removeItem("loggedInUser");
-      sessionStorage.removeItem("accessToken");
-      onLogout();
-      return true;
-    }
-
-    return false;
-  };
-
-  const user = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
+  const user = getStoredUser();
   const userId = user?.id;
 
   const [activeMenu, setActiveMenu] = useState("books");
@@ -293,18 +280,10 @@ function StudentDashboard({ onLogout }) {
       setPageError("");
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/books`, {
+        const data = await apiRequest("/api/books", {
           method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
           signal: controller.signal,
         });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || "Unable to load books.");
-        }
         if (!Array.isArray(data)) {
           throw new Error("The books API returned an unexpected response.");
         }
@@ -335,17 +314,10 @@ function StudentDashboard({ onLogout }) {
     const refreshBookInventory = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/books`, {
+        const data = await apiRequest("/api/books", {
           method: "GET",
-          headers: { Accept: "application/json" },
           signal: controller.signal,
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Unable to refresh book availability.");
-        }
         if (!Array.isArray(data)) {
           throw new Error("The books API returned an unexpected response.");
         }
@@ -395,9 +367,6 @@ function StudentDashboard({ onLogout }) {
           if (!response.ok) {
             throw new Error(`Google Books request failed (${response.status}).`);
           }
-          
-          if (handleUnauthorized(response)) return [];
-
           const data = await response.json();
           return Array.isArray(data.items) ? data.items : [];
         })
@@ -519,22 +488,13 @@ function StudentDashboard({ onLogout }) {
     const loadStudentRequests = async () => {
       setIsHistoryLoading(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/student/borrow-requests/${encodeURIComponent(userId)}`,
+        const data = await apiRequest(
+          `/api/student/borrow-requests/${encodeURIComponent(userId)}`,
           {
             method: "GET",
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-            },
             signal: controller.signal,
           }
         );
-        if (handleUnauthorized(response)) return;
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || "Unable to load borrowing activity.");
-        }
         setStudentRequests(Array.isArray(data.requests) ? data.requests : []);
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -561,24 +521,16 @@ function StudentDashboard({ onLogout }) {
       setIsBatchesLoading(true);
       setBatchStatusError("");
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/student/borrow-batches/${encodeURIComponent(userId)}`,
+        const data = await apiRequest(
+          `/api/student/borrow-batches/${encodeURIComponent(userId)}`,
           {
             method: "GET",
             headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+              "X-User-ID": String(userId),
             },
             signal: controller.signal,
           }
         );
-        
-        if (handleUnauthorized(response)) return;
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || "Unable to load borrowing status.");
-        }
         setStudentBatches(Array.isArray(data.batches) ? data.batches : []);
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -788,27 +740,14 @@ function StudentDashboard({ onLogout }) {
     setIsGenerating(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/borrow-requests`, {
+      const data = await apiRequest("/api/borrow-requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-        },
-        body: JSON.stringify({
+        body: {
           user_id: Number(user.id),
           book_ids: selectedBooks.map((book) => book.id),
           loan_days: Number(loanDays),
-        }),
+        },
       });
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to submit borrow request.");
-      }
 
       // Pending requests intentionally have no QR yet.
       // The Borrow QR appears only after librarian approval.
@@ -935,7 +874,7 @@ function StudentDashboard({ onLogout }) {
 
   const renderOnlineBookGrid = () => {
     if (isOnlineLoading) {
-      return <div className="student-catalog-message"><i className="bi bi-cloud-download"></i> Loading books from Google Books…</div>;
+      return <div className="student-catalog-message"><i className="bi bi-cloud-download"></i> Loading books from Google BooksΓÇª</div>;
     }
     if (visibleOnlineBooks.length === 0) {
       return (
@@ -988,13 +927,11 @@ function StudentDashboard({ onLogout }) {
     <div className="student-dashboard">
       <aside className="student-sidebar">
         <div className="student-brand">
-          <div className="student-brand-mark">
-            <i className="bi bi-book-half"></i>
-          </div>
-          <div className="student-brand-copy">
-            <span className="student-brand-name">LibSync</span>
-            <span className="student-brand-caption">Library Management System</span>
-          </div>
+          <img
+            src="/libsync-logo.svg"
+            alt="LibSync School Library Management System"
+            className="student-brand-logo"
+          />
         </div>
 
         <div className="student-sidebar-label">WORKSPACE</div>
@@ -1095,8 +1032,8 @@ function StudentDashboard({ onLogout }) {
                     <i className="bi bi-sort-alpha-down"></i>
                     <span>Sort</span>
                     <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
-                      <option value="az">Title: A–Z</option>
-                      <option value="za">Title: Z–A</option>
+                      <option value="az">Title: AΓÇôZ</option>
+                      <option value="za">Title: ZΓÇôA</option>
                     </select>
                   </label>
                 </div>
@@ -1109,7 +1046,7 @@ function StudentDashboard({ onLogout }) {
                       <h2>Explore More Books</h2>
                       <p>Automatically loaded from Google Books. These titles are for discovery and are not yet in the LibSync borrowing inventory.</p>
                     </div>
-                    <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "Loading…" : `${visibleOnlineBooks.length} titles`}</span>
+                    <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "LoadingΓÇª" : `${visibleOnlineBooks.length} titles`}</span>
                   </div>
                   {renderOnlineBookGrid()}
                 </section>
@@ -1163,7 +1100,7 @@ function StudentDashboard({ onLogout }) {
                   </div>
 
                   {isHistoryLoading ? (
-                    <div className="student-side-empty">Loading your activity…</div>
+                    <div className="student-side-empty">Loading your activityΓÇª</div>
                   ) : recentStudentRequests.length === 0 ? (
                     <div className="student-side-empty">
                       <i className="bi bi-journal-check"></i>
@@ -1223,8 +1160,8 @@ function StudentDashboard({ onLogout }) {
                   <i className="bi bi-sort-alpha-down"></i>
                   <span>Sort</span>
                   <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
-                    <option value="az">Title: A–Z</option>
-                    <option value="za">Title: Z–A</option>
+                    <option value="az">Title: AΓÇôZ</option>
+                    <option value="za">Title: ZΓÇôA</option>
                   </select>
                 </label>
               </div>
@@ -1334,7 +1271,7 @@ function StudentDashboard({ onLogout }) {
                         : activeQrBatch.status === "approved" && activeQrBatch.borrowQrUsedAt
                         ? "Books released"
                         : activeQrBatch.status === "approved"
-                        ? "Approved · Borrow QR ready"
+                        ? "Approved ┬╖ Borrow QR ready"
                         : activeQrBatch.status === "declined"
                         ? "Declined"
                         : "Pending librarian approval"}
@@ -1349,7 +1286,7 @@ function StudentDashboard({ onLogout }) {
                     ) : activeQrBatch.borrowQrUsedAt ? (
                       <div className="qr-placeholder">
                         <i className="bi bi-check-circle"></i>
-                        <span>Borrow QR already used · Books released</span>
+                        <span>Borrow QR already used ┬╖ Books released</span>
                       </div>
                     ) : activeQrBatch.status === "declined" ? (
                       <div className="qr-placeholder">
@@ -1390,7 +1327,7 @@ function StudentDashboard({ onLogout }) {
                       {activeQrBatch.books.map((book) => (
                         <div className="qr-book-item" key={book.request_id || book.id}>
                           <i className={`bi ${book.status === "returned" ? "bi-check-circle-fill" : book.status === "declined" ? "bi-x-circle" : "bi-book"}`}></i>
-                          <span>{book.title}{book.status === "returned" ? " · Returned" : book.status === "declined" ? " · Declined" : ""}</span>
+                          <span>{book.title}{book.status === "returned" ? " ┬╖ Returned" : book.status === "declined" ? " ┬╖ Declined" : ""}</span>
                         </div>
                       ))}
                     </div>
@@ -1521,13 +1458,13 @@ function StudentDashboard({ onLogout }) {
                         {booksAlreadyReturned.map((book) => (
                           <div className="qr-book-item" key={book.request_id || book.id}>
                             <i className="bi bi-check-circle-fill"></i>
-                            <span>{book.title} · Returned</span>
+                            <span>{book.title} ┬╖ Returned</span>
                           </div>
                         ))}
                       </div>
                     )}
                     <p className="qr-total-books">
-                      Remaining: {booksStillToReturn.length} · Returned: {booksAlreadyReturned.length}
+                      Remaining: {booksStillToReturn.length} ┬╖ Returned: {booksAlreadyReturned.length}
                     </p>
                     <button
                       type="button"
@@ -1622,3 +1559,4 @@ function StudentDashboard({ onLogout }) {
 }
 
 export default StudentDashboard;
+

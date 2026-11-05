@@ -1,0 +1,191 @@
+/* Shared additions for Admin and Librarian dashboard improvements. */
+.admin-quick-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.admin-quick-action-buttons .admin-primary-button,
+.admin-quick-action-buttons .admin-secondary-button {
+  min-height: 40px;
+}
+.admin-spin,
+.ls-librarian-spin {
+  animation: libsyncDashboardSpin 0.8s linear infinite;
+}
+@keyframes libsyncDashboardSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ls-librarian-dashboard-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(270px, .8fr);
+  gap: 17px;
+  margin-top: 18px;
+  align-items: stretch;
+}
+.ls-librarian-dashboard-panel {
+  min-width: 0;
+  padding: 21px;
+  border: 1px solid #e9eee7;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(20, 74, 48, .045);
+}
+.ls-librarian-dashboard-panel .ls-librarian-panel-header {
+  margin-bottom: 13px;
+}
+.ls-librarian-dashboard-panel .ls-librarian-panel-header h2 {
+  margin: 0 0 5px;
+  font-size: 17px;
+  font-weight: 800;
+}
+.ls-librarian-dashboard-panel .ls-librarian-panel-header p {
+  margin: 0;
+  color: #7d8981;
+  font-size: 11px;
+}
+.ls-librarian-dashboard-panel .ls-librarian-panel-header button,
+.ls-librarian-students-refresh {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid #dce9df;
+  border-radius: 8px;
+  color: #086b4b;
+  background: #f5faf6;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.ls-librarian-dashboard-panel .ls-librarian-panel-header button:hover,
+.ls-librarian-students-refresh:hover:not(:disabled) {
+  background: #eaf7ef;
+}
+.ls-librarian-dashboard-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.ls-librarian-dashboard-table-wrap .ls-librarian-table {
+  min-width: 520px;
+}
+.ls-librarian-dashboard-table-wrap .ls-librarian-table th {
+  padding: 10px 11px;
+  font-size: 9px;
+}
+.ls-librarian-dashboard-table-wrap .ls-librarian-table td {
+  padding: 11px;
+  font-size: 11px;
+}
+.ls-librarian-dashboard-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 130px;
+  color: #7a897f;
+  font-size: 12px;
+  text-align: center;
+}
+.ls-librarian-inventory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 51px;
+  border-bottom: 1px solid #edf1ed;
+}
+.ls-librarian-inventory-row:last-child { border-bottom: 0; }
+.ls-librarian-inventory-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #66776d;
+  font-size: 12px;
+}
+.ls-librarian-inventory-row i {
+  color: #08764e;
+  font-size: 15px;
+}
+.ls-librarian-inventory-row strong {
+  color: #19352b;
+  font-size: 17px;
+  font-weight: 800;
+}
+.ls-librarian-request-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #8a650e;
+  background: #fff4d9;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.ls-librarian-request-status.status-approved,
+.ls-librarian-request-status.status-returned {
+  color: #08744e;
+  background: #e6f7ed;
+}
+.ls-librarian-request-status.status-declined,
+.ls-librarian-request-status.status-rejected {
+  color: #963f39;
+  background: #fff0ef;
+}
+.ls-librarian-request-status.status-borrowed {
+  color: #176b8a;
+  background: #e7f5fa;
+}
+.ls-librarian-students-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 17px;
+}
+.ls-librarian-students-toolbar > span {
+  color: #76847b;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ls-librarian-students-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(440px, 100%);
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e2eae3;
+  border-radius: 9px;
+  color: #7c8c80;
+  background: #fff;
+}
+.ls-librarian-students-search:focus-within {
+  border-color: #86c9a9;
+  box-shadow: 0 0 0 3px rgba(167,243,208,.2);
+}
+.ls-librarian-students-search input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  color: #26372f;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+.ls-librarian-students-refresh:disabled { opacity: .55; cursor: not-allowed; }
+.ls-librarian-students-page .ls-librarian-table { min-width: 600px; }
+.ls-librarian-students-page .ls-librarian-table strong { color: #273a31; font-weight: 750; }
+@media (max-width: 900px) {
+  .ls-librarian-dashboard-lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .admin-quick-action-buttons { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .ls-librarian-students-toolbar { align-items: stretch; flex-direction: column; }
+  .ls-librarian-students-search { width: 100%; }
+  .ls-librarian-students-refresh { align-self: flex-start; }
+}

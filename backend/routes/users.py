@@ -271,6 +271,59 @@ def add_user():
 
 
 # =========================================================
+# GET REGISTERED STUDENTS: ADMIN AND LIBRARIAN (READ-ONLY)
+# =========================================================
+@users_bp.route("/api/librarian/students", methods=["GET"])
+@require_role("admin", "librarian")
+def get_librarian_students():
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT id, name, email, role, created_at
+            FROM users
+            WHERE LOWER(role) = 'student'
+            ORDER BY id DESC
+        """)
+
+        return jsonify({
+            "status": "success",
+            "students": cursor.fetchall()
+        }), 200
+
+    except mysql.connector.Error:
+        logger.exception("Database error while retrieving students")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve students right now."
+        }), 500
+
+    except Exception:
+        logger.exception("Unexpected error while retrieving students")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve students right now."
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+# =========================================================
 # ADMIN ASSIGNS A STUDENT AS LIBRARIAN
 # =========================================================
 @users_bp.route(

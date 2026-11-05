@@ -1,25 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import LibraryReports from "./library_reports";
+import BooksManagement from "./books_management";
+import { api, getStoredUser } from "../services/api";
 import "./admin_dashboard.css";
-
-const API_URL = "https://libsync-backend.onrender.com";
+import "./dashboard_polish.css";
 
 function AdminDashboard({ onLogout }) {
-  const user = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-
-  const handleUnauthorized = useCallback(
-    (response) => {
-      if (response.status === 401) {
-        sessionStorage.removeItem("loggedInUser");
-        sessionStorage.removeItem("accessToken");
-        onLogout();
-        return true;
-      }
-
-      return false;
-    },
-    [onLogout]
-  );
+  const user = getStoredUser();
 
   const [activeSection, setActiveSection] = useState("dashboard");
   const [users, setUsers] = useState([]);
@@ -34,148 +21,101 @@ function AdminDashboard({ onLogout }) {
   const [assignSearch, setAssignSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // Fetch helpers return data only. State is updated after the async
-  // requests finish, rather than from inside the individual fetch helpers.
+  // Centralized API service automatically attaches the JWT access token.
   const fetchUsers = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/users`, {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (handleUnauthorized(response)) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to load users.");
-    }
-
+    const data = await api.get("/api/users");
     return Array.isArray(data) ? data : data.users || [];
-  }, [handleUnauthorized]);
+  }, []);
 
   const fetchBooks = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/books`, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to load books.");
-    }
-
+    const data = await api.get("/api/books");
     return Array.isArray(data) ? data : data.books || [];
   }, []);
 
   const fetchBorrowings = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/borrowings`, {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-        Accept: "application/json",
-      },
-    });
-
-    if (handleUnauthorized(response)) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to load borrowings.");
-    }
-
+    const data = await api.get("/api/borrowings");
     return Array.isArray(data) ? data : data.borrowings || [];
-  }, [handleUnauthorized]);
+  }, []);
 
   const fetchBorrowRequests = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/borrow-requests`, {
-      headers: {
-        Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-        Accept: "application/json",
-      },
+    const data = await api.get("/api/borrow-requests");
+    return Array.isArray(data) ? data : data.requests || [];
+  }, []);
+
+  // Load each area independently so one unavailable endpoint does not
+  // prevent the rest of the admin dashboard from displaying.
+  const loadDashboard = useCallback(async ({ showLoading = true } = {}) => {
+    if (showLoading) {
+      setLoading(true);
+      setMessage("");
+    }
+
+    const results = await Promise.allSettled([
+      fetchUsers(),
+      fetchBooks(),
+      fetchBorrowings(),
+      fetchBorrowRequests(),
+    ]);
+    const setters = [setUsers, setBooks, setBorrowings, setRequests];
+    const labels = ["users", "books", "borrowings", "borrow requests"];
+    const failures = [];
+
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        setters[index](result.value);
+      } else {
+        setters[index]([]);
+        failures.push(labels[index]);
+        console.error(`Unable to load ${labels[index]}:`, result.reason);
+      }
     });
 
-    if (handleUnauthorized(response)) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to load borrow requests.");
-    }
-
-    return Array.isArray(data) ? data : data.requests || [];
-  }, [handleUnauthorized]);
-
-  // Used by the manual Refresh button. Each setter runs only after all
-  // requested data has been received successfully.
-  const loadDashboard = useCallback(async ({ showLoading = true } = {}) => {
-    try {
-      if (showLoading) {
-        setLoading(true);
-        setMessage("");
-      }
-
-      const [usersData, booksData, borrowingsData, requestsData] =
-        await Promise.all([
-          fetchUsers(),
-          fetchBooks(),
-          fetchBorrowings(),
-          fetchBorrowRequests(),
-        ]);
-
-      setUsers(usersData);
-      setBooks(booksData);
-      setBorrowings(borrowingsData);
-      setRequests(requestsData);
-    } catch (error) {
-      console.error(error);
-      setMessage(error.message || "Unable to load dashboard data.");
-    } finally {
-      setLoading(false);
-    }
+    setMessage(
+      failures.length
+        ? `Some dashboard data could not be loaded: ${failures.join(", ")}. Use Refresh Data to try again.`
+        : ""
+    );
+    setLoading(false);
   }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests]);
 
-  // Initial loading: fetch first, then update React state after the awaits.
+  // Initial load: wait for API responses before updating React state.
+  // This avoids synchronous state updates inside the effect body.
   useEffect(() => {
     let cancelled = false;
 
     const initializeDashboard = async () => {
-      try {
-        const [usersData, booksData, borrowingsData, requestsData] =
-          await Promise.all([
-            fetchUsers(),
-            fetchBooks(),
-            fetchBorrowings(),
-            fetchBorrowRequests(),
-          ]);
+      const results = await Promise.allSettled([
+        fetchUsers(),
+        fetchBooks(),
+        fetchBorrowings(),
+        fetchBorrowRequests(),
+      ]);
 
-        if (cancelled) return;
+      if (cancelled) return;
 
-        setUsers(usersData);
-        setBooks(booksData);
-        setBorrowings(borrowingsData);
-        setRequests(requestsData);
-      } catch (error) {
-        console.error(error);
-        if (!cancelled) {
-          setMessage(error.message || "Unable to load dashboard data.");
+      const setters = [setUsers, setBooks, setBorrowings, setRequests];
+      const labels = ["users", "books", "borrowings", "borrow requests"];
+      const failures = [];
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          setters[index](result.value);
+        } else {
+          setters[index]([]);
+          failures.push(labels[index]);
+          console.error(`Unable to load ${labels[index]}:`, result.reason);
         }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+      });
+
+      setMessage(
+        failures.length
+          ? `Some dashboard data could not be loaded: ${failures.join(", ")}. Use Refresh Data to try again.`
+          : ""
+      );
+      setLoading(false);
     };
 
-    initializeDashboard();
+    void initializeDashboard();
 
     return () => {
       cancelled = true;
@@ -262,36 +202,15 @@ function AdminDashboard({ onLogout }) {
   const addStudentAsLibrarian = async (studentId) => {
     try {
       setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/users/${studentId}/assign-librarian`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-          },
-        }
-      );
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setMessage(data.message || "Failed to add librarian.");
-        return;
-      }
-
-      setMessage("Student account added to the librarian team successfully.");
+      const data = await api.put(`/api/users/${studentId}/assign-librarian`, {});
+      setMessage(data.message || "Student account added to the librarian team successfully.");
       setAssignModalOpen(false);
       setAssignSearch("");
       setSelectedStudent(null);
-      const refreshedUsers = await fetchUsers();
-      setUsers(refreshedUsers);
+      setUsers(await fetchUsers());
     } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
+      console.error("Assign librarian error:", error);
+      setMessage(error.message || "Unable to add this librarian.");
     }
   };
 
@@ -299,43 +218,21 @@ function AdminDashboard({ onLogout }) {
     const confirmed = window.confirm(
       "Remove this librarian and return the account to Student?"
     );
-
     if (!confirmed) return;
 
     try {
       setMessage("");
-
-      const response = await fetch(
-        `${API_URL}/api/users/${librarianId}/remove-librarian`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-          },
-        }
-      );
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setMessage(data.message || "Failed to remove librarian.");
-        return;
-      }
-
-      setMessage("Librarian returned to student successfully.");
-      const refreshedUsers = await fetchUsers();
-      setUsers(refreshedUsers);
+      const data = await api.put(`/api/users/${librarianId}/remove-librarian`, {});
+      setMessage(data.message || "Librarian returned to student successfully.");
+      setUsers(await fetchUsers());
     } catch (error) {
-      console.error(error);
-      setMessage("Cannot connect to the server.");
+      console.error("Remove librarian error:", error);
+      setMessage(error.message || "Unable to remove this librarian.");
     }
   };
 
   const formatDate = (value) => {
-    if (!value) return "—";
+    if (!value) return "ΓÇö";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
 
@@ -356,7 +253,7 @@ function AdminDashboard({ onLogout }) {
         item.status === "pending"
           ? "Borrow request submitted"
           : `Borrow request ${item.status}`,
-      detail: `${item.user_name || `User #${item.user_id}`} • ${
+      detail: `${item.user_name || `User #${item.user_id}`} ΓÇó ${
         item.book_title || `Book #${item.book_id}`
       }`,
       date: item.approved_at || item.requested_at,
@@ -371,7 +268,7 @@ function AdminDashboard({ onLogout }) {
           : item.status === "overdue"
           ? "Book overdue"
           : "Book borrowed",
-      detail: `${item.user_name || `User #${item.user_id}`} • ${
+      detail: `${item.user_name || `User #${item.user_id}`} ΓÇó ${
         item.book_title || item.title || `Book #${item.book_id}`
       }`,
       date: item.returned_at || item.borrowed_at,
@@ -385,7 +282,8 @@ function AdminDashboard({ onLogout }) {
 
   const navItems = [
     ["dashboard", "bi-grid", "Dashboard"],
-    ["users", "bi-people", "Users"],
+    ["books", "bi-book", "Books Management"],
+    ["users", "bi-people", "Students"],
     ["librarians", "bi-person-badge", "Librarians"],
     ["reports", "bi-bar-chart-line", "Reports & Analytics"],
     ["activity", "bi-clock-history", "Activity"],
@@ -415,7 +313,7 @@ function AdminDashboard({ onLogout }) {
           <img
             className="admin-brand-logo"
             src="/libsync-logo.svg"
-            alt="LibSync — School Library Management System"
+            alt="LibSync ΓÇö School Library Management System"
             draggable="false"
           />
         </div>
@@ -456,6 +354,7 @@ function AdminDashboard({ onLogout }) {
             <p className="admin-eyebrow">LIBSYNC / ADMIN</p>
             <h1>
               {activeSection === "dashboard" && "Admin Dashboard"}
+              {activeSection === "books" && "Books Management"}
               {activeSection === "users" && "Students"}
               {activeSection === "librarians" && "Librarians"}
               {activeSection === "reports" && "Reports & Analytics"}
@@ -463,7 +362,9 @@ function AdminDashboard({ onLogout }) {
             </h1>
             <p className="admin-welcome">
               {activeSection === "dashboard" &&
-                "Welcome back, Administrator. Manage your library system from here."}
+                "Welcome back, Administrator. Monitor the library and manage system resources from here."}
+              {activeSection === "books" &&
+                "Manage the complete library catalog, inventory, and book records."}
               {activeSection === "users" &&
                 "View and manage registered student accounts"}
               {activeSection === "librarians" &&
@@ -474,14 +375,32 @@ function AdminDashboard({ onLogout }) {
                 "Recent borrowing and request activity"}
             </p>
           </div>
+          <button
+            type="button"
+            className="admin-secondary-button"
+            onClick={() => loadDashboard({ showLoading: true })}
+            disabled={loading}
+          >
+            <i className={`bi bi-arrow-clockwise ${loading ? "admin-spin" : ""}`} aria-hidden="true"></i>
+            Refresh Data
+          </button>
         </header>
 
-        {message && <div className="admin-message">{message}</div>}
+        {message && <div className="admin-message" role="status">{message}</div>}
 
         {loading && activeSection === "dashboard" ? (
           <div className="admin-loading">Loading admin dashboard...</div>
         ) : (
           <>
+            {activeSection === "books" && (
+              <BooksManagement
+                onBack={() => {
+                  openSection("dashboard");
+                  void loadDashboard({ showLoading: true });
+                }}
+              />
+            )}
+
             {activeSection === "dashboard" && (
               <section className="admin-dashboard-section">
                 <div className="admin-stat-grid">
@@ -607,6 +526,29 @@ function AdminDashboard({ onLogout }) {
                       label="Currently Borrowed"
                       value={stats.activeBorrowings}
                     />
+                  </div>
+                </div>
+
+                <div className="admin-panel admin-quick-actions">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <h2>Quick Actions</h2>
+                      <p>Go directly to the most-used administration tasks.</p>
+                    </div>
+                  </div>
+                  <div className="admin-quick-action-buttons">
+                    <button type="button" className="admin-primary-button" onClick={() => openSection("books")}>
+                      <i className="bi bi-book" aria-hidden="true"></i> Manage Books
+                    </button>
+                    <button type="button" className="admin-secondary-button" onClick={() => openSection("users")}>
+                      <i className="bi bi-people" aria-hidden="true"></i> View Students
+                    </button>
+                    <button type="button" className="admin-secondary-button" onClick={() => openSection("librarians")}>
+                      <i className="bi bi-person-badge" aria-hidden="true"></i> Manage Librarians
+                    </button>
+                    <button type="button" className="admin-secondary-button" onClick={() => openSection("reports")}>
+                      <i className="bi bi-bar-chart-line" aria-hidden="true"></i> Open Reports
+                    </button>
                   </div>
                 </div>
 
@@ -848,7 +790,7 @@ function AdminDashboard({ onLogout }) {
                     <span>{student.email}</span>
                   </div>
                   <span className="admin-role-pill student">
-                    Student · eligible
+                    Student ┬╖ eligible
                   </span>
                 </button>
               ))}
@@ -950,3 +892,4 @@ function ActivityTable({ activity, formatDate }) {
 }
 
 export default AdminDashboard;
+

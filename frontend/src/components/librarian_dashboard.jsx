@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import LibraryReports from "./library_reports";
+import { api, getStoredUser } from "../services/api";
+import "./dashboard_polish.css";
 import "./online_book_search.css";
 import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
-
-const API_URL = "https://libsync-backend.onrender.com";
 
 
 let libSyncQrScannerLifecycle = Promise.resolve();
@@ -187,23 +187,7 @@ function QRScanner({ onScan }) {
 
 
 function LibrarianDashboard({ onLogout }) {
-  const user = JSON.parse(
-    sessionStorage.getItem("loggedInUser") || "null"
-
-  );
-
-  const userId = user?.id ?? "";
-
-  const handleUnauthorized = (response) => {
-    if (response.status === 401) {
-      sessionStorage.removeItem("loggedInUser");
-      sessionStorage.removeItem("accessToken");
-      onLogout();
-      return true;
-    }
-
-    return false;
-  };
+  const user = getStoredUser();
 
   const [activeSection, setActiveSection] = useState("");
   const [borrowRequests, setBorrowRequests] = useState([]);
@@ -212,6 +196,11 @@ function LibrarianDashboard({ onLogout }) {
   const [message, setMessage] = useState("");
 
   const [books, setBooks] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentsLoaded, setStudentsLoaded] = useState(false);
+  const [studentsError, setStudentsError] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
@@ -262,33 +251,15 @@ function LibrarianDashboard({ onLogout }) {
     useState(null);
 
 
-
-  const librarianHeaders = {
-    Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
-    Accept: "application/json",
-    "ngrok-skip-browser-warning": "true",
-  };
-
-
   // ==========================================
   // BOOKS MANAGEMENT: LOAD BOOKS FROM THE API
   // ==========================================
   const loadBooks = useCallback(async () => {
+    setBooksLoading(true);
+    setBooksError("");
+
     try {
-      const response = await fetch(`${API_URL}/api/books`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load books.");
-      }
-
+      const data = await api.get("/api/books");
       const bookList = Array.isArray(data)
         ? data
         : Array.isArray(data.books)
@@ -297,7 +268,6 @@ function LibrarianDashboard({ onLogout }) {
 
       setBooks(bookList);
       setBooksLoaded(true);
-      setBooksError("");
     } catch (error) {
       console.error("Load books error:", error);
       setBooksError(error.message || "Cannot connect to the books API.");
@@ -306,27 +276,14 @@ function LibrarianDashboard({ onLogout }) {
     }
   }, []);
 
-
   // Load approved borrowing transactions from the backend.
   // This is called from the navigation/button click (not a useEffect).
-  const loadBorrowRecords = async () => {
+  const loadBorrowRecords = useCallback(async () => {
     setRecordsLoading(true);
     setRecordsError("");
 
     try {
-      const response = await fetch(`${API_URL}/api/borrow-records`, {
-        method: "GET",
-        headers: librarianHeaders,
-      });
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load borrowing records.");
-      }
-
+      const data = await api.get("/api/borrow-records");
       setBorrowingRecords(Array.isArray(data.records) ? data.records : []);
       setRecordsLoaded(true);
       setRecordPage(1);
@@ -336,7 +293,28 @@ function LibrarianDashboard({ onLogout }) {
     } finally {
       setRecordsLoading(false);
     }
-  };
+  }, []);
+
+  const loadStudents = useCallback(async () => {
+    setStudentsLoading(true);
+    setStudentsError("");
+
+    try {
+      const data = await api.get("/api/librarian/students");
+      const accounts = Array.isArray(data)
+        ? data
+        : Array.isArray(data.students)
+          ? data.students
+          : [];
+      setStudents(accounts);
+      setStudentsLoaded(true);
+    } catch (error) {
+      console.error("Load students error:", error);
+      setStudentsError(error.message || "Unable to load registered students.");
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, []);
 
   const resetBookForm = () => {
     setBookForm({
@@ -409,38 +387,20 @@ function LibrarianDashboard({ onLogout }) {
     };
 
     const bookId = editingBook?.id ?? editingBook?.book_id;
-    const url = editingBook
-      ? `${API_URL}/api/books/${bookId}`
-      : `${API_URL}/api/books`;
 
     try {
       setBookSaving(true);
       setBooksError("");
       setMessage("");
 
-      const response = await fetch(url, {
-        method: editingBook ? "PUT" : "POST",
-        headers: {
-          ...librarianHeaders,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to save this book.");
-      }
+      const data = editingBook
+        ? await api.put(`/api/books/${bookId}`, payload)
+        : await api.post("/api/books", payload);
 
       setBookModalOpen(false);
       resetBookForm();
       setBookPage(1);
       setMessage(data.message || (editingBook ? "Book updated successfully." : "Book added successfully."));
-      setBooksLoading(true);
-      setBooksError("");
       await loadBooks();
     } catch (error) {
       console.error("Save book error:", error);
@@ -467,23 +427,9 @@ function LibrarianDashboard({ onLogout }) {
       setBooksError("");
       setMessage("");
 
-      const response = await fetch(`${API_URL}/api/books/${bookId}`, {
-        method: "DELETE",
-        headers: librarianHeaders,
-      });
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to delete this book.");
-      }
-
+      const data = await api.delete(`/api/books/${bookId}`);
       setBookPage(1);
       setMessage(data.message || "Book deleted successfully.");
-      setBooksLoading(true);
-      setBooksError("");
       await loadBooks();
     } catch (error) {
       console.error("Delete book error:", error);
@@ -536,82 +482,21 @@ function LibrarianDashboard({ onLogout }) {
 
   // ==========================================
 
-  const getBorrowRequests = async (clearMessage = true) => {
-
+  const getBorrowRequests = useCallback(async (clearMessage = true) => {
     try {
-
       setLoading(true);
+      if (clearMessage) setMessage("");
 
-
-
-      if (clearMessage) {
-
-        setMessage("");
-
-      }
-
-
-
-      const response = await fetch(
-
-        `${API_URL}/api/borrow-requests`,
-
-        {
-
-          method: "GET",
-
-          headers: librarianHeaders,
-
-        }
-
-      );
-
-
-
-      if (handleUnauthorized(response)) return;
-
-
-
-      const data = await response.json();
-
-
-
-      if (!response.ok) {
-
-        throw new Error(
-
-          data.message || "Failed to load borrow requests."
-
-        );
-
-      }
-
-
-
-      setBorrowRequests(data.requests || []);
+      const data = await api.get("/api/borrow-requests");
+      setBorrowRequests(Array.isArray(data.requests) ? data.requests : []);
       setRequestsLoaded(true);
-
     } catch (error) {
-
       console.error("Load requests error:", error);
-
-
-
-      setMessage(
-
-        error.message || "Cannot connect to the server."
-
-      );
-
+      setMessage(error.message || "Cannot connect to the server.");
     } finally {
-
       setLoading(false);
-
     }
-
-  };
-
-
+  }, []);
 
   const openBorrowRequests = () => {
 
@@ -650,75 +535,16 @@ function LibrarianDashboard({ onLogout }) {
   // ==========================================
 
   const lookupBatchByToken = async (token) => {
-
-    const response = await fetch(
-
-      `${API_URL}/api/borrow-batches/lookup`,
-
-      {
-
-        method: "POST",
-
-        headers: {
-
-          ...librarianHeaders,
-
-          "Content-Type": "application/json",
-
-          Accept: "application/json",
-
-        },
-
-        body: JSON.stringify({
-
-          qr_token: token,
-
-        }),
-
-      }
-
-    );
-
-
-
-    if (handleUnauthorized(response)) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-
-
-    const data = await response.json();
-
-
-
-    if (!response.ok) {
-
-      throw new Error(
-
-        data.message || "Unable to find this borrowing batch."
-
-      );
-
-    }
-
-
+    const data = await api.post("/api/borrow-batches/lookup", {
+      qr_token: token,
+    });
 
     if (!data.batch) {
-
-      throw new Error(
-
-        "The server did not return borrowing batch details."
-
-      );
-
+      throw new Error("The server did not return borrowing batch details.");
     }
 
-
-
     return data.batch;
-
   };
-
 
 
   // ==========================================
@@ -808,9 +634,7 @@ function LibrarianDashboard({ onLogout }) {
       scannedBatch.qr_used ||
       scannedBatch.status !== "approved" ||
       releasingBatch
-    ) {
-      return;
-    }
+    ) return;
 
     const confirmed = window.confirm(
       `Confirm that the approved book(s) for ${scannedBatch.student_name || "this student"} have physically been released? The borrowing period will start now.`
@@ -821,29 +645,11 @@ function LibrarianDashboard({ onLogout }) {
       setReleasingBatch(true);
       setMessage("");
 
-      const response = await fetch(
-        `${API_URL}/api/borrow-batches/${scannedBatch.id}/release`,
-        {
-          method: "PUT",
-          headers: {
-            ...librarianHeaders,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ qr_token: scannedToken }),
-        }
+      const data = await api.put(
+        `/api/borrow-batches/${scannedBatch.id}/release`,
+        { qr_token: scannedToken }
       );
 
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to release the approved books.");
-      }
-
-      // Re-read the batch so the UI reflects the server's checkout timestamp,
-      // due date, and one-time Borrow QR state.
       const updatedBatch = await lookupBatchByToken(scannedToken);
       setScannedBatch(updatedBatch);
       setSelectedReturnBookIds([]);
@@ -851,9 +657,6 @@ function LibrarianDashboard({ onLogout }) {
         data.message ||
           "Books released successfully. The student's separate Return QR is now available."
       );
-
-      // Checkout does not change availability again; approval already reserved
-      // the copy. Refresh the records for the newly checked-out transaction.
       void loadBorrowRecords();
     } catch (error) {
       console.error("Release borrowing batch error:", error);
@@ -886,9 +689,7 @@ function LibrarianDashboard({ onLogout }) {
       scannedBatch.qr_used ||
       selectedReturnBookIds.length === 0 ||
       processingReturn
-    ) {
-      return;
-    }
+    ) return;
 
     const confirmed = window.confirm(
       `Confirm that ${selectedReturnBookIds.length} selected book(s) have been physically returned? The available book count will be restored after confirmation.`
@@ -899,32 +700,14 @@ function LibrarianDashboard({ onLogout }) {
       setProcessingReturn(true);
       setMessage("");
 
-      const response = await fetch(
-        `${API_URL}/api/borrow-batches/${scannedBatch.id}/return`,
+      const data = await api.put(
+        `/api/borrow-batches/${scannedBatch.id}/return`,
         {
-          method: "PUT",
-          headers: {
-            ...librarianHeaders,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            qr_token: scannedToken,
-            book_ids: selectedReturnBookIds,
-          }),
+          qr_token: scannedToken,
+          book_ids: selectedReturnBookIds,
         }
       );
 
-      if (handleUnauthorized(response)) return;
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to process the returned books.");
-      }
-
-      // The same Return QR remains valid for the remaining books after a
-      // partial return. It is marked used only when the entire batch is done.
       const updatedBatch = await lookupBatchByToken(scannedToken);
       setScannedBatch(updatedBatch);
       setSelectedReturnBookIds([]);
@@ -935,9 +718,6 @@ function LibrarianDashboard({ onLogout }) {
             : `Selected books returned successfully. ${data.remaining_books ?? 0} book(s) remain to be returned.`)
       );
 
-      // Reload inventory so the restored available_quantity is visible in
-      // Books Management immediately after a confirmed return.
-      setBooksLoading(true);
       void loadBooks();
       void loadBorrowRecords();
       void getBorrowRequests(false);
@@ -949,7 +729,6 @@ function LibrarianDashboard({ onLogout }) {
     }
   };
 
-
   // ==========================================
 
   // APPROVE OR DECLINE AN INDIVIDUAL BOOK
@@ -957,148 +736,41 @@ function LibrarianDashboard({ onLogout }) {
   // ==========================================
 
   const handleDecision = async (requestId, decision) => {
-
-    if (processingRequestId !== null) {
-
-      return;
-
-    }
-
-
+    if (processingRequestId !== null) return;
 
     try {
-
       setProcessingRequestId(requestId);
-
       setMessage("");
 
-
-
-      const response = await fetch(
-
-        `${API_URL}/api/borrow-requests/${requestId}/decision`,
-
-        {
-
-          method: "PUT",
-
-          headers: {
-
-            ...librarianHeaders,
-
-            "Content-Type": "application/json",
-
-            Accept: "application/json",
-
-          },
-
-          body: JSON.stringify({
-
-            decision,
-
-          }),
-
-        }
-
+      const data = await api.put(
+        `/api/borrow-requests/${requestId}/decision`,
+        { decision }
       );
-
-
-
-      if (handleUnauthorized(response)) return;
-
-
-
-      const data = await response.json();
-
-
-
-      if (!response.ok) {
-
-        throw new Error(
-
-          data.message || "Failed to process borrow request."
-
-        );
-
-      }
-
-
-
-      const successMessage =
-
-        decision === "approved"
-
-          ? "Book borrowing request approved successfully."
-
-          : "Book borrowing request declined successfully.";
-
-
-
-      // Refresh the full request list.
 
       await getBorrowRequests(false);
 
-
-
-      // Refresh the scanned batch so the displayed statuses
-
-      // reflect the latest database values.
-
       if (scannedToken) {
-
         try {
-
-          const updatedBatch =
-
-            await lookupBatchByToken(scannedToken);
-
-
-
+          const updatedBatch = await lookupBatchByToken(scannedToken);
           setScannedBatch(updatedBatch);
-
         } catch (refreshError) {
-
-          console.error(
-
-            "Refresh scanned batch error:",
-
-            refreshError
-
-          );
-
+          console.error("Refresh scanned batch error:", refreshError);
         }
-
       }
 
-
-
       setMessage(
-
-        data.message || successMessage
-
+        data.message ||
+          (decision === "approved"
+            ? "Book borrowing request approved successfully."
+            : "Book borrowing request declined successfully.")
       );
-
     } catch (error) {
-
       console.error("Borrow decision error:", error);
-
-
-
-      setMessage(
-
-        error.message || "Cannot connect to the server."
-
-      );
-
+      setMessage(error.message || "Cannot connect to the server.");
     } finally {
-
       setProcessingRequestId(null);
-
     }
-
   };
-
-
 
   // ==========================================
 
@@ -1330,6 +1002,134 @@ function LibrarianDashboard({ onLogout }) {
     URL.revokeObjectURL(url);
   };
 
+  const filteredStudents = useMemo(() => {
+    const term = studentSearch.trim().toLowerCase();
+    if (!term) return students;
+    return students.filter((student) =>
+      [student.name, student.email, student.id].some((value) =>
+        String(value ?? "").toLowerCase().includes(term)
+      )
+    );
+  }, [students, studentSearch]);
+
+  const inventorySummary = useMemo(() => {
+    const totalCopies = books.reduce((sum, book) => sum + Number(book.quantity ?? 0), 0);
+    const availableCopies = books.reduce((sum, book) => sum + Number(book.available_quantity ?? book.quantity ?? 0), 0);
+    const lowStockTitles = books.filter((book) => Number(book.available_quantity ?? book.quantity ?? 0) <= 2).length;
+    return {
+      totalCopies,
+      availableCopies,
+      borrowedCopies: Math.max(0, totalCopies - availableCopies),
+      lowStockTitles,
+    };
+  }, [books]);
+
+  const dashboardBorrowedCount = recordsLoaded
+    ? borrowingRecordStats.borrowed + borrowingRecordStats.overdue
+    : "—";
+  const dashboardPendingCount = requestsLoaded
+    ? borrowRequests.filter((request) => String(request.status || "").toLowerCase() === "pending").length
+    : "—";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeDashboard = async () => {
+      const results = await Promise.allSettled([
+        api.get("/api/books"),
+        api.get("/api/librarian/students"),
+        api.get("/api/borrow-requests"),
+        api.get("/api/borrow-records"),
+      ]);
+
+      if (cancelled) return;
+
+      const [
+        booksResult,
+        studentsResult,
+        requestsResult,
+        recordsResult,
+      ] = results;
+
+      // BOOKS
+      if (booksResult.status === "fulfilled") {
+        const data = booksResult.value;
+        const bookList = Array.isArray(data)
+          ? data
+          : Array.isArray(data.books)
+            ? data.books
+            : [];
+
+        setBooks(bookList);
+        setBooksLoaded(true);
+        setBooksError("");
+      } else {
+        setBooksError(booksResult.reason?.message || "Failed to load books.");
+      }
+
+      // STUDENTS
+      if (studentsResult.status === "fulfilled") {
+        const data = studentsResult.value;
+        const accounts = Array.isArray(data)
+          ? data
+          : Array.isArray(data.students)
+            ? data.students
+            : [];
+
+        setStudents(accounts);
+
+        setStudentsLoaded(true);
+        setStudentsError("");
+      } else {
+        setStudentsError(
+          studentsResult.reason?.message || "Failed to load students."
+        );
+      }
+
+      // BORROW REQUESTS
+      if (requestsResult.status === "fulfilled") {
+        const data = requestsResult.value;
+
+        setBorrowRequests(
+          Array.isArray(data.requests) ? data.requests : []
+        );
+
+        setRequestsLoaded(true);
+      } else {
+        setMessage(
+          requestsResult.reason?.message || "Failed to load borrow requests."
+        );
+      }
+
+      // BORROWING RECORDS
+      if (recordsResult.status === "fulfilled") {
+        const data = recordsResult.value;
+
+        setBorrowingRecords(
+          Array.isArray(data.records) ? data.records : []
+        );
+
+        setRecordsLoaded(true);
+        setRecordsError("");
+      } else {
+        setRecordsError(
+          recordsResult.reason?.message || "Failed to load borrowing records."
+        );
+      }
+
+      setBooksLoading(false);
+      setStudentsLoading(false);
+      setLoading(false);
+      setRecordsLoading(false);
+    };
+
+    initializeDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // DASHBOARD UI — visual layout aligned with the Student Dashboard
   return (
     <div className="ls-librarian-shell">
@@ -1361,7 +1161,7 @@ function LibrarianDashboard({ onLogout }) {
           <button type="button" className={`ls-librarian-nav-item ${activeSection === "books" ? "active" : ""}`} onClick={() => { setMessage(""); setBooksLoading(true); setBooksError(""); setActiveSection("books"); void loadBooks(); }}>
             <i className="bi bi-book" /><span>Books Management</span>
           </button>
-          <button type="button" className={`ls-librarian-nav-item ${activeSection === "students" ? "active" : ""}`} onClick={() => setActiveSection("students")}>
+          <button type="button" className={`ls-librarian-nav-item ${activeSection === "students" ? "active" : ""}`} onClick={() => { setActiveSection("students"); void loadStudents(); }}>
             <i className="bi bi-people" /><span>Students</span>
           </button>
           <button type="button" className={`ls-librarian-nav-item ${activeSection === "requests" ? "active" : ""}`} onClick={openBorrowRequests}>
@@ -1402,9 +1202,9 @@ function LibrarianDashboard({ onLogout }) {
       <main className="ls-librarian-workspace">
         <header className="ls-librarian-topbar">
           <div>
-            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "reports" ? "LIBSYNC / REPORTS & ANALYTICS" : "LIBSYNC / LIBRARIAN"}</p>
+            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "reports" ? "LIBSYNC / REPORTS & ANALYTICS" : activeSection === "students" ? "LIBSYNC / STUDENTS" : "LIBSYNC / LIBRARIAN"}</p>
             <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : activeSection === "reports" ? "Reports & Analytics" : "Librarian Dashboard"}</h1>
-            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "reports" ? "Review library performance, inventory, borrowing, returns, and borrower activity." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
+            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "reports" ? "Review library performance, inventory, borrowing, returns, and borrower activity." : activeSection === "students" ? "View registered student accounts and quickly find a library member." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
           </div>
         </header>
 
@@ -1415,8 +1215,8 @@ function LibrarianDashboard({ onLogout }) {
             <article className="ls-librarian-stat-card">
               <div className="ls-librarian-stat-icon"><i className="bi bi-book" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
-                <span className="ls-librarian-stat-label">Total Books</span>
-                <strong>—</strong>
+                <span className="ls-librarian-stat-label">Total Book Titles</span>
+                <strong>{booksLoaded ? books.length : "—"}</strong>
                 <small>in library collection</small>
               </div>
               <span className="ls-librarian-stat-tag">COLLECTION</span>
@@ -1425,7 +1225,7 @@ function LibrarianDashboard({ onLogout }) {
               <div className="ls-librarian-stat-icon"><i className="bi bi-people" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
                 <span className="ls-librarian-stat-label">Registered Students</span>
-                <strong>—</strong>
+                <strong>{studentsLoaded ? students.length : "—"}</strong>
                 <small>active student accounts</small>
               </div>
               <span className="ls-librarian-stat-tag">MEMBERS</span>
@@ -1434,7 +1234,7 @@ function LibrarianDashboard({ onLogout }) {
               <div className="ls-librarian-stat-icon"><i className="bi bi-clock-history" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
                 <span className="ls-librarian-stat-label">Pending Requests</span>
-                <strong>{requestsLoaded ? borrowRequests.filter((request) => String(request.status || "").toLowerCase() === "pending").length : "—"}</strong>
+                <strong>{dashboardPendingCount}</strong>
                 <small>awaiting approval</small>
               </div>
               <span className="ls-librarian-stat-alert"><i className="bi bi-exclamation" aria-hidden="true" /></span>
@@ -1442,8 +1242,8 @@ function LibrarianDashboard({ onLogout }) {
             <article className="ls-librarian-stat-card">
               <div className="ls-librarian-stat-icon"><i className="bi bi-bar-chart-line" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
-                <span className="ls-librarian-stat-label">Books Borrowed</span>
-                <strong>—</strong>
+                <span className="ls-librarian-stat-label">Active Loans</span>
+                <strong>{dashboardBorrowedCount}</strong>
                 <small>borrowing activity</small>
               </div>
               <span className="ls-librarian-stat-tag">ACTIVITY</span>
@@ -1465,8 +1265,8 @@ function LibrarianDashboard({ onLogout }) {
               <div className="ls-librarian-feature-copy">
                 <div className="ls-librarian-feature-icon"><i className="bi bi-people" aria-hidden="true" /></div>
                 <h2>Students</h2>
-                <p>View and manage registered students, update records, and track library activity.</p>
-                <button type="button" onClick={() => setActiveSection("students")}>View Students <i className="bi bi-arrow-right" aria-hidden="true" /></button>
+                <p>View registered student accounts and find library members.</p>
+                <button type="button" onClick={() => { setActiveSection("students"); void loadStudents(); }}>View Students <i className="bi bi-arrow-right" aria-hidden="true" /></button>
               </div>
               <div className="ls-librarian-feature-art ls-art-students" aria-hidden="true"><i className="bi bi-people-fill" /></div>
             </article>
@@ -1500,6 +1300,47 @@ function LibrarianDashboard({ onLogout }) {
               </div>
               <div className="ls-librarian-feature-art ls-art-records" aria-hidden="true"><i className="bi bi-file-earmark-bar-graph" /></div>
             </article>
+          </section>
+
+          <section className="ls-librarian-dashboard-lower" aria-label="Library activity and inventory">
+            <div className="ls-librarian-panel ls-librarian-dashboard-panel">
+              <div className="ls-librarian-panel-header">
+                <div><h2>Recent Borrow Requests</h2><p>Latest student requests that need library attention.</p></div>
+                <button type="button" onClick={openBorrowRequests}>View All</button>
+              </div>
+              {loading && borrowRequests.length === 0 ? (
+                <p className="ls-librarian-dashboard-empty">Loading requests...</p>
+              ) : borrowRequests.length === 0 ? (
+                <p className="ls-librarian-dashboard-empty">No borrowing requests yet.</p>
+              ) : (
+                <div className="ls-librarian-dashboard-table-wrap">
+                  <table className="ls-librarian-table">
+                    <thead><tr><th>Student</th><th>Book</th><th>Requested</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {borrowRequests.slice(0, 5).map((request) => (
+                        <tr key={request.request_id ?? request.id}>
+                          <td>{request.user_name || request.student_name || `Student #${request.user_id}`}</td>
+                          <td>{request.book_title || `Book #${request.book_id}`}</td>
+                          <td>{request.requested_at ? new Date(request.requested_at).toLocaleDateString() : "—"}</td>
+                          <td><span className={`ls-librarian-request-status status-${String(request.status || "pending").toLowerCase()}`}>{request.status || "Pending"}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="ls-librarian-panel ls-librarian-dashboard-panel">
+              <div className="ls-librarian-panel-header">
+                <div><h2>Inventory Overview</h2><p>Current copy availability in your catalog.</p></div>
+                <button type="button" onClick={() => { setActiveSection("books"); void loadBooks(); }}>Manage Books</button>
+              </div>
+              <div className="ls-librarian-inventory-row"><span><i className="bi bi-book" /> Total Copies</span><strong>{booksLoaded ? inventorySummary.totalCopies : "—"}</strong></div>
+              <div className="ls-librarian-inventory-row"><span><i className="bi bi-check-circle" /> Available Copies</span><strong>{booksLoaded ? inventorySummary.availableCopies : "—"}</strong></div>
+              <div className="ls-librarian-inventory-row"><span><i className="bi bi-arrow-left-right" /> Borrowed Copies</span><strong>{booksLoaded ? inventorySummary.borrowedCopies : "—"}</strong></div>
+              <div className="ls-librarian-inventory-row"><span><i className="bi bi-exclamation-triangle" /> Low-stock Titles</span><strong>{booksLoaded ? inventorySummary.lowStockTitles : "—"}</strong></div>
+            </div>
           </section>
         </>
       )}
@@ -2206,35 +2047,64 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-      {/* STUDENTS PLACEHOLDER */}
-
       {activeSection === "students" && (
+        <section className="ls-librarian-panel management-section ls-librarian-students-page">
+          <div className="ls-librarian-panel-header">
+            <div>
+              <h2>Registered Students</h2>
+              <p>View student accounts registered in the LibSync system.</p>
+            </div>
+            <button
+              type="button"
+              className="ls-librarian-students-refresh"
+              onClick={() => void loadStudents()}
+              disabled={studentsLoading}
+            >
+              <i className={`bi bi-arrow-clockwise ${studentsLoading ? "ls-librarian-spin" : ""}`} /> Refresh
+            </button>
+          </div>
 
-        <div className="ls-librarian-panel management-section">
+          <div className="ls-librarian-students-toolbar">
+            <label className="ls-librarian-students-search">
+              <i className="bi bi-search" aria-hidden="true" />
+              <input
+                type="search"
+                value={studentSearch}
+                onChange={(event) => setStudentSearch(event.target.value)}
+                placeholder="Search by student name, email, or ID..."
+                aria-label="Search registered students"
+              />
+            </label>
+            <span>{studentsLoaded ? `${filteredStudents.length} of ${students.length} students` : "Student accounts"}</span>
+          </div>
 
-          <h2>Students</h2>
+          {studentsError && <div className="dashboard-message" role="alert">{studentsError}</div>}
 
-          <p>Student list will be added next.</p>
-
-
-
-          <button
-
-            type="button"
-
-            onClick={() => setActiveSection("dashboard")}
-
-          >
-
-            Close
-
-          </button>
-
-        </div>
-
+          {studentsLoading && !studentsLoaded ? (
+            <div className="ls-librarian-dashboard-empty">Loading student accounts...</div>
+          ) : studentsError && !studentsLoaded ? (
+            <div className="ls-librarian-dashboard-empty">Unable to load student accounts. Check your connection and refresh.</div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="ls-librarian-dashboard-empty">{students.length === 0 ? "No registered students found." : "No students match your search."}</div>
+          ) : (
+            <div className="ls-librarian-dashboard-table-wrap">
+              <table className="ls-librarian-table">
+                <thead><tr><th>Student ID</th><th>Full Name</th><th>Email Address</th><th>Account Status</th></tr></thead>
+                <tbody>
+                  {filteredStudents.map((student) => (
+                    <tr key={student.id}>
+                      <td>#{student.id}</td>
+                      <td><strong>{student.name || "Unnamed Student"}</strong></td>
+                      <td>{student.email || "—"}</td>
+                      <td><span className="ls-librarian-request-status status-approved">Active</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
-
-
 
       {/* BORROWING RECORDS */}
       {activeSection === "records" && (
@@ -2371,3 +2241,7 @@ function LibrarianDashboard({ onLogout }) {
 }
 
 export default LibrarianDashboard;
+
+
+
+
