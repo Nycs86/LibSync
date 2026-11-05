@@ -86,24 +86,25 @@ def login():
     connection = None
     cursor = None
 
-    try:
+    try: 
         data = request.get_json(silent=True)
 
         if not isinstance(data, dict):
-                return jsonify({
-                    "status": "error",
-                    "message": "Request body must be a valid JSON object.",
-                }), 400
+            return jsonify({
+                "status": "error",
+                "message": "Request body must be a valid JSON object.",
+            }), 400
 
-                email = data.get("email")
-                password = data.get("password")
-                requested_role = data.get("role")
+        email = data.get("email")
+        password = data.get("password")
+        requested_role = data.get("role")
 
         if isinstance(email, str):
-                email = email.strip()
+            email = email.strip()
 
         if isinstance(requested_role, str):
-                requested_role = requested_role.strip().lower()
+            requested_role = requested_role.strip().lower()
+
 
         if (
             not isinstance(email, str)
