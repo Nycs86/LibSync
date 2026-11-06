@@ -69,4 +69,57 @@ class AuthService {
       'message': data['message'] ?? 'Invalid email or password.',
     };
   }
+  Future<Map<String, dynamic>> registerStudent({
+  required String name,
+  required String email,
+  required String password,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/users'),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': name.trim(),
+        'email': email.trim(),
+        'password': password,
+      }),
+    );
+
+    Map<String, dynamic> data = {};
+
+    try {
+      data = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      return {
+        'success': false,
+        'message': 'Invalid response from server.',
+      };
+    }
+
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      return {
+        'success': true,
+        'user': data['user'],
+        'message':
+            data['message'] ??
+            'Student account created successfully.',
+      };
+    }
+
+    return {
+      'success': false,
+      'message':
+          data['message'] ??
+          'Unable to create student account.',
+    };
+  } catch (_) {
+    return {
+      'success': false,
+      'message': 'Unable to connect to the server.',
+    };
+  }
+}
 }

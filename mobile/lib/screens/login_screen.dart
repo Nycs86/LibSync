@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/auth_session.dart';
 import 'student/student_shell.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -188,18 +189,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       SizedBox(
                         height: 50,
                         child: FilledButton(
-                          onPressed:
-                              _loading ? null : _login,
+                          onPressed: _loading ? null : _login,
                           child: _loading
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child:
-                                      CircularProgressIndicator(
+                                  child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                   ),
                                 )
                               : const Text('Login'),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      TextButton(
+                        onPressed: _loading
+                            ? null
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const RegisterScreen(),
+                                  ),
+                                );
+                              },
+                        child: const Text(
+                          "Don't have an account? Create Account",
                         ),
                       ),
                     ],

@@ -201,22 +201,67 @@ def get_student_borrowings(user_id):
 # =========================================================
 # GET STUDENT PROFILE
 # =========================================================
+# =========================================================
+# UPDATE STUDENT PROFILE
+# =========================================================
 @student_bp.route(
     "/api/student/profile/<int:user_id>",
-    methods=["GET"],
+    methods=["PUT"],
 )
 @require_role("student")
-def get_student_profile(user_id):
+def update_student_profile(user_id):
     ownership_error = _verify_student_owns_path(user_id)
 
     if ownership_error:
         return ownership_error
+
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "status": "error",
+            "message": "Invalid request body.",
+        }), 400
+
+    name = str(data.get("name", "")).strip()
+    student_number = str(
+        data.get("student_number", "")
+    ).strip()
+    program = str(data.get("program", "")).strip()
+    college = str(data.get("college", "")).strip()
+    gender = str(data.get("gender", "")).strip()
+
+    year_level_raw = data.get("year_level")
+
+    if not name:
+        return jsonify({
+            "status": "error",
+            "message": "Name is required.",
+        }), 400
+
+    year_level = None
+
+    if year_level_raw not in (None, ""):
+        try:
+            year_level = int(year_level_raw)
+        except (TypeError, ValueError):
+            return jsonify({
+                "status": "error",
+                "message": "Year level must be a number.",
+            }), 400
+
+        if year_level < 1 or year_level > 6:
+            return jsonify({
+                "status": "error",
+                "message": "Year level must be between 1 and 6.",
+            }), 400
 
     connection = None
     cursor = None
 
     try:
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
@@ -224,50 +269,82 @@ def get_student_profile(user_id):
             }), 500
 
         cursor = connection.cursor(dictionary=True)
+
         cursor.execute(
             """
-            SELECT id, name, email, role, created_at
-            FROM users
+            UPDATE users
+            SET name = %s
             WHERE id = %s
               AND role = 'student'
-            LIMIT 1
             """,
-            (user_id,),
+            (name, user_id),
         )
-        user = cursor.fetchone()
 
-        if not user:
-            return jsonify({
-                "status": "error",
-                "message": "Student not found.",
-            }), 404
+        cursor.execute(
+            """
+            INSERT INTO students (
+                user_id,
+                student_number,
+                program,
+                college,
+                year_level,
+                gender
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                student_number = VALUES(student_number),
+                program = VALUES(program),
+                college = VALUES(college),
+                year_level = VALUES(year_level),
+                gender = VALUES(gender)
+            """,
+            (
+                user_id,
+                student_number or None,
+                program or None,
+                college or None,
+                year_level,
+                gender or None,
+            ),
+        )
+
+        connection.commit()
 
         return jsonify({
             "status": "success",
-            "user": user,
+            "message": "Profile updated successfully.",
         }), 200
 
     except mysql.connector.Error:
+        if connection:
+            connection.rollback()
+
         logger.exception(
-            "Database error while retrieving student profile"
+            "Database error while updating student profile"
         )
+
         return jsonify({
             "status": "error",
-            "message": "Unable to retrieve student profile right now.",
+            "message": "Unable to update student profile right now.",
         }), 500
 
     except Exception:
+        if connection:
+            connection.rollback()
+
         logger.exception(
-            "Unexpected error while retrieving student profile"
+            "Unexpected error while updating student profile"
         )
+
         return jsonify({
             "status": "error",
-            "message": "Unable to retrieve student profile right now.",
+            "message": "Unable to update student profile right now.",
         }), 500
 
     finally:
         if cursor:
             cursor.close()
+
         if connection:
             connection.close()
 

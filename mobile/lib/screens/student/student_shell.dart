@@ -87,7 +87,9 @@ class _StudentShellState extends State<StudentShell> {
         refreshVersion: _qrRefreshVersion,
       ),
 
-      const StudentProfile(),
+      StudentProfile(
+        userId: _userId,
+      ),
     ];
 
     return Scaffold(
