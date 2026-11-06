@@ -796,3 +796,179 @@
   .ls-librarian-brand { justify-content: flex-start; padding: 0 4px 16px; }
   .ls-librarian-brand-logo { width: min(225px, 100%); height: 48px; object-position: left center; }
 }
+
+
+/* Centered confirmation dialog used for release, return, and delete actions. */
+.ls-confirm-modal-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(12, 31, 24, 0.58);
+  backdrop-filter: blur(4px);
+  animation: lsConfirmFadeIn 0.16s ease both;
+}
+
+.ls-confirm-modal {
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 1px solid #e4eee7;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(8, 38, 26, 0.24);
+  text-align: center;
+  animation: lsConfirmPopIn 0.2s ease both;
+}
+
+.ls-confirm-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 17px;
+  border-radius: 50%;
+  color: #006149;
+  background: #e5f7ed;
+  font-size: 25px;
+}
+
+.ls-confirm-modal--delete .ls-confirm-modal-icon {
+  color: #b42318;
+  background: #fff0ee;
+}
+
+.ls-confirm-modal h2 {
+  margin: 0 0 10px;
+  color: #172c27;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.35px;
+}
+
+.ls-confirm-modal p {
+  margin: 0;
+  color: #68786f;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.ls-confirm-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.ls-confirm-modal-actions button {
+  min-width: 125px;
+  min-height: 43px;
+  padding: 10px 17px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+
+.ls-confirm-modal-actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ls-confirm-modal-actions button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.ls-confirm-modal-cancel {
+  border: 1px solid #dce7df;
+  color: #52645a;
+  background: #fff;
+}
+
+.ls-confirm-modal-cancel:hover:not(:disabled) {
+  border-color: #b9d9c7;
+  background: #f6faf7;
+}
+
+.ls-confirm-modal-submit {
+  border: 1px solid #006149;
+  color: #fff;
+  background: #006149;
+}
+
+.ls-confirm-modal-submit:hover:not(:disabled) {
+  background: #004f3b;
+}
+
+.ls-confirm-modal-submit.is-danger {
+  border-color: #b42318;
+  background: #b42318;
+}
+
+.ls-confirm-modal-submit.is-danger:hover:not(:disabled) {
+  background: #921d15;
+}
+
+@keyframes lsConfirmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lsConfirmPopIn {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 480px) {
+  .ls-confirm-modal { padding: 24px 19px; border-radius: 16px; }
+  .ls-confirm-modal h2 { font-size: 19px; }
+  .ls-confirm-modal-actions { flex-direction: column-reverse; }
+  .ls-confirm-modal-actions button { width: 100%; }
+}
+
+
+/* Batch rows: show each book and its per-book controls vertically. */
+.ls-batch-book-list {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+  margin: 0;
+  padding-left: 1.15rem;
+  text-align: left;
+  white-space: normal;
+}
+.ls-batch-book-list li {
+  white-space: normal;
+  line-height: 1.45;
+}
+.ls-batch-status-list {
+  min-width: 120px;
+  padding-left: 1rem;
+  color: #64746b;
+  font-size: 10px;
+}
+.ls-batch-actions {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+}
+.ls-batch-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ls-batch-status-summary {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.ls-records-status-mixed {
+  color: #785500;
+  background: #fff0c2;
+}

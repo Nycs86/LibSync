@@ -565,7 +565,9 @@ function StudentDashboard({ onLogout }) {
         return matchesCategory && (!search || searchableText.includes(search));
       })
       .sort((a, b) => {
-        const comparison = a.title.localeCompare(b.title, undefined, {
+        const titleA = String(a.title || "").trim();
+        const titleB = String(b.title || "").trim();
+        const comparison = titleA.localeCompare(titleB, undefined, {
           sensitivity: "base",
           numeric: true,
         });
@@ -874,7 +876,7 @@ function StudentDashboard({ onLogout }) {
 
   const renderOnlineBookGrid = () => {
     if (isOnlineLoading) {
-      return <div className="student-catalog-message"><i className="bi bi-cloud-download"></i> Loading books from Google BooksΓÇª</div>;
+      return <div className="student-catalog-message"><i className="bi bi-cloud-download"></i> Loading books from Google Books...</div>;
     }
     if (visibleOnlineBooks.length === 0) {
       return (
@@ -927,11 +929,13 @@ function StudentDashboard({ onLogout }) {
     <div className="student-dashboard">
       <aside className="student-sidebar">
         <div className="student-brand">
-          <img
-            src="/libsync-logo.svg"
-            alt="LibSync School Library Management System"
-            className="student-brand-logo"
-          />
+          <div className="student-brand-mark">
+            <i className="bi bi-book-half"></i>
+          </div>
+          <div className="student-brand-copy">
+            <span className="student-brand-name">LibSync</span>
+            <span className="student-brand-caption">Library Management System</span>
+          </div>
         </div>
 
         <div className="student-sidebar-label">WORKSPACE</div>
@@ -1029,11 +1033,11 @@ function StudentDashboard({ onLogout }) {
                     <p>Click a book to preview its details.</p>
                   </div>
                   <label className="student-sort-control">
-                    <i className="bi bi-sort-alpha-down"></i>
+                    <i className={`bi ${sortOrder === "az" ? "bi-sort-alpha-down" : "bi-sort-alpha-up"}`}></i>
                     <span>Sort</span>
                     <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
-                      <option value="az">Title: AΓÇôZ</option>
-                      <option value="za">Title: ZΓÇôA</option>
+                      <option value="az">Title: A to Z</option>
+                      <option value="za">Title: Z to A</option>
                     </select>
                   </label>
                 </div>
@@ -1046,7 +1050,7 @@ function StudentDashboard({ onLogout }) {
                       <h2>Explore More Books</h2>
                       <p>Automatically loaded from Google Books. These titles are for discovery and are not yet in the LibSync borrowing inventory.</p>
                     </div>
-                    <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "LoadingΓÇª" : `${visibleOnlineBooks.length} titles`}</span>
+                    <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "Loading..." : `${visibleOnlineBooks.length} titles`}</span>
                   </div>
                   {renderOnlineBookGrid()}
                 </section>
@@ -1100,7 +1104,7 @@ function StudentDashboard({ onLogout }) {
                   </div>
 
                   {isHistoryLoading ? (
-                    <div className="student-side-empty">Loading your activityΓÇª</div>
+                    <div className="student-side-empty">Loading your activity...</div>
                   ) : recentStudentRequests.length === 0 ? (
                     <div className="student-side-empty">
                       <i className="bi bi-journal-check"></i>
@@ -1157,11 +1161,11 @@ function StudentDashboard({ onLogout }) {
                   <p>{visibleBooks.length} matching {visibleBooks.length === 1 ? "title" : "titles"}</p>
                 </div>
                 <label className="student-sort-control">
-                  <i className="bi bi-sort-alpha-down"></i>
+                  <i className={`bi ${sortOrder === "az" ? "bi-sort-alpha-down" : "bi-sort-alpha-up"}`}></i>
                   <span>Sort</span>
                   <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
-                    <option value="az">Title: AΓÇôZ</option>
-                    <option value="za">Title: ZΓÇôA</option>
+                    <option value="az">Title: A to Z</option>
+                    <option value="za">Title: Z to A</option>
                   </select>
                 </label>
               </div>
@@ -1271,7 +1275,7 @@ function StudentDashboard({ onLogout }) {
                         : activeQrBatch.status === "approved" && activeQrBatch.borrowQrUsedAt
                         ? "Books released"
                         : activeQrBatch.status === "approved"
-                        ? "Approved ┬╖ Borrow QR ready"
+                        ? "Approved | Borrow QR ready"
                         : activeQrBatch.status === "declined"
                         ? "Declined"
                         : "Pending librarian approval"}
@@ -1286,7 +1290,7 @@ function StudentDashboard({ onLogout }) {
                     ) : activeQrBatch.borrowQrUsedAt ? (
                       <div className="qr-placeholder">
                         <i className="bi bi-check-circle"></i>
-                        <span>Borrow QR already used ┬╖ Books released</span>
+                        <span>Borrow QR already used | Books released</span>
                       </div>
                     ) : activeQrBatch.status === "declined" ? (
                       <div className="qr-placeholder">
@@ -1327,7 +1331,7 @@ function StudentDashboard({ onLogout }) {
                       {activeQrBatch.books.map((book) => (
                         <div className="qr-book-item" key={book.request_id || book.id}>
                           <i className={`bi ${book.status === "returned" ? "bi-check-circle-fill" : book.status === "declined" ? "bi-x-circle" : "bi-book"}`}></i>
-                          <span>{book.title}{book.status === "returned" ? " ┬╖ Returned" : book.status === "declined" ? " ┬╖ Declined" : ""}</span>
+                          <span>{book.title}{book.status === "returned" ? " | Returned" : book.status === "declined" ? " | Declined" : ""}</span>
                         </div>
                       ))}
                     </div>
@@ -1458,13 +1462,13 @@ function StudentDashboard({ onLogout }) {
                         {booksAlreadyReturned.map((book) => (
                           <div className="qr-book-item" key={book.request_id || book.id}>
                             <i className="bi bi-check-circle-fill"></i>
-                            <span>{book.title} ┬╖ Returned</span>
+                            <span>{book.title} | Returned</span>
                           </div>
                         ))}
                       </div>
                     )}
                     <p className="qr-total-books">
-                      Remaining: {booksStillToReturn.length} ┬╖ Returned: {booksAlreadyReturned.length}
+                      Remaining: {booksStillToReturn.length} | Returned: {booksAlreadyReturned.length}
                     </p>
                     <button
                       type="button"
@@ -1559,4 +1563,3 @@ function StudentDashboard({ onLogout }) {
 }
 
 export default StudentDashboard;
-

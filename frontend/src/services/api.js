@@ -1,50 +1,38 @@
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000"
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://libsync-backend.onrender.com"
 ).replace(/\/+$/, "");
 
-// GET TOKEN FROM EITHER STORAGE
+// GET TOKEN FOR THIS TAB ONLY
 export const getAccessToken = () => {
-  return (
-    localStorage.getItem("accessToken") ||
-    sessionStorage.getItem("accessToken")
-  );
+  return sessionStorage.getItem("accessToken");
 };
 
-// GET SAVED USER
+// GET USER FOR THIS TAB ONLY
 export const getStoredUser = () => {
   try {
-    const user =
-      localStorage.getItem("loggedInUser") ||
-      sessionStorage.getItem("loggedInUser");
-
+    const user = sessionStorage.getItem("loggedInUser");
     return user ? JSON.parse(user) : null;
   } catch {
     return null;
   }
 };
 
-// SAVE LOGIN SESSION
-export const saveAuthSession = (data, rememberMe = true) => {
+// SAVE LOGIN SESSION FOR THIS TAB ONLY
+export const saveAuthSession = (data) => {
   if (!data?.access_token || !data?.user) {
     throw new Error("Invalid login response from server.");
   }
 
-  // Clear previous session first
   clearAuthSession();
 
-  // Choose storage based on Remember Me
-  const storage = rememberMe ? localStorage : sessionStorage;
-
-  storage.setItem("accessToken", data.access_token);
-  storage.setItem("loggedInUser", JSON.stringify(data.user));
+  sessionStorage.setItem("accessToken", data.access_token);
+  sessionStorage.setItem("loggedInUser", JSON.stringify(data.user));
 };
 
-// CLEAR LOGIN SESSION
+// CLEAR ONLY THIS TAB'S LOGIN SESSION
 export const clearAuthSession = () => {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("loggedInUser");
-
   sessionStorage.removeItem("accessToken");
   sessionStorage.removeItem("loggedInUser");
 };
@@ -67,7 +55,6 @@ export const apiRequest = async (path, options = {}) => {
     body = JSON.stringify(body);
   }
 
-  // Automatically attach JWT token
   const token = getAccessToken();
 
   if (token) {
@@ -86,13 +73,9 @@ export const apiRequest = async (path, options = {}) => {
 
   const contentType = response.headers.get("content-type") || "";
 
-  let result;
-
-  if (contentType.includes("application/json")) {
-    result = await response.json();
-  } else {
-    result = await response.text();
-  }
+  const result = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
 
   if (!response.ok) {
     const message =
@@ -115,22 +98,26 @@ export const apiRequest = async (path, options = {}) => {
 
 // REUSABLE API METHODS
 export const api = {
-  get: (path) => apiRequest(path),
+  get: (path, options = {}) =>
+    apiRequest(path, options),
 
-  post: (path, data) =>
+  post: (path, data, options = {}) =>
     apiRequest(path, {
+      ...options,
       method: "POST",
       body: data,
     }),
 
-  put: (path, data) =>
+  put: (path, data, options = {}) =>
     apiRequest(path, {
+      ...options,
       method: "PUT",
       body: data,
     }),
 
-  delete: (path) =>
+  delete: (path, options = {}) =>
     apiRequest(path, {
+      ...options,
       method: "DELETE",
     }),
 };

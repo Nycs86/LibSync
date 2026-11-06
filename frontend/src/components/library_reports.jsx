@@ -184,10 +184,10 @@ function colorForStatus(label, index) {
   return REPORT_COLORS[index % REPORT_COLORS.length];
 }
 
-function DonutChart({ items, emptyText }) {
+function DonutChart({ items, emptyText = "inventory" }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
   const colors = items.map((item, index) => colorForStatus(item.label, index));
- 
+  // Pure calculation: each segment starts where all previous segments end.
   const stops = items.map((item, index) => {
     const startValue = items.slice(0, index).reduce((sum, previousItem) => sum + previousItem.value, 0);
     const endValue = startValue + item.value;
@@ -263,6 +263,28 @@ function HorizontalBars({ items, emptyText, valueLabel = "records" }) {
   })}</div>;
 }
 
+function groupRecordsByBatch(records) {
+  const groups = new Map();
+  records.forEach((record) => {
+    const key = record.batchId ? `batch:${record.batchId}` : `record:${record.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(record);
+  });
+  return Array.from(groups.values()).map((items) => {
+    const first = items[0];
+    const statuses = [...new Set(items.map((item) => item.status))];
+    return {
+      ...first,
+      id: first.batchId ? `batch-${first.batchId}` : first.id,
+      items,
+      titles: items.map((item) => item.title),
+      status: statuses.length === 1 ? statuses[0] : "mixed",
+      returnDate: items.every((item) => item.returnDate) && items.every((item) => item.returnDate?.getTime() === items[0].returnDate?.getTime()) ? first.returnDate : null,
+      qrTracked: items.some((item) => item.qrTracked),
+    };
+  });
+}
+
 function formatDisplayDate(value) {
   const date = parseDate(value);
   if (!date) return "—";
@@ -305,6 +327,7 @@ export default function LibraryReports({ books = [], borrowings = [], requests =
     const hasQrMetadata = Boolean(record.qr_token || record.qr_code || qrMetadataAvailableFromRequests || [record.source, record.method, record.borrow_method, record.transaction_source, record.qr_source].some((value) => typeof value === "string" && value.trim()));
     return {
       id: record.id ?? record.borrowing_id ?? record.request_id ?? `${record.user_id ?? "u"}-${record.book_id ?? "b"}-${index}`,
+      batchId: record.batch_id ?? null,
       borrower: getBorrowerName(record),
       borrowerId: record.student_id ?? record.user_id ?? "",
       borrowerEmail: record.student_email ?? record.user_email ?? "",
@@ -334,6 +357,8 @@ export default function LibraryReports({ books = [], borrowings = [], requests =
       return dateMatches && statusMatches && categoryMatches && textMatches;
     }).sort((a, b) => (b.borrowDate?.getTime() || 0) - (a.borrowDate?.getTime() || 0));
   }, [normalizedRecords, startDate, endDate, statusFilter, categoryFilter, search]);
+
+  const groupedFilteredRecords = useMemo(() => groupRecordsByBatch(filteredRecords), [filteredRecords]);
 
   const report = useMemo(() => {
     const filteredRequests = requests.filter((request) => {
@@ -452,7 +477,7 @@ export default function LibraryReports({ books = [], borrowings = [], requests =
 
   const exportCsv = () => {
     const headers = ["Borrower", "Student ID", "Email", "Book Title", "Author", "Category", "Borrow Date", "Due Date", "Return Date", "Status", "QR Tracked"];
-    const rows = filteredRecords.map((record) => [record.borrower, record.borrowerId, record.borrowerEmail, record.title, record.author, record.category, record.borrowDate ? toLocalDateInput(record.borrowDate) : "", record.dueDate ? toLocalDateInput(record.dueDate) : "", record.returnDate ? toLocalDateInput(record.returnDate) : "", record.status, record.qrTracked ? "Yes" : "No"]);
+    const rows = groupedFilteredRecords.map((record) => [record.borrower, record.borrowerId, record.borrowerEmail, record.titles.join("\n"), record.items.map((item) => item.author).filter(Boolean).join("\n"), record.items.map((item) => item.category).join("\n"), record.borrowDate ? toLocalDateInput(record.borrowDate) : "", record.dueDate ? toLocalDateInput(record.dueDate) : "", record.items.map((item) => item.returnDate ? toLocalDateInput(item.returnDate) : "Not returned").join("\n"), record.status === "mixed" ? record.items.map((item) => `${item.title}: ${item.status}`).join("\n") : record.status, record.qrTracked ? "Yes" : "No"]);
     const escape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const csv = [headers, ...rows].map((row) => row.map(escape).join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
@@ -528,7 +553,7 @@ export default function LibraryReports({ books = [], borrowings = [], requests =
         </article>
         <article className="lr-report-card">
           <ReportHeading title="Borrowing Request Status" subtitle="Request statuses recorded within the selected date range." />
-          <DonutChart items={report.requestStatuses} emptyText="No request status data is available for this period." />
+          <DonutChart items={report.requestStatuses} variant="status" emptyText="No request status data is available for this period." />
         </article>
       </div>
 
@@ -550,15 +575,15 @@ export default function LibraryReports({ books = [], borrowings = [], requests =
 
       <article className="lr-report-card lr-detail-report-card">
         <div className="lr-detail-heading">
-          <ReportHeading title="Detailed Borrowing Report" subtitle={`${filteredRecords.length} records match the current filters.`} />
-          <button type="button" className="lr-export-button" onClick={exportCsv} disabled={!filteredRecords.length}><i className="bi bi-file-earmark-spreadsheet" />Export CSV</button>
+          <ReportHeading title="Detailed Borrowing Report" subtitle={`${filteredRecords.length} book records across ${groupedFilteredRecords.length} borrowing transactions match the current filters.`} />
+          <button type="button" className="lr-export-button" onClick={exportCsv} disabled={!groupedFilteredRecords.length}><i className="bi bi-file-earmark-spreadsheet" />Export CSV</button>
         </div>
         <div className="lr-table-wrap">
           <table className="lr-report-table">
             <thead><tr><th>Borrower</th><th>Book Title</th><th>Category</th><th>Borrow Date</th><th>Due Date</th><th>Return Date</th><th>Status</th></tr></thead>
             <tbody>
-              {filteredRecords.map((record) => <tr key={record.id}><td><strong>{record.borrower}</strong><small>{record.borrowerId ? `ID: ${record.borrowerId}` : record.borrowerEmail || ""}</small></td><td>{record.title}</td><td>{record.category}</td><td>{formatDisplayDate(record.borrowDate)}</td><td>{formatDisplayDate(record.dueDate)}</td><td>{formatDisplayDate(record.returnDate)}</td><td><span className={`lr-status-pill lr-status-pill-${record.status}`}>{record.status.replace(/_/g, " ")}</span></td></tr>)}
-              {!filteredRecords.length && <tr><td colSpan="7" className="lr-empty-cell">No borrowing records match the selected filters.</td></tr>}
+              {groupedFilteredRecords.map((record) => <tr key={record.id}><td><strong>{record.borrower}</strong><small>{record.borrowerId ? `ID: ${record.borrowerId}` : record.borrowerEmail || ""}</small></td><td><ul className="lr-batch-book-list">{record.items.map((item) => <li key={item.id}>{item.title}{record.status === "mixed" ? <small> — {item.status.replace(/_/g, " ")}</small> : null}</li>)}</ul></td><td>{[...new Set(record.items.map((item) => item.category))].join(", ")}</td><td>{formatDisplayDate(record.borrowDate)}</td><td>{formatDisplayDate(record.dueDate)}</td><td>{record.status === "mixed" ? "Varies by book" : formatDisplayDate(record.returnDate)}</td><td><span className={`lr-status-pill lr-status-pill-${record.status === "mixed" ? "unknown" : record.status}`}>{record.status === "mixed" ? "Mixed status" : record.status.replace(/_/g, " ")}</span></td></tr>)}
+              {!groupedFilteredRecords.length && <tr><td colSpan="7" className="lr-empty-cell">No borrowing records match the selected filters.</td></tr>}
             </tbody>
           </table>
         </div>

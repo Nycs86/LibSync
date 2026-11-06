@@ -1,6 +1,6 @@
 import logging
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 import mysql.connector
 
 from database import get_db_connection
@@ -28,10 +28,7 @@ def get_borrowings():
     try:
         connection = get_db_connection()
         if connection is None:
-            return jsonify({
-                "status": "error",
-                "message": "Database connection failed."
-            }), 500
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute("""
@@ -40,6 +37,7 @@ def get_borrowings():
                 SELECT
                     CONCAT('legacy-', br.id) AS id,
                     br.id AS borrowing_id,
+                    NULL AS batch_id,
                     'legacy' AS source,
                     br.user_id,
                     br.book_id,
@@ -47,15 +45,8 @@ def get_borrowings():
                     br.due_date,
                     br.returned_at,
                     CASE
-                        WHEN br.returned_at IS NOT NULL
-                             OR br.status = 'returned'
-                            THEN 'returned'
-                        WHEN br.status = 'overdue'
-                             OR (
-                                 br.due_date IS NOT NULL
-                                 AND br.due_date < CURDATE()
-                             )
-                            THEN 'overdue'
+                        WHEN br.returned_at IS NOT NULL OR br.status = 'returned' THEN 'returned'
+                        WHEN br.status = 'overdue' OR br.due_date < CURDATE() THEN 'overdue'
                         ELSE 'borrowed'
                     END AS status,
                     u.name AS user_name,
@@ -69,6 +60,7 @@ def get_borrowings():
                 SELECT
                     CONCAT('batch-', req.id) AS id,
                     req.id AS borrowing_id,
+                    batch.id AS batch_id,
                     'qr_batch' AS source,
                     req.user_id,
                     req.book_id,
@@ -76,48 +68,26 @@ def get_borrowings():
                     batch.due_date,
                     req.returned_at,
                     CASE
-                        WHEN req.returned_at IS NOT NULL
-                            THEN 'returned'
-                        WHEN batch.due_date IS NOT NULL
-                             AND batch.due_date < CURDATE()
-                            THEN 'overdue'
+                        WHEN req.returned_at IS NOT NULL THEN 'returned'
+                        WHEN batch.due_date < CURDATE() THEN 'overdue'
                         ELSE 'borrowed'
                     END AS status,
                     u.name AS user_name,
                     b.title AS book_title
                 FROM borrow_requests req
-                INNER JOIN borrow_batches batch
-                    ON batch.id = req.batch_id
-                INNER JOIN users u
-                    ON u.id = req.user_id
-                INNER JOIN books b
-                    ON b.id = req.book_id
+                INNER JOIN borrow_batches batch ON batch.id = req.batch_id
+                INNER JOIN users u ON u.id = req.user_id
+                INNER JOIN books b ON b.id = req.book_id
                 WHERE req.status = 'approved'
                   AND batch.borrow_qr_used_at IS NOT NULL
             ) AS all_borrowings
             ORDER BY borrowed_at DESC, id DESC
         """)
-
         rows = cursor.fetchall()
-
-        return jsonify({
-            "status": "success",
-            "borrowings": rows
-        }), 200
+        return jsonify({"status": "success", "borrowings": rows}), 200
 
     except mysql.connector.Error:
-        logger.exception(
-            "Database error while retrieving borrowing records"
-        )
-        return jsonify({
-            "status": "error",
-            "message": "Unable to retrieve borrowing records right now."
-        }), 500
-
-    except Exception:
-        logger.exception(
-            "Unexpected error while retrieving borrowing records"
-        )
+        logger.exception("Unable to retrieve borrowing records")
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve borrowing records right now."
@@ -136,39 +106,27 @@ def get_borrowings():
 @borrowings_bp.route("/api/borrowings", methods=["POST"])
 @require_role("librarian")
 def add_borrowing():
-    """Prevent direct creation that bypasses approval and Borrow QR release."""
+    """Direct creation is disabled to prevent bypassing student approval/QR release."""
     return jsonify({
         "status": "error",
-        "message": (
-            "Direct borrowing creation is disabled. "
-            "Use the student borrow request and librarian QR release workflow."
-        )
+        "message": "Direct borrowing creation is disabled. Use the student borrow request and librarian QR release workflow."
     }), 409
 
 
-@borrowings_bp.route(
-    "/api/borrowings/<int:borrowing_id>",
-    methods=["PUT"]
-)
+@borrowings_bp.route("/api/borrowings/<int:borrowing_id>", methods=["PUT"])
 @require_role("librarian")
 def update_borrowing(borrowing_id):
-    """Prevent direct returns that bypass the Return QR workflow."""
+    """Direct returns are disabled; returns must be completed through Return QR."""
     return jsonify({
         "status": "error",
-        "message": (
-            "Direct borrowing updates are disabled. "
-            "Use the librarian Return QR workflow."
-        )
+        "message": "Direct borrowing updates are disabled. Use the librarian Return QR workflow."
     }), 409
 
 
 # =========================================================
 # GET OVERDUE BORROWINGS (LEGACY + QR BATCH)
 # =========================================================
-@borrowings_bp.route(
-    "/api/borrowings/overdue",
-    methods=["GET"]
-)
+@borrowings_bp.route("/api/borrowings/overdue", methods=["GET"])
 @require_role("admin", "librarian")
 def get_overdue_borrowings():
     connection = None
@@ -177,10 +135,7 @@ def get_overdue_borrowings():
     try:
         connection = get_db_connection()
         if connection is None:
-            return jsonify({
-                "status": "error",
-                "message": "Database connection failed."
-            }), 500
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute("""
@@ -189,6 +144,7 @@ def get_overdue_borrowings():
                 SELECT
                     CONCAT('legacy-', br.id) AS id,
                     br.id AS borrowing_id,
+                    NULL AS batch_id,
                     'legacy' AS source,
                     br.user_id,
                     u.name AS user_name,
@@ -203,8 +159,7 @@ def get_overdue_borrowings():
                 INNER JOIN users u ON u.id = br.user_id
                 INNER JOIN books b ON b.id = br.book_id
                 WHERE br.returned_at IS NULL
-                  AND COALESCE(br.status, 'borrowed') <> 'returned'
-                  AND br.due_date IS NOT NULL
+                  AND br.status <> 'returned'
                   AND br.due_date < CURDATE()
 
                 UNION ALL
@@ -212,6 +167,7 @@ def get_overdue_borrowings():
                 SELECT
                     CONCAT('batch-', req.id) AS id,
                     req.id AS borrowing_id,
+                    batch.id AS batch_id,
                     'qr_batch' AS source,
                     req.user_id,
                     u.name AS user_name,
@@ -223,41 +179,21 @@ def get_overdue_borrowings():
                     req.returned_at,
                     'overdue' AS status
                 FROM borrow_requests req
-                INNER JOIN borrow_batches batch
-                    ON batch.id = req.batch_id
-                INNER JOIN users u
-                    ON u.id = req.user_id
-                INNER JOIN books b
-                    ON b.id = req.book_id
+                INNER JOIN borrow_batches batch ON batch.id = req.batch_id
+                INNER JOIN users u ON u.id = req.user_id
+                INNER JOIN books b ON b.id = req.book_id
                 WHERE req.status = 'approved'
                   AND batch.borrow_qr_used_at IS NOT NULL
                   AND req.returned_at IS NULL
-                  AND batch.due_date IS NOT NULL
                   AND batch.due_date < CURDATE()
             ) AS overdue_records
             ORDER BY due_date ASC, borrowed_at ASC
         """)
-
         overdue = cursor.fetchall()
-
-        return jsonify({
-            "status": "success",
-            "overdue": overdue
-        }), 200
+        return jsonify({"status": "success", "overdue": overdue}), 200
 
     except mysql.connector.Error:
-        logger.exception(
-            "Database error while retrieving overdue records"
-        )
-        return jsonify({
-            "status": "error",
-            "message": "Unable to retrieve overdue records right now."
-        }), 500
-
-    except Exception:
-        logger.exception(
-            "Unexpected error while retrieving overdue records"
-        )
+        logger.exception("Unable to retrieve overdue records")
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve overdue records right now."

@@ -1,20 +1,17 @@
-﻿
-import { useState } from "react";
+﻿import { useState } from "react";
+import { api, saveAuthSession } from "../services/api";
 import "./librarian_login.css";
 
-import { api, saveAuthSession } from "../services/api";
-
-function AdminLogin({ onLoginSuccess }) {
+function AdminLogin({ onLoginSuccess, onBack }) {
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setLoginError("");
 
-    const form = e.currentTarget;
+    const form = event.currentTarget;
     const email = form.email.value.trim();
     const password = form.password.value;
 
@@ -32,32 +29,24 @@ function AdminLogin({ onLoginSuccess }) {
         role: "admin",
       });
 
-      if (!data.user || data.user.role?.toLowerCase() !== "admin") {
-        setLoginError(
-          "This account is not registered as an administrator."
-        );
+      if (!data.user || String(data.user.role || "").toLowerCase() !== "admin") {
+        setLoginError("This account is not registered as an administrator.");
         return;
       }
 
-      // Save JWT token and user information
-      saveAuthSession(data, rememberMe);
-
-      // Notify App.jsx that login was successful
+      // Keep Admin authentication consistent with the Librarian and Student portals.
+      // api.js stores the JWT and user in sessionStorage.
+      saveAuthSession(data);
       onLoginSuccess(data.user);
-
     } catch (error) {
       console.error("Admin login error:", error);
 
       if (error.status === 401) {
         setLoginError("Invalid email or password.");
       } else if (error.status === 403) {
-        setLoginError(
-          error.message || "You are not authorized to access this account."
-        );
+        setLoginError(error.message || "You are not authorized to access this account.");
       } else {
-        setLoginError(
-          error.message || "Unable to connect to the server. Please try again."
-        );
+        setLoginError(error.message || "Unable to connect to the server. Please try again.");
       }
     } finally {
       setIsLoading(false);
@@ -72,31 +61,30 @@ function AdminLogin({ onLoginSuccess }) {
 
   return (
     <main className="ls-login-page">
-      <section
-        className="ls-login-card"
-        aria-label="LibSync administrator login"
-      >
+      <section className="ls-login-card" aria-label="LibSync administrator login">
         <aside
           className="ls-login-visual"
           aria-label="LibSync library branding"
-        />
+        >
+          {onBack && (
+            <button type="button" className="ls-login-back" onClick={onBack}>
+              <i className="bi bi-arrow-left" aria-hidden="true" />
+              <span>Back to Home</span>
+            </button>
+          )}
+        </aside>
 
         <section className="ls-login-form-panel">
           <div className="ls-login-content">
             <div className="ls-login-badge">ADMINISTRATOR PORTAL</div>
-
             <h1>Welcome Back</h1>
-
             <p className="ls-login-subtitle">
               Sign in to manage the LibSync system.
             </p>
 
             {loginError && (
               <div className="ls-login-error" role="alert">
-                <i
-                  className="bi bi-exclamation-circle-fill"
-                  aria-hidden="true"
-                ></i>
+                <i className="bi bi-exclamation-circle-fill" aria-hidden="true" />
                 <span>{loginError}</span>
               </div>
             )}
@@ -104,13 +92,8 @@ function AdminLogin({ onLoginSuccess }) {
             <form className="ls-login-form" onSubmit={handleLogin}>
               <div className="ls-login-field">
                 <label htmlFor="admin-email">Email Address</label>
-
                 <div className="ls-login-input-wrap">
-                  <i
-                    className="bi bi-envelope"
-                    aria-hidden="true"
-                  ></i>
-
+                  <i className="bi bi-envelope" aria-hidden="true" />
                   <input
                     id="admin-email"
                     type="email"
@@ -124,13 +107,8 @@ function AdminLogin({ onLoginSuccess }) {
 
               <div className="ls-login-field">
                 <label htmlFor="admin-password">Password</label>
-
                 <div className="ls-login-input-wrap">
-                  <i
-                    className="bi bi-lock"
-                    aria-hidden="true"
-                  ></i>
-
+                  <i className="bi bi-lock" aria-hidden="true" />
                   <input
                     id="admin-password"
                     type={showPassword ? "text" : "password"}
@@ -139,43 +117,22 @@ function AdminLogin({ onLoginSuccess }) {
                     autoComplete="current-password"
                     required
                   />
-
                   <button
                     type="button"
                     className="ls-password-toggle"
-                    onClick={() =>
-                      setShowPassword((current) => !current)
-                    }
-                    aria-label={
-                      showPassword ? "Hide password" : "Show password"
-                    }
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     <i
-                      className={`bi ${
-                        showPassword ? "bi-eye-slash" : "bi-eye"
-                      }`}
+                      className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`}
                       aria-hidden="true"
-                    ></i>
+                    />
                   </button>
                 </div>
               </div>
 
               <div className="ls-login-options">
-                <label className="ls-remember-label">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-
-                  <span
-                    className="ls-custom-checkbox"
-                    aria-hidden="true"
-                  ></span>
-
-                  <span>Remember me</span>
-                </label>
-
+                <span />
                 <button
                   type="button"
                   className="ls-forgot-link"
@@ -185,33 +142,15 @@ function AdminLogin({ onLoginSuccess }) {
                 </button>
               </div>
 
-              <button
-                className="ls-login-submit"
-                type="submit"
-                disabled={isLoading}
-              >
-                <span>
-                  {isLoading ? "Signing in..." : "Login"}
-                </span>
-
-                {!isLoading && (
-                  <i
-                    className="bi bi-arrow-right"
-                    aria-hidden="true"
-                  ></i>
-                )}
+              <button className="ls-login-submit" type="submit" disabled={isLoading}>
+                <span>{isLoading ? "Signing in..." : "Login"}</span>
+                {!isLoading && <i className="bi bi-arrow-right" aria-hidden="true" />}
               </button>
             </form>
 
             <div className="ls-admin-notice">
-              <i
-                className="bi bi-shield-lock"
-                aria-hidden="true"
-              ></i>
-
-              <span>
-                Restricted access. Authorized administrators only.
-              </span>
+              <i className="bi bi-shield-lock" aria-hidden="true" />
+              <span>Restricted access. Authorized administrators only.</span>
             </div>
           </div>
         </section>
@@ -221,4 +160,3 @@ function AdminLogin({ onLoginSuccess }) {
 }
 
 export default AdminLogin;
-

@@ -8,6 +8,32 @@ import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
 
+// Group only records that share a real batch_id. Rows without a batch_id
+// remain independent transactions, even if they belong to the same student.
+function groupRowsByBatch(rows) {
+  const groups = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const hasBatchId =
+      row?.batch_id !== null &&
+      row?.batch_id !== undefined &&
+      String(row.batch_id).trim() !== "";
+    const rowId = row?.request_id ?? row?.id ?? row?.borrowing_id ?? `index-${index}`;
+    const key = hasBatchId ? `batch:${row.batch_id}` : `row:${rowId}`;
+
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  return Array.from(groups.entries()).map(([key, items]) => ({
+    id: key,
+    batchId: items[0]?.batch_id ?? null,
+    items,
+    first: items[0],
+  }));
+}
+
+
 
 let libSyncQrScannerLifecycle = Promise.resolve();
 
@@ -245,11 +271,34 @@ function LibrarianDashboard({ onLogout }) {
   const [releasingBatch, setReleasingBatch] = useState(false);
   const [processingReturn, setProcessingReturn] = useState(false);
   const [selectedReturnBookIds, setSelectedReturnBookIds] = useState([]);
+  const [confirmationModal, setConfirmationModal] = useState(null);
+  const [confirmationLoading, setConfirmationLoading] = useState(false);
 
   const [processingRequestId, setProcessingRequestId] =
 
     useState(null);
 
+
+  const openConfirmationModal = (config) => {
+    setConfirmationModal(config);
+  };
+
+  const closeConfirmationModal = () => {
+    if (confirmationLoading) return;
+    setConfirmationModal(null);
+  };
+
+  const confirmModalAction = async () => {
+    if (!confirmationModal?.onConfirm || confirmationLoading) return;
+
+    try {
+      setConfirmationLoading(true);
+      await confirmationModal.onConfirm();
+      setConfirmationModal(null);
+    } finally {
+      setConfirmationLoading(false);
+    }
+  };
 
   // ==========================================
   // BOOKS MANAGEMENT: LOAD BOOKS FROM THE API
@@ -416,11 +465,6 @@ function LibrarianDashboard({ onLogout }) {
       setBooksError("This book does not have a valid ID.");
       return;
     }
-
-    const confirmed = window.confirm(
-      `Delete "${book.title || "this book"}"? This action cannot be undone.`
-    );
-    if (!confirmed) return;
 
     try {
       setDeletingBookId(bookId);
@@ -636,11 +680,6 @@ function LibrarianDashboard({ onLogout }) {
       releasingBatch
     ) return;
 
-    const confirmed = window.confirm(
-      `Confirm that the approved book(s) for ${scannedBatch.student_name || "this student"} have physically been released? The borrowing period will start now.`
-    );
-    if (!confirmed) return;
-
     try {
       setReleasingBatch(true);
       setMessage("");
@@ -690,11 +729,6 @@ function LibrarianDashboard({ onLogout }) {
       selectedReturnBookIds.length === 0 ||
       processingReturn
     ) return;
-
-    const confirmed = window.confirm(
-      `Confirm that ${selectedReturnBookIds.length} selected book(s) have been physically returned? The available book count will be restored after confirmation.`
-    );
-    if (!confirmed) return;
 
     try {
       setProcessingReturn(true);
@@ -954,9 +988,11 @@ function LibrarianDashboard({ onLogout }) {
     returned: borrowingRecords.filter((record) => getRecordStatus(record) === "returned").length,
   };
   const recordsPerPage = 8;
-  const totalRecordPages = Math.max(1, Math.ceil(filteredBorrowingRecords.length / recordsPerPage));
+  const groupedBorrowRequests = groupRowsByBatch(borrowRequests);
+  const groupedFilteredBorrowingRecords = groupRowsByBatch(filteredBorrowingRecords);
+  const totalRecordPages = Math.max(1, Math.ceil(groupedFilteredBorrowingRecords.length / recordsPerPage));
   const currentRecordPage = Math.min(recordPage, totalRecordPages);
-  const paginatedBorrowingRecords = filteredBorrowingRecords.slice(
+  const paginatedBorrowingRecords = groupedFilteredBorrowingRecords.slice(
     (currentRecordPage - 1) * recordsPerPage,
     currentRecordPage * recordsPerPage
   );
@@ -979,18 +1015,29 @@ function LibrarianDashboard({ onLogout }) {
   const exportBorrowingRecords = () => {
     const rows = [
       ["Student ID", "Student Name", "Email", "Book Title", "Borrow Date", "Due Date", "Return Date", "Status"],
-      ...filteredBorrowingRecords.map((record) => [
-        record.user_id ?? record.student_id ?? "",
-        record.student_name ?? record.user_name ?? "",
-        record.student_email ?? record.user_email ?? "",
-        record.book_title ?? "",
-        formatRecordDate(record.borrow_date || record.approved_at || record.requested_at),
-        formatRecordDate(record.due_date),
-        formatRecordDate(record.returned_at),
-        getRecordStatus(record),
-      ]),
+      ...groupedFilteredBorrowingRecords.map((group) => {
+        const first = group.first;
+        const statuses = group.items.map(getRecordStatus);
+        const uniqueStatuses = [...new Set(statuses)];
+
+        return [
+          first.user_id ?? first.student_id ?? "",
+          first.student_name ?? first.user_name ?? "",
+          first.student_email ?? first.user_email ?? "",
+          group.items.map((item) => item.book_title || "Unknown book").join("\n"),
+          group.items.map((item) => formatRecordDate(item.borrow_date || item.approved_at || item.requested_at)).join("\n"),
+          group.items.map((item) => formatRecordDate(item.due_date)).join("\n"),
+          group.items.map((item) => item.returned_at ? formatRecordDate(item.returned_at) : "Not returned").join("\n"),
+          uniqueStatuses.length === 1
+            ? uniqueStatuses[0]
+            : group.items.map((item) => `${item.book_title || "Unknown book"}: ${getRecordStatus(item)}`).join("\n"),
+        ];
+      }),
     ];
-    const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+
+    const csv = rows
+      .map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1569,7 +1616,13 @@ function LibrarianDashboard({ onLogout }) {
                     <button
                       type="button"
                       className="ls-qr-workflow-button ls-qr-workflow-button--primary"
-                      onClick={handleReleaseBatch}
+                      onClick={() => openConfirmationModal({
+                        type: "release",
+                        title: "Confirm Book Release",
+                        message: `Have the approved book(s) for ${scannedBatch.student_name || "this student"} been physically handed over? The borrowing period will start after confirmation.`,
+                        confirmLabel: "Confirm Release",
+                        onConfirm: handleReleaseBatch,
+                      })}
                       disabled={releasingBatch}
                     >
                       {releasingBatch ? "Releasing books..." : "Confirm Release of Books"}
@@ -1624,7 +1677,13 @@ function LibrarianDashboard({ onLogout }) {
                     <button
                       type="button"
                       className="ls-qr-workflow-button ls-qr-workflow-button--return"
-                      onClick={handleReturnBooks}
+                      onClick={() => openConfirmationModal({
+                        type: "return",
+                        title: "Confirm Book Return",
+                        message: `Have all ${selectedReturnBookIds.length} selected book(s) been physically returned? The available book count will be restored after confirmation.`,
+                        confirmLabel: "Confirm Return",
+                        onConfirm: handleReturnBooks,
+                      })}
                       disabled={processingReturn || selectedReturnBookIds.length === 0}
                     >
                       {processingReturn ? "Processing return..." : `Confirm Return of ${selectedReturnBookIds.length || "Selected"} Book(s)`}
@@ -1818,49 +1877,54 @@ function LibrarianDashboard({ onLogout }) {
 
                 <tbody>
 
-                  {borrowRequests.map((request) => (
-
-                    <tr key={request.id}>
-
-                      <td>{request.id}</td>
-
-                      <td>{request.user_name}</td>
-
-                      <td>{request.user_email}</td>
-
-                      <td>{request.book_title}</td>
-
-
-
-                      <td>
-
-                        {request.requested_at
-
-                          ? new Date(
-
-                              request.requested_at
-
-                            ).toLocaleString()
-
-                          : "N/A"}
-
-                      </td>
-
-
-
-                      <td>{request.status}</td>
-
-
-
-                      <td>
-
-                        {renderDecisionButtons(request)}
-
-                      </td>
-
-                    </tr>
-
-                  ))}
+                  {groupedBorrowRequests.map((group) => {
+                    const request = group.first;
+                    return (
+                      <tr key={group.id}>
+                        <td>
+                          {group.items.map((item, index) => (
+                            <div key={item.request_id ?? item.id ?? item.borrowing_id ?? index}>
+                              #{item.request_id ?? item.id ?? "—"}
+                            </div>
+                          ))}
+                        </td>
+                        <td>{request.user_name || request.student_name || "Unknown student"}</td>
+                        <td>{request.user_email || request.student_email || "—"}</td>
+                        <td>
+                          <ul className="ls-batch-book-list">
+                            {group.items.map((item, index) => (
+                              <li key={item.request_id ?? item.id ?? index}>
+                                {item.book_title || `Book #${item.book_id ?? "—"}`}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td>
+                          {request.requested_at
+                            ? new Date(request.requested_at).toLocaleString()
+                            : "N/A"}
+                        </td>
+                        <td>
+                          <ul className="ls-batch-book-list ls-batch-status-list">
+                            {group.items.map((item, index) => (
+                              <li key={item.request_id ?? item.id ?? index}>
+                                {String(item.status || "unknown").replace(/_/g, " ")}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                        <td>
+                          <div className="ls-batch-actions">
+                            {group.items.map((item, index) => (
+                              <div key={item.request_id ?? item.id ?? index}>
+                                {renderDecisionButtons(item)}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
 
                 </tbody>
 
@@ -1992,7 +2056,13 @@ function LibrarianDashboard({ onLogout }) {
                             <button type="button" className="ls-books-edit-action" aria-label={`Edit ${book.title || "book"}`} title="Edit book" onClick={() => openEditBookModal(book)}>
                               <i className="bi bi-pencil" aria-hidden="true" />
                             </button>
-                            <button type="button" className="ls-books-delete-action" aria-label={`Delete ${book.title || "book"}`} title="Delete book" disabled={deletingBookId === bookId} onClick={() => handleDeleteBook(book)}>
+                            <button type="button" className="ls-books-delete-action" aria-label={`Delete ${book.title || "book"}`} title="Delete book" disabled={deletingBookId === bookId} onClick={() => openConfirmationModal({
+                              type: "delete",
+                              title: "Delete Book",
+                              message: `Are you sure you want to delete "${book.title || "this book"}"? This action cannot be undone.`,
+                              confirmLabel: "Delete Book",
+                              onConfirm: () => handleDeleteBook(book),
+                            })}>
                               <i className="bi bi-trash3" aria-hidden="true" />
                             </button>
                           </div>
@@ -2178,20 +2248,73 @@ function LibrarianDashboard({ onLogout }) {
                   <table className="ls-records-table">
                     <thead><tr><th>#</th><th>Student ID</th><th>Student Name</th><th>Book Title</th><th>Borrow Date</th><th>Due Date</th><th>Return Date</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>
-                      {paginatedBorrowingRecords.map((record, index) => {
-                        const status = getRecordStatus(record);
-                        const statusLabel = status === "borrowed" ? "Borrowed" : status === "overdue" ? "Overdue" : status === "returned" ? "Returned" : status.replace(/_/g, " ");
+                      {paginatedBorrowingRecords.map((group, index) => {
+                        const record = group.first;
+                        const statuses = group.items.map(getRecordStatus);
+                        const uniqueStatuses = [...new Set(statuses)];
+                        const status = uniqueStatuses.length === 1 ? uniqueStatuses[0] : "mixed";
+                        const statusLabel = status === "borrowed"
+                          ? "Borrowed"
+                          : status === "overdue"
+                            ? "Overdue"
+                            : status === "returned"
+                              ? "Returned"
+                              : "Mixed status";
+                        const returnDates = [...new Set(group.items.map((item) => formatRecordDate(item.returned_at)))];
+                        const dueDates = [...new Set(group.items.map((item) => formatRecordDate(item.due_date)))];
+
                         return (
-                          <tr key={record.request_id ?? record.id ?? `${record.user_id}-${record.book_id}-${index}`}>
+                          <tr key={group.id}>
                             <td>{(currentRecordPage - 1) * recordsPerPage + index + 1}</td>
                             <td><span className="ls-records-student-id">{record.student_id ?? record.user_id ?? "—"}</span></td>
                             <td><div className="ls-records-student-cell"><strong>{record.student_name || record.user_name || "Unknown student"}</strong><small>{record.student_email || record.user_email || ""}</small></div></td>
-                            <td><span className="ls-records-book-title">{record.book_title || "Unknown book"}</span></td>
-                            <td>{formatRecordDate(record.borrow_date || record.approved_at || record.requested_at)}</td>
-                            <td>{formatRecordDate(record.due_date)}</td>
-                            <td>{formatRecordDate(record.returned_at)}</td>
-                            <td><span className={`ls-records-status ls-records-status-${status}`}>{statusLabel}</span></td>
-                            <td><button type="button" className="ls-records-view-button" onClick={() => setSelectedRecord(record)} aria-label={`View record for ${record.student_name || record.user_name || "student"}`} title="View details"><i className="bi bi-eye" aria-hidden="true" /></button></td>
+                            <td>
+                              <ul className="ls-batch-book-list">
+                                {group.items.map((item, itemIndex) => (
+                                  <li key={item.request_id ?? item.id ?? item.borrowing_id ?? itemIndex}>
+                                    {item.book_title || "Unknown book"}
+                                  </li>
+                                ))}
+                              </ul>
+                            </td>
+                            <td>{[...new Set(group.items.map((item) => formatRecordDate(item.borrow_date || item.approved_at || item.requested_at)))].length === 1
+                              ? formatRecordDate(record.borrow_date || record.approved_at || record.requested_at)
+                              : "Varies by book"}</td>
+                            <td>{dueDates.length === 1 ? dueDates[0] : "Varies by book"}</td>
+                            <td>{returnDates.length === 1 ? returnDates[0] : "Varies by book"}</td>
+                            <td>
+                              {status === "mixed" ? (
+                                <div className="ls-batch-status-summary">
+                                  <span className="ls-records-status ls-records-status-mixed">Mixed status</span>
+                                  <ul className="ls-batch-book-list ls-batch-status-list">
+                                    {group.items.map((item, itemIndex) => (
+                                      <li key={item.request_id ?? item.id ?? item.borrowing_id ?? itemIndex}>
+                                        {item.book_title || "Unknown book"}: {getRecordStatus(item)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : (
+                                <span className={`ls-records-status ls-records-status-${status}`}>{statusLabel}</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="ls-batch-actions">
+                                {group.items.map((item, itemIndex) => (
+                                  <div key={item.request_id ?? item.id ?? item.borrowing_id ?? itemIndex}>
+                                    <button
+                                      type="button"
+                                      className="ls-records-view-button"
+                                      onClick={() => setSelectedRecord(item)}
+                                      aria-label={`View record for ${item.book_title || "book"}`}
+                                      title={`View ${item.book_title || "book"}`}
+                                    >
+                                      <i className="bi bi-eye" aria-hidden="true" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
@@ -2199,7 +2322,7 @@ function LibrarianDashboard({ onLogout }) {
                   </table>
                 </div>
                 <footer className="ls-records-table-footer">
-                  <span>Showing {filteredBorrowingRecords.length === 0 ? 0 : (currentRecordPage - 1) * recordsPerPage + 1} to {Math.min(currentRecordPage * recordsPerPage, filteredBorrowingRecords.length)} of {filteredBorrowingRecords.length} records</span>
+                  <span>Showing {groupedFilteredBorrowingRecords.length === 0 ? 0 : (currentRecordPage - 1) * recordsPerPage + 1} to {Math.min(currentRecordPage * recordsPerPage, groupedFilteredBorrowingRecords.length)} of {groupedFilteredBorrowingRecords.length} transactions</span>
                   <nav className="ls-records-pagination" aria-label="Borrowing records pages">
                     <button type="button" aria-label="Previous page" disabled={currentRecordPage <= 1} onClick={() => setRecordPage((page) => Math.max(1, page - 1))}><i className="bi bi-chevron-left" aria-hidden="true" /></button>
                     {visibleRecordPages.map((page) => <button key={page} type="button" className={page === currentRecordPage ? "active" : ""} aria-current={page === currentRecordPage ? "page" : undefined} onClick={() => setRecordPage(page)}>{page}</button>)}
@@ -2233,6 +2356,52 @@ function LibrarianDashboard({ onLogout }) {
         </section>
       )}
 
+      {confirmationModal && (
+        <div
+          className="ls-confirm-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeConfirmationModal();
+          }}
+        >
+          <section
+            className={`ls-confirm-modal ls-confirm-modal--${confirmationModal.type || "default"}`}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="ls-confirm-modal-title"
+            aria-describedby="ls-confirm-modal-message"
+          >
+            <div className="ls-confirm-modal-icon" aria-hidden="true">
+              <i className={`bi ${
+                confirmationModal.type === "delete"
+                  ? "bi-trash3"
+                  : confirmationModal.type === "return"
+                    ? "bi-journal-check"
+                    : "bi-box-arrow-up"
+              }`} />
+            </div>
+            <h2 id="ls-confirm-modal-title">{confirmationModal.title}</h2>
+            <p id="ls-confirm-modal-message">{confirmationModal.message}</p>
+            <div className="ls-confirm-modal-actions">
+              <button
+                type="button"
+                className="ls-confirm-modal-cancel"
+                onClick={closeConfirmationModal}
+                disabled={confirmationLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`ls-confirm-modal-submit ${confirmationModal.type === "delete" ? "is-danger" : ""}`}
+                onClick={confirmModalAction}
+                disabled={confirmationLoading}
+              >
+                {confirmationLoading ? "Please wait..." : confirmationModal.confirmLabel || "Confirm"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
         </div>
       </main>

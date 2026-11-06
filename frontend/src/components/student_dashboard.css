@@ -601,12 +601,12 @@
 
 .student-menu.active {
   border-color: #BDEBD3;
-  color: #065F46;
+  color: #006149;
   background: #E8F7EF;
 }
 
 .student-menu.active i {
-  color: #065F46;
+  color: #006149;
 }
 
 /* =========================================================
@@ -1322,11 +1322,11 @@
   width: 29px;
   height: 3px;
   border-radius: 3px;
-  background: #065F46;
+  background: #006149;
   opacity: .65;
 }
 
-.student-book-cover-placeholder > i { align-self: center; margin: auto 0 7px; font-size: 27px; color: #065F46; }
+.student-book-cover-placeholder > i { align-self: center; margin: auto 0 7px; font-size: 27px; color: #006149; }
 .student-book-cover-placeholder > span { display: -webkit-box; max-width: 100%; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: 12px; font-weight: 800; line-height: 1.18; }
 .student-book-cover-placeholder > small { display: -webkit-box; max-width: 100%; margin-top: 6px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; opacity: .8; font-size: 8px; }
 
@@ -1437,7 +1437,7 @@
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  color: #065F46;
+  color: #006149;
   background: #DDF7E8;
   font-size: 19px;
 }
@@ -1933,10 +1933,10 @@
 }
 .student-online-preview-button {
   padding: 8px 10px;
-  border: 1px solid #065F46;
+  border: 1px solid #006149;
   border-radius: 8px;
   color: #FFFFFF;
-  background: #065F46;
+  background: #006149;
   font-size: 10px;
   font-weight: 750;
   cursor: pointer;
@@ -1953,7 +1953,7 @@
 }
 .student-online-empty > i,
 .student-catalog-message > i {
-  color: #065F46;
+  color: #006149;
   font-size: 18px;
 }
 .student-online-notice {
@@ -2036,7 +2036,7 @@
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  color: #065F46;
+  color: #006149;
   background: #DDF5E7;
   font-size: 18px;
 }
@@ -2061,7 +2061,7 @@
   max-width: 45%;
   min-height: 42px;
   padding: 9px 12px;
-  color: #065F46;
+  color: #006149;
   background: #FFFFFF;
   border: 1px solid #C8DDD0;
   border-radius: 10px;
@@ -2085,7 +2085,7 @@
 
 .qr-status-pill--approved {
   background: #E2F5E9;
-  color: #065F46;
+  color: #006149;
 }
 
 .qr-status-pill--partially_returned {
@@ -2095,7 +2095,7 @@
 
 .qr-status-pill--returned {
   background: #E2F5E9;
-  color: #065F46;
+  color: #006149;
 }
 
 .qr-status-pill--declined {
@@ -2122,7 +2122,7 @@
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  color: #065F46;
+  color: #006149;
   background: #DDF5E7;
   font-size: 18px;
 }
@@ -2141,7 +2141,7 @@
 }
 
 .qr-due-date-copy strong {
-  color: #065F46;
+  color: #006149;
   font-size: 15px;
 }
 
@@ -2160,7 +2160,7 @@
   padding: 10px 14px;
   border: 1px solid #CFE3D6;
   border-radius: 10px;
-  color: #065F46;
+  color: #006149;
   background: #F3FBF6;
   font: inherit;
   font-size: 12px;
@@ -2235,7 +2235,7 @@
   margin: 0 auto 8px;
   border-radius: 16px;
   background: #CFF5DF;
-  color: #065F46;
+  color: #006149;
   font-size: 25px;
 }
 
@@ -2260,7 +2260,7 @@
 
 .qr-card--return .qr-card-banner-icon {
   color: #FFFFFF;
-  background: #065F46;
+  background: #006149;
 }
 
 .qr-batch-id {
@@ -2323,7 +2323,7 @@
   height: 36px;
   flex: 0 0 36px;
   border-radius: 11px;
-  color: #065F46;
+  color: #006149;
   background: #D0F3DE;
   font-size: 18px;
 }
@@ -2333,7 +2333,7 @@
   align-items: flex-start;
   gap: 11px;
   padding: 10px 14px;
-  color: #065F46;
+  color: #006149;
 }
 
 .qr-details-row > i {
@@ -2376,7 +2376,7 @@
 .qr-info-note i {
   flex: 0 0 auto;
   margin-top: 1px;
-  color: #065F46;
+  color: #006149;
 }
 
 .qr-return-date-panel {
@@ -2403,7 +2403,7 @@
   width: 58px;
   height: 58px;
   color: #FFFFFF;
-  background: #065F46;
+  background: #006149;
   border-radius: 12px;
   font-size: 28px;
 }
@@ -2423,7 +2423,7 @@
 }
 
 .qr-return-date-header > div > strong {
-  color: #065F46;
+  color: #006149;
   font-size: clamp(15px, 1.5vw, 21px);
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -2442,7 +2442,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: #065F46;
+  color: #006149;
   min-width: 0;
 }
 
@@ -2472,7 +2472,7 @@
   padding: 8px 10px;
   border-radius: 999px;
   background: #D8F5E3;
-  color: #065F46;
+  color: #006149;
   font-size: 11px;
   font-weight: 800;
   text-align: center;
@@ -2494,7 +2494,7 @@
   padding: 24px 20px;
   border: 1px dashed #B9DCC5;
   border-radius: 14px;
-  color: #065F46;
+  color: #006149;
   background: #F5FBF6;
   text-align: center;
 }
@@ -2581,7 +2581,7 @@
   height: 58px;
   border-radius: 16px;
   background: #D8F5E3;
-  color: #065F46;
+  color: #006149;
   font-size: 27px;
 }
 
@@ -2607,9 +2607,9 @@
   min-height: 44px;
   margin-top: 5px;
   padding: 11px 18px;
-  border: 1px solid #065F46;
+  border: 1px solid #006149;
   border-radius: 10px;
-  background: #065F46;
+  background: #006149;
   color: #FFFFFF;
   font: inherit;
   font-size: 13px;
@@ -2639,11 +2639,11 @@
 .qr-generate-return-button--secondary {
   border-color: #B8DCC5;
   background: #EFF9F2;
-  color: #065F46;
+  color: #006149;
 }
 
 .qr-generate-return-button--secondary:hover:not(:disabled) {
-  border-color: #065F46;
+  border-color: #006149;
   background: #DFF4E6;
   color: #044C39;
 }
@@ -2690,7 +2690,7 @@
   position: sticky;
   isolation: isolate;
   overflow: hidden;
-  background: #065F46;
+  background: #006149;
 }
 
 .student-dashboard .student-sidebar > :not(.student-sidebar-leaves) {
@@ -2762,7 +2762,7 @@
   width: 40px;
   height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #065F46;
+  color: #006149;
   background: #A7F3D0;
   font-size: 19px;
 }
@@ -3387,3 +3387,80 @@
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   LIBSYNC BRAND COLOR ALIGNMENT — STUDENT DASHBOARD
+   Matches the Admin and Librarian primary green (#006149).
+   Visual-only overrides; existing layout and functionality remain unchanged.
+========================================================= */
+.student-dashboard {
+  --ls-primary: #006149;
+  --ls-primary-dark: #004D3A;
+  --ls-primary-soft: #E8F5EF;
+}
+
+.student-dashboard .student-sidebar {
+  background: #006149;
+}
+
+.student-dashboard .student-sidebar .student-menu.active {
+  border-color: rgba(167, 243, 208, 0.9);
+  color: #064E3B;
+  background: #A7F3D0;
+}
+
+.student-dashboard .student-sidebar .student-menu.active i {
+  color: #064E3B;
+}
+
+.student-dashboard .student-sidebar .menu-count {
+  color: #064E3B;
+  background: #A7F3D0;
+}
+
+.student-dashboard .student-sidebar .student-logout:hover {
+  border-color: #A7F3D0;
+  color: #064E3B;
+  background: #A7F3D0;
+}
+
+.student-dashboard .student-sidebar .student-logout:hover i {
+  color: #064E3B;
+}
+
+.student-dashboard .student-menu:hover {
+  color: #006149;
+  background: #E8F5EF;
+}
+
+.student-dashboard .student-menu:hover i {
+  color: #006149;
+}
+
+.student-dashboard .student-menu.active {
+  border-color: #CDEBDD;
+  color: #006149;
+  background: #E8F5EF;
+}
+
+.student-dashboard .student-menu.active i {
+  color: #006149;
+}
+
+.student-dashboard .student-book-category-tag {
+  color: #006149;
+  background: #E8F5EF;
+}
+
+.student-dashboard .student-category-icon {
+  color: #006149;
+  background: #DDF7E8;
+}
+
+.student-dashboard .student-book-card-footer .select-book-button:hover:not(:disabled),
+.student-dashboard .student-online-preview-button:hover {
+  border-color: #004D3A;
+  background: #004D3A;
+}
+

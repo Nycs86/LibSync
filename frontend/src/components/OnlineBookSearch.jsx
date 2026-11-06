@@ -1,6 +1,8 @@
-import { useState } from "react";
+
+import { useRef, useState } from "react";
 
 const API_URL = "https://libsync-backend.onrender.com";
+const DEFAULT_COOLDOWN_SECONDS = 30;
 
 function OnlineBookSearch({ onBookAdded }) {
   const [query, setQuery] = useState("");
@@ -11,15 +13,50 @@ function OnlineBookSearch({ onBookAdded }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // Prevent duplicate requests and cache successful searches.
+  const searchCache = useRef(new Map());
+  const activeRequest = useRef(false);
+  const cooldownUntil = useRef(0);
+
   const searchBooks = async (e) => {
     e.preventDefault();
+
     const search = query.trim();
 
     if (!search) {
       setError("Enter a title, author, or ISBN.");
+      setMessage("");
       return;
     }
 
+    if (activeRequest.current) {
+      return;
+    }
+
+    // Respect the cooldown after receiving HTTP 429.
+    const remainingCooldown = Math.ceil(
+      (cooldownUntil.current - Date.now()) / 1000
+    );
+
+    if (remainingCooldown > 0) {
+      setError(
+        `Search temporarily unavailable. Please wait ${remainingCooldown} seconds before trying again.`
+      );
+      setMessage("");
+      return;
+    }
+
+    const cacheKey = search.toLowerCase();
+
+    // Reuse previously successful search results.
+    if (searchCache.current.has(cacheKey)) {
+      setBooks(searchCache.current.get(cacheKey));
+      setError("");
+      setMessage("Showing saved search results.");
+      return;
+    }
+
+    activeRequest.current = true;
     setLoading(true);
     setMessage("");
     setError("");
@@ -29,35 +66,66 @@ function OnlineBookSearch({ onBookAdded }) {
         `${API_URL}/api/books/search-online?q=${encodeURIComponent(search)}`
       );
 
-      const data = await response.json();
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("The server returned an invalid response.");
+      }
+
+      if (response.status === 429) {
+        const retryAfter = Number(response.headers.get("Retry-After"));
+
+        const cooldownSeconds =
+          Number.isFinite(retryAfter) && retryAfter > 0
+            ? retryAfter
+            : DEFAULT_COOLDOWN_SECONDS;
+
+        cooldownUntil.current =
+          Date.now() + cooldownSeconds * 1000;
+
+        throw new Error(
+          `Google Books search is temporarily rate-limited. Please wait ${cooldownSeconds} seconds before trying again.`
+        );
+      }
 
       if (!response.ok) {
         throw new Error(data.message || "Unable to search books.");
       }
 
-      setBooks(data.books || []);
+      const results = Array.isArray(data.books) ? data.books : [];
 
-      if (!data.books || data.books.length === 0) {
-        setMessage("No books found.");
+      setBooks(results);
+      searchCache.current.set(cacheKey, results);
+
+      if (results.length === 0) {
+        setMessage("No books found. Try another title, author, or ISBN.");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Online book search error:", err);
       setError(err.message || "Unable to connect to the server.");
     } finally {
+      activeRequest.current = false;
       setLoading(false);
     }
   };
 
   const addToLibrary = async (book) => {
     const bookKey =
-      book.openlibrary_key || book.isbn || `${book.title}-${book.author}`;
+      book.openlibrary_key ||
+      book.isbn ||
+      `${book.title}-${book.author}`;
 
     const quantity = Number(quantities[bookKey] || 1);
 
     if (!Number.isInteger(quantity) || quantity < 1) {
       setError("Quantity must be at least 1.");
+      setMessage("");
       return;
     }
+
+    if (addingId !== null) return;
 
     setAddingId(bookKey);
     setMessage("");
@@ -92,7 +160,7 @@ function OnlineBookSearch({ onBookAdded }) {
         onBookAdded();
       }
     } catch (err) {
-      console.error(err);
+      console.error("Add book error:", err);
       setError(err.message || "Unable to add book.");
     } finally {
       setAddingId(null);
@@ -107,8 +175,13 @@ function OnlineBookSearch({ onBookAdded }) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setError("");
+            setMessage("");
+          }}
           placeholder="Search by title, author, or ISBN"
+          disabled={loading}
         />
 
         <button type="submit" disabled={loading}>
@@ -116,8 +189,17 @@ function OnlineBookSearch({ onBookAdded }) {
         </button>
       </form>
 
-      {error && <div className="form-error">{error}</div>}
-      {message && <div className="form-success">{message}</div>}
+      {error && (
+        <div className="form-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="form-success" role="status">
+          {message}
+        </div>
+      )}
 
       <div className="online-book-results">
         {books.map((book) => {
@@ -132,7 +214,9 @@ function OnlineBookSearch({ onBookAdded }) {
                 {book.cover_url ? (
                   <img src={book.cover_url} alt={book.title} />
                 ) : (
-                  <div className="online-book-no-cover">No Cover</div>
+                  <div className="online-book-no-cover">
+                    No Cover
+                  </div>
                 )}
               </div>
 
@@ -164,9 +248,11 @@ function OnlineBookSearch({ onBookAdded }) {
                   <button
                     type="button"
                     onClick={() => addToLibrary(book)}
-                    disabled={addingId === bookKey}
+                    disabled={addingId !== null}
                   >
-                    {addingId === bookKey ? "Adding..." : "Add to LibSync"}
+                    {addingId === bookKey
+                      ? "Adding..."
+                      : "Add to LibSync"}
                   </button>
                 </div>
               </div>
