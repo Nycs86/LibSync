@@ -8,6 +8,14 @@ from routes import (
     borrowings_bp,
     borrow_requests_bp,
 )
+from routes import (
+    auth_bp,
+    users_bp,
+    books_bp,
+    borrowings_bp,
+    borrow_requests_bp,
+    admin_risk_bp,
+)
 
 app = Flask(__name__)
 
@@ -49,6 +57,7 @@ app.register_blueprint(books_bp)
 app.register_blueprint(borrowings_bp)
 app.register_blueprint(borrow_requests_bp)
 app.register_blueprint(student_bp)
+app.register_blueprint(admin_risk_bp)
 
 
 @app.route("/")

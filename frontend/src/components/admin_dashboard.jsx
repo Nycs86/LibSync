@@ -15,6 +15,16 @@ function AdminDashboard({ onLogout }) {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
 
+  const [riskStudents, setRiskStudents] = useState([]);
+  const [riskSummary, setRiskSummary] = useState({
+    total_students: 0,
+    high_risk: 0,
+    medium_risk: 0,
+    low_risk: 0,
+  });
+  const [riskLoading, setRiskLoading] = useState(true);
+  const [riskError, setRiskError] = useState("");
+
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignSearch, setAssignSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -46,6 +56,42 @@ function AdminDashboard({ onLogout }) {
     return Array.isArray(data) ? data : data.requests || [];
   }, []);
 
+  const fetchOverdueRisk = useCallback(async () => {
+    const data = await api.get("/api/admin/overdue-risk");
+    return {
+      students: Array.isArray(data?.students) ? data.students : [],
+      summary: data?.summary || {
+        total_students: 0,
+        high_risk: 0,
+        medium_risk: 0,
+        low_risk: 0,
+      },
+    };
+  }, []);
+
+  const loadOverdueRisk = useCallback(async () => {
+    try {
+      setRiskLoading(true);
+      setRiskError("");
+
+      const data = await fetchOverdueRisk();
+      setRiskStudents(data.students);
+      setRiskSummary(data.summary);
+    } catch (error) {
+      console.error("Load overdue risk error:", error);
+      setRiskStudents([]);
+      setRiskSummary({
+        total_students: 0,
+        high_risk: 0,
+        medium_risk: 0,
+        low_risk: 0,
+      });
+      setRiskError(error.message || "Unable to load overdue risk data.");
+    } finally {
+      setRiskLoading(false);
+    }
+  }, [fetchOverdueRisk]);
+
   // Used by the manual Refresh button. Each setter runs only after all
   // requested data has been received successfully.
   const loadDashboard = useCallback(async ({ showLoading = true } = {}) => {
@@ -67,13 +113,15 @@ function AdminDashboard({ onLogout }) {
       setBooks(booksData);
       setBorrowings(borrowingsData);
       setRequests(requestsData);
+
+      void loadOverdueRisk();
     } catch (error) {
       console.error(error);
       setMessage(error.message || "Unable to load dashboard data.");
     } finally {
       setLoading(false);
     }
-  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests]);
+  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadOverdueRisk]);
 
   // Initial loading: fetch first, then update React state after the awaits.
   useEffect(() => {
@@ -95,6 +143,8 @@ function AdminDashboard({ onLogout }) {
         setBooks(booksData);
         setBorrowings(borrowingsData);
         setRequests(requestsData);
+
+        void loadOverdueRisk();
       } catch (error) {
         console.error(error);
         if (!cancelled) {
@@ -112,7 +162,7 @@ function AdminDashboard({ onLogout }) {
     return () => {
       cancelled = true;
     };
-  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests]);
+  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadOverdueRisk]);
 
   const students = useMemo(
     () => users.filter((account) => account.role === "student"),
@@ -263,6 +313,18 @@ function AdminDashboard({ onLogout }) {
       .sort((a, b) => b.copies - a.copies || a.name.localeCompare(b.name))
       .slice(0, 5);
   }, [books]);
+
+  const topRiskStudents = useMemo(
+    () =>
+      [...riskStudents]
+        .sort(
+          (a, b) =>
+            Number(b.risk_score || 0) - Number(a.risk_score || 0) ||
+            String(a.name || "").localeCompare(String(b.name || ""))
+        )
+        .slice(0, 6),
+    [riskStudents]
+  );
 
   // The Users section is dedicated to student accounts only.
   const filteredStudents = useMemo(() => {
@@ -603,6 +665,120 @@ function AdminDashboard({ onLogout }) {
                   <StatCard icon="bi-book" label="Book Titles" value={stats.books} note={`${stats.totalCopies.toLocaleString()} total copies`} />
                   <StatCard icon="bi-arrow-left-right" label="Active Borrowings" value={stats.activeBorrowings} note="currently on loan" />
                 </div>
+
+                <section className="admin-panel">
+                  <div className="admin-panel-heading">
+                    <div>
+                      <h2>Overdue Risk Monitoring</h2>
+                      <p>Rule-based risk scoring from real LibSync borrowing and overdue data.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-secondary-button"
+                      onClick={() => void loadOverdueRisk()}
+                      disabled={riskLoading}
+                    >
+                      <i className={`bi bi-arrow-clockwise ${riskLoading ? "admin-spin" : ""}`} />
+                      Refresh Risk
+                    </button>
+                  </div>
+
+                  <div className="admin-stat-grid admin-stat-grid-overview">
+                    <StatCard
+                      icon="bi-exclamation-octagon"
+                      label="High Risk"
+                      value={riskSummary.high_risk || 0}
+                      note="students requiring immediate attention"
+                    />
+                    <StatCard
+                      icon="bi-exclamation-triangle"
+                      label="Medium Risk"
+                      value={riskSummary.medium_risk || 0}
+                      note="students to monitor closely"
+                    />
+                    <StatCard
+                      icon="bi-shield-check"
+                      label="Low Risk"
+                      value={riskSummary.low_risk || 0}
+                      note="no significant overdue risk detected"
+                    />
+                    <StatCard
+                      icon="bi-people"
+                      label="Students Scored"
+                      value={riskSummary.total_students || 0}
+                      note="based on actual system records"
+                    />
+                  </div>
+
+                  {riskError ? (
+                    <div className="admin-message">
+                      {riskError}
+                    </div>
+                  ) : riskLoading && riskStudents.length === 0 ? (
+                    <div className="admin-loading">Loading overdue risk data...</div>
+                  ) : topRiskStudents.length === 0 ? (
+                    <div className="admin-empty-cell">No student risk data available yet.</div>
+                  ) : (
+                    <div className="admin-table-wrap">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Student</th>
+                            <th>Active Loans</th>
+                            <th>Overdue Loans</th>
+                            <th>Max Days Overdue</th>
+                            <th>Past Late Returns</th>
+                            <th>Risk Score</th>
+                            <th>Risk Level</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topRiskStudents.map((student) => (
+                            <tr key={student.user_id}>
+                              <td>
+                                <strong>{student.name || `User #${student.user_id}`}</strong>
+                              </td>
+                              <td>{Number(student.active_loans || 0)}</td>
+                              <td>{Number(student.current_overdue_loans || 0)}</td>
+                              <td>{Number(student.max_days_overdue || 0)}</td>
+                              <td>{Number(student.past_late_returns || 0)}</td>
+                              <td>
+                                <strong>{Number(student.risk_score || 0)}</strong>/100
+                              </td>
+                              <td>
+                                <span
+                                  className="admin-status-pill"
+                                  style={{
+                                    background:
+                                      student.risk_level === "High"
+                                        ? "#FDE8E7"
+                                        : student.risk_level === "Medium"
+                                        ? "#FFF3D6"
+                                        : "#E4F7EF",
+                                    color:
+                                      student.risk_level === "High"
+                                        ? "#B42318"
+                                        : student.risk_level === "Medium"
+                                        ? "#9A6700"
+                                        : "#147A5A",
+                                  }}
+                                >
+                                  {student.risk_level || "Low"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <p className="admin-report-note">
+                    Scoring model: +50 per current overdue loan, up to +40 for days overdue,
+                    up to +30 for historical late returns, and +5 for each extra active loan.
+                    This is a rule-based operational score, not a machine-learning prediction.
+                  </p>
+                </section>
 
                 <div className="admin-analytics-grid admin-analytics-grid-primary">
                   <section className="admin-panel admin-chart-panel admin-trend-panel">
