@@ -733,7 +733,7 @@
 .admin-edit-button:hover { border-color: #8BCBAC; background: #E2F5EA; }
 .admin-row-actions .admin-danger-button { min-height: 31px; padding: 6px 9px; font-size: 10px; }
 .admin-row-actions button:disabled { opacity: .55; cursor: not-allowed; }
-.admin-student-modal { width: min(100%, 470px); }
+.admin-student-modal { width: min(100%, 560px); max-height: min(820px, 92vh); overflow-y: auto; }
 .admin-form-field {
   display: flex;
   flex-direction: column;
@@ -745,7 +745,8 @@
   font-size: 11px;
   font-weight: 800;
 }
-.admin-form-field input {
+.admin-form-field input,
+.admin-form-field select {
   width: 100%;
   min-height: 43px;
   padding: 10px 12px;
@@ -756,7 +757,8 @@
   background: #fff;
   font-size: 12px;
 }
-.admin-form-field input:focus {
+.admin-form-field input:focus,
+.admin-form-field select:focus {
   border-color: #55B58B;
   box-shadow: 0 0 0 3px rgba(85,181,139,.13);
 }
@@ -767,6 +769,9 @@
   line-height: 1.5;
 }
 .admin-student-modal .admin-modal-actions { margin-top: 20px; }
+.admin-student-details-table { min-width: 1050px; }
+.admin-form-field select { cursor: pointer; }
+
 
 /* Updated overview layout at common desktop and mobile widths. */
 @media (max-width: 1280px) {

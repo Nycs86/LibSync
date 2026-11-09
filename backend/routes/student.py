@@ -201,6 +201,52 @@ def get_student_borrowings(user_id):
 # =========================================================
 # GET STUDENT PROFILE
 # =========================================================
+@student_bp.route(
+    "/api/student/profile/<int:user_id>",
+    methods=["GET"],
+)
+@require_role("student")
+def get_student_profile(user_id):
+    ownership_error = _verify_student_owns_path(user_id)
+    if ownership_error:
+        return ownership_error
+
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                u.id, u.name, u.email, u.role,
+                s.student_number, s.program, s.college, s.year_level, s.gender
+            FROM users u
+            LEFT JOIN students s ON s.user_id = u.id
+            WHERE u.id = %s AND LOWER(u.role) = 'student'
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        profile = cursor.fetchone()
+        if not profile:
+            return jsonify({"status": "error", "message": "Student profile not found."}), 404
+
+        return jsonify({"status": "success", "user": profile}), 200
+
+    except mysql.connector.Error:
+        logger.exception("Database error while retrieving student profile")
+        return jsonify({"status": "error", "message": "Unable to retrieve student profile right now."}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 # =========================================================
 # UPDATE STUDENT PROFILE
 # =========================================================
@@ -238,6 +284,18 @@ def update_student_profile(user_id):
             "status": "error",
             "message": "Name is required.",
         }), 400
+
+    for field_name, value, maximum in (
+        ("School ID", student_number, 50),
+        ("Program", program, 100),
+        ("College", college, 150),
+        ("Gender", gender, 50),
+    ):
+        if len(value) > maximum:
+            return jsonify({
+                "status": "error",
+                "message": f"{field_name} must not exceed {maximum} characters.",
+            }), 400
 
     year_level = None
 
@@ -314,6 +372,20 @@ def update_student_profile(user_id):
             "status": "success",
             "message": "Profile updated successfully.",
         }), 200
+
+    except mysql.connector.IntegrityError as error:
+        if connection:
+            connection.rollback()
+        if getattr(error, "errno", None) == 1062:
+            return jsonify({
+                "status": "error",
+                "message": "This School ID is already registered to another student.",
+            }), 409
+        logger.exception("Integrity error while updating student profile")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to update student profile because of a database constraint.",
+        }), 500
 
     except mysql.connector.Error:
         if connection:

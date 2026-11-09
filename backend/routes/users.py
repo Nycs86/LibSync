@@ -43,9 +43,20 @@ def get_users():
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
             """
-            SELECT id, name, email, role, created_at
-            FROM users
-            ORDER BY id DESC
+            SELECT
+                u.id,
+                u.name,
+                u.email,
+                u.role,
+                u.created_at,
+                s.student_number,
+                s.program,
+                s.college,
+                s.year_level,
+                s.gender
+            FROM users u
+            LEFT JOIN students s ON s.user_id = u.id
+            ORDER BY u.id DESC
             """
         )
         return jsonify(cursor.fetchall()), 200
@@ -72,70 +83,100 @@ def add_user():
     cursor = None
 
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "message": "Request body must be a valid JSON object."}), 400
         name = data.get("name")
         email = data.get("email")
         password = data.get("password")
+        student_number = data.get("student_number")
+        program = data.get("program")
+        college = data.get("college")
+        gender = data.get("gender")
+        year_level_raw = data.get("year_level")
 
-        if (
-            not isinstance(name, str)
-            or not name.strip()
-            or not isinstance(email, str)
-            or not email.strip()
-            or not isinstance(password, str)
-            or not password
-        ):
+        required_text = {
+            "Name": name,
+            "Email": email,
+            "School ID": student_number,
+            "Program": program,
+            "College": college,
+            "Gender": gender,
+        }
+        missing = [
+            label for label, value in required_text.items()
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if missing or not isinstance(password, str) or not password:
+            required = ", ".join(missing + (["Password"] if not isinstance(password, str) or not password else []))
             return jsonify({
                 "status": "error",
-                "message": "Name, email, and password are required.",
+                "message": f"The following fields are required: {required}.",
             }), 400
 
         name = name.strip()
         email = email.strip()
+        student_number = student_number.strip()
+        program = program.strip()
+        college = college.strip()
+        gender = gender.strip()
+
         if len(name) > 100 or len(email) > 100:
             return jsonify({
                 "status": "error",
                 "message": "Name and email must not exceed 100 characters.",
             }), 400
+        if len(student_number) > 50:
+            return jsonify({"status": "error", "message": "School ID must not exceed 50 characters."}), 400
+        if len(program) > 100:
+            return jsonify({"status": "error", "message": "Program must not exceed 100 characters."}), 400
+        if len(college) > 150:
+            return jsonify({"status": "error", "message": "College must not exceed 150 characters."}), 400
+        if len(gender) > 50:
+            return jsonify({"status": "error", "message": "Gender must not exceed 50 characters."}), 400
         if len(password) > 1024:
-            return jsonify({
-                "status": "error",
-                "message": "Password is too long.",
-            }), 400
+            return jsonify({"status": "error", "message": "Password is too long."}), 400
+
+        try:
+            year_level = int(year_level_raw)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "Please select a valid year level."}), 400
+        if year_level < 1 or year_level > 6:
+            return jsonify({"status": "error", "message": "Year level must be between 1 and 6."}), 400
 
         connection = get_db_connection()
         if connection is None:
-            return jsonify({
-                "status": "error",
-                "message": "Database connection failed.",
-            }), 500
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
 
         cursor = connection.cursor(dictionary=True)
         student_role_id = _get_role_id(cursor, "student")
         if student_role_id is None:
-            return jsonify({
-                "status": "error",
-                "message": "Student role is not configured in the database.",
-            }), 500
+            return jsonify({"status": "error", "message": "Student role is not configured in the database."}), 500
+
+        cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1", (email,))
+        if cursor.fetchone():
+            return jsonify({"status": "error", "message": "Email already exists."}), 409
+
+        cursor.execute("SELECT id FROM students WHERE student_number = %s LIMIT 1", (student_number,))
+        if cursor.fetchone():
+            return jsonify({"status": "error", "message": "School ID is already registered."}), 409
 
         cursor.execute(
             """
             INSERT INTO users (name, email, password, role, role_id)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (
-                name,
-                email,
-                generate_password_hash(password),
-                "student",
-                student_role_id,
-            ),
+            (name, email, generate_password_hash(password), "student", student_role_id),
         )
         user_id = cursor.lastrowid
 
         cursor.execute(
-            "INSERT INTO students (user_id) VALUES (%s)",
-            (user_id,),
+            """
+            INSERT INTO students (
+                user_id, student_number, program, college, year_level, gender
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (user_id, student_number, program, college, year_level, gender),
         )
         connection.commit()
 
@@ -147,32 +188,36 @@ def add_user():
                 "name": name,
                 "email": email,
                 "role": "student",
+                "student_number": student_number,
+                "program": program,
+                "college": college,
+                "year_level": year_level,
+                "gender": gender,
             },
         }), 201
 
     except mysql.connector.IntegrityError as error:
         if connection:
             connection.rollback()
-        # MySQL/MariaDB duplicate-key error code.
         if getattr(error, "errno", None) == 1062:
-            return jsonify({
-                "status": "error",
-                "message": "Email already exists.",
-            }), 409
+            message = str(error).lower()
+            if "student_number" in message:
+                return jsonify({"status": "error", "message": "School ID is already registered."}), 409
+            return jsonify({"status": "error", "message": "Email already exists."}), 409
         logger.exception("Integrity error while creating student account")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to create account because of a database constraint.",
-        }), 500
+        return jsonify({"status": "error", "message": "Unable to create account because of a database constraint."}), 500
 
     except mysql.connector.Error:
         if connection:
             connection.rollback()
         logger.exception("Database error while creating student account")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to create account right now. Please try again.",
-        }), 500
+        return jsonify({"status": "error", "message": "Unable to create account right now. Please try again."}), 500
+
+    except Exception:
+        if connection:
+            connection.rollback()
+        logger.exception("Unexpected error while creating student account")
+        return jsonify({"status": "error", "message": "Unable to create account right now. Please try again."}), 500
 
     finally:
         if cursor:
@@ -182,9 +227,8 @@ def add_user():
 
 
 
-
 # =========================================================
-# ADMIN EDITS A STUDENT ACCOUNT (NAME AND EMAIL ONLY)
+# ADMIN EDITS A STUDENT ACCOUNT AND SCHOOL PROFILE
 # =========================================================
 @users_bp.route("/api/users/<int:user_id>", methods=["PUT"])
 @require_role("admin")
@@ -193,107 +237,115 @@ def update_student(user_id):
     cursor = None
 
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "message": "Request body must be a valid JSON object."}), 400
         name = data.get("name")
         email = data.get("email")
 
         if not isinstance(name, str) or not name.strip():
-            return jsonify({
-                "status": "error",
-                "message": "Student name is required.",
-            }), 400
-
+            return jsonify({"status": "error", "message": "Student name is required."}), 400
         if not isinstance(email, str) or not email.strip():
-            return jsonify({
-                "status": "error",
-                "message": "Student email is required.",
-            }), 400
+            return jsonify({"status": "error", "message": "Student email is required."}), 400
 
         name = name.strip()
         email = email.strip()
-
         if len(name) > 100 or len(email) > 100:
-            return jsonify({
-                "status": "error",
-                "message": "Name and email must not exceed 100 characters.",
-            }), 400
+            return jsonify({"status": "error", "message": "Name and email must not exceed 100 characters."}), 400
+
+        student_fields = ("student_number", "program", "college", "year_level", "gender")
+        update_profile = any(field in data for field in student_fields)
+        profile = {}
+        if update_profile:
+            for field, maximum in (("student_number", 50), ("program", 100), ("college", 150), ("gender", 50)):
+                value = data.get(field, "")
+                if value is None:
+                    value = ""
+                if not isinstance(value, str):
+                    return jsonify({"status": "error", "message": f"{field.replace('_', ' ').title()} must be text."}), 400
+                value = value.strip()
+                if len(value) > maximum:
+                    return jsonify({"status": "error", "message": f"{field.replace('_', ' ').title()} must not exceed {maximum} characters."}), 400
+                profile[field] = value or None
+
+            year_raw = data.get("year_level")
+            if year_raw in (None, ""):
+                profile["year_level"] = None
+            else:
+                try:
+                    profile["year_level"] = int(year_raw)
+                except (TypeError, ValueError):
+                    return jsonify({"status": "error", "message": "Year level must be a number."}), 400
+                if profile["year_level"] < 1 or profile["year_level"] > 6:
+                    return jsonify({"status": "error", "message": "Year level must be between 1 and 6."}), 400
 
         connection = get_db_connection()
         if connection is None:
-            return jsonify({
-                "status": "error",
-                "message": "Database connection failed.",
-            }), 500
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE id = %s AND LOWER(role) = 'student'
-            FOR UPDATE
-            """,
+            "SELECT id FROM users WHERE id = %s AND LOWER(role) = 'student' FOR UPDATE",
             (user_id,),
         )
         student = cursor.fetchone()
-
         if not student:
-            return jsonify({
-                "status": "error",
-                "message": "Student account not found.",
-            }), 404
+            return jsonify({"status": "error", "message": "Student account not found."}), 404
 
         cursor.execute(
-            """
-            UPDATE users
-            SET name = %s, email = %s
-            WHERE id = %s AND LOWER(role) = 'student'
-            """,
+            "UPDATE users SET name = %s, email = %s WHERE id = %s AND LOWER(role) = 'student'",
             (name, email, user_id),
         )
+
+        if update_profile:
+            cursor.execute(
+                """
+                INSERT INTO students (user_id, student_number, program, college, year_level, gender)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    student_number = VALUES(student_number),
+                    program = VALUES(program),
+                    college = VALUES(college),
+                    year_level = VALUES(year_level),
+                    gender = VALUES(gender)
+                """,
+                (user_id, profile["student_number"], profile["program"], profile["college"], profile["year_level"], profile["gender"]),
+            )
+
         connection.commit()
+        updated_user = {"id": user_id, "name": name, "email": email, "role": "student"}
+        if update_profile:
+            updated_user.update(profile)
 
         return jsonify({
             "status": "success",
             "message": "Student account updated successfully.",
-            "user": {
-                "id": user_id,
-                "name": name,
-                "email": email,
-                "role": "student",
-            },
+            "user": updated_user,
         }), 200
 
     except mysql.connector.IntegrityError as error:
         if connection:
             connection.rollback()
-
         if getattr(error, "errno", None) == 1062:
-            return jsonify({
-                "status": "error",
-                "message": "That email address is already used by another account.",
-            }), 409
-
+            message = str(error).lower()
+            if "student_number" in message:
+                return jsonify({"status": "error", "message": "That School ID is already assigned to another student."}), 409
+            return jsonify({"status": "error", "message": "That email address is already used by another account."}), 409
         logger.exception("Integrity error while updating student account")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to update this student account.",
-        }), 500
+        return jsonify({"status": "error", "message": "Unable to update this student account."}), 500
 
     except mysql.connector.Error:
         if connection:
             connection.rollback()
         logger.exception("Database error while updating student account")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to update this student account right now.",
-        }), 500
+        return jsonify({"status": "error", "message": "Unable to update this student account right now."}), 500
 
     finally:
         if cursor:
             cursor.close()
         if connection:
             connection.close()
+
 
 
 # =========================================================

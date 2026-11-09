@@ -30,7 +30,15 @@ function AdminDashboard({ onLogout }) {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentEditorOpen, setStudentEditorOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
-  const [studentForm, setStudentForm] = useState({ name: "", email: "" });
+  const [studentForm, setStudentForm] = useState({
+    name: "",
+    email: "",
+    student_number: "",
+    program: "",
+    college: "",
+    year_level: "",
+    gender: "",
+  });
   const [studentSaving, setStudentSaving] = useState(false);
   const [studentDeletingId, setStudentDeletingId] = useState(null);
 
@@ -336,7 +344,10 @@ function AdminDashboard({ onLogout }) {
       (student) =>
         student.name?.toLowerCase().includes(term) ||
         student.email?.toLowerCase().includes(term) ||
-        String(student.id).includes(term)
+        String(student.id).includes(term) ||
+        student.student_number?.toLowerCase().includes(term) ||
+        student.program?.toLowerCase().includes(term) ||
+        student.college?.toLowerCase().includes(term)
     );
   }, [students, search]);
 
@@ -398,6 +409,11 @@ function AdminDashboard({ onLogout }) {
     setStudentForm({
       name: student.name || "",
       email: student.email || "",
+      student_number: student.student_number || "",
+      program: student.program || "",
+      college: student.college || "",
+      year_level: student.year_level == null ? "" : String(student.year_level),
+      gender: student.gender || "",
     });
     setStudentEditorOpen(true);
     setMessage("");
@@ -407,7 +423,9 @@ function AdminDashboard({ onLogout }) {
     if (studentSaving) return;
     setStudentEditorOpen(false);
     setEditingStudent(null);
-    setStudentForm({ name: "", email: "" });
+    setStudentForm({
+      name: "", email: "", student_number: "", program: "", college: "", year_level: "", gender: "",
+    });
   };
 
   const handleStudentUpdate = async (event) => {
@@ -417,9 +435,14 @@ function AdminDashboard({ onLogout }) {
 
     const name = studentForm.name.trim();
     const email = studentForm.email.trim();
+    const studentNumber = studentForm.student_number.trim();
+    const program = studentForm.program.trim();
+    const college = studentForm.college.trim();
+    const yearLevel = studentForm.year_level === "" ? null : Number(studentForm.year_level);
+    const gender = studentForm.gender.trim();
 
-    if (!name || !email) {
-      setMessage("Student name and email are required.");
+    if (!name || !email || !studentNumber || !program || !college || !yearLevel || !gender) {
+      setMessage("Please complete all student account and school information fields.");
       return;
     }
 
@@ -430,12 +453,22 @@ function AdminDashboard({ onLogout }) {
       const data = await api.put(`/api/users/${editingStudent.id}`, {
         name,
         email,
+        student_number: studentNumber,
+        program,
+        college,
+        year_level: yearLevel,
+        gender,
       });
 
       const updatedStudent = data.user || {
         ...editingStudent,
         name,
         email,
+        student_number: studentNumber,
+        program,
+        college,
+        year_level: yearLevel,
+        gender,
       };
 
       setUsers((current) =>
@@ -449,7 +482,15 @@ function AdminDashboard({ onLogout }) {
       setMessage(data.message || "Student account updated successfully.");
       setStudentEditorOpen(false);
       setEditingStudent(null);
-      setStudentForm({ name: "", email: "" });
+      setStudentForm({
+        name: "",
+        email: "",
+        student_number: "",
+        program: "",
+        college: "",
+        year_level: "",
+        gender: "",
+      });
     } catch (error) {
       console.error("Update student error:", error);
       setMessage(error.message || "Unable to update this student.");
@@ -942,18 +983,23 @@ function AdminDashboard({ onLogout }) {
                     <input
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search students by name, email, or ID"
+                      placeholder="Search by name, email, school ID, program, or college"
                     />
                   </div>
                 </div>
 
                 <div className="admin-table-wrap">
-                  <table className="admin-table">
+                  <table className="admin-table admin-student-details-table">
                     <thead>
                       <tr>
                         <th>ID</th>
                         <th>Name</th>
                         <th>Email</th>
+                        <th>School ID</th>
+                        <th>Program</th>
+                        <th>College</th>
+                        <th>Year Level</th>
+                        <th>Gender</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -964,6 +1010,11 @@ function AdminDashboard({ onLogout }) {
                           <td>#{student.id}</td>
                           <td>{student.name}</td>
                           <td>{student.email}</td>
+                          <td>{student.student_number || "—"}</td>
+                          <td>{student.program || "—"}</td>
+                          <td>{student.college || "—"}</td>
+                          <td>{student.year_level ? `${student.year_level}${Number(student.year_level) === 1 ? "st" : Number(student.year_level) === 2 ? "nd" : Number(student.year_level) === 3 ? "rd" : "th"}` : "—"}</td>
+                          <td>{student.gender || "—"}</td>
                           <td>
                             <span className="admin-status-pill active">
                               Active
@@ -995,7 +1046,7 @@ function AdminDashboard({ onLogout }) {
 
                       {filteredStudents.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="admin-empty-cell">
+                          <td colSpan="10" className="admin-empty-cell">
                             No student accounts found.
                           </td>
                         </tr>
@@ -1214,7 +1265,7 @@ function AdminDashboard({ onLogout }) {
             <div className="admin-modal-header">
               <div>
                 <h2>Edit Student Account</h2>
-                <p>Update the student's name and email address.</p>
+                <p>Update the student's account and school information.</p>
               </div>
               <button type="button" onClick={closeStudentEditor} aria-label="Close edit student dialog">
                 <i className="bi bi-x-lg" />
@@ -1241,6 +1292,39 @@ function AdminDashboard({ onLogout }) {
                 maxLength={100}
                 required
               />
+            </label>
+
+            <label className="admin-form-field">
+              <span>School ID</span>
+              <input type="text" value={studentForm.student_number} onChange={(event) => setStudentForm((current) => ({ ...current, student_number: event.target.value }))} maxLength={50} required />
+            </label>
+
+            <label className="admin-form-field">
+              <span>Program</span>
+              <input type="text" value={studentForm.program} onChange={(event) => setStudentForm((current) => ({ ...current, program: event.target.value }))} maxLength={100} required />
+            </label>
+
+            <label className="admin-form-field">
+              <span>College</span>
+              <input type="text" value={studentForm.college} onChange={(event) => setStudentForm((current) => ({ ...current, college: event.target.value }))} maxLength={150} required />
+            </label>
+
+            <label className="admin-form-field">
+              <span>Year Level</span>
+              <select value={studentForm.year_level} onChange={(event) => setStudentForm((current) => ({ ...current, year_level: event.target.value }))} required>
+                <option value="">Select year level</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+                <option value="5">5th Year</option>
+                <option value="6">6th Year</option>
+              </select>
+            </label>
+
+            <label className="admin-form-field">
+              <span>Gender</span>
+              <input type="text" value={studentForm.gender} onChange={(event) => setStudentForm((current) => ({ ...current, gender: event.target.value }))} maxLength={50} required />
             </label>
 
             <p className="admin-form-hint">The student's password is not changed by this form.</p>

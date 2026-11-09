@@ -29,7 +29,7 @@
   margin-top: 22px;
 }
 
-/* Registration has four fields, so allow the page and panel to grow. */
+/* Registration includes the student's school information as well as credentials. */
 .ls-student-register-page {
   align-items: flex-start;
   padding-top: 30px;
@@ -37,7 +37,7 @@
 }
 
 .ls-student-register-card {
-  min-height: 720px;
+  min-height: 820px;
   height: auto;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .ls-student-register-content {
-  max-width: 620px;
+  max-width: 680px;
 }
 
 .ls-student-register-content .ls-login-subtitle {
@@ -57,6 +57,39 @@
 
 .ls-student-register-form {
   gap: 15px;
+}
+
+.ls-student-register-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px 18px;
+}
+
+.ls-student-register-grid .ls-login-field {
+  min-width: 0;
+}
+
+.ls-register-select-wrap select {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #253b35;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  appearance: auto;
+  cursor: pointer;
+}
+
+.ls-register-select-wrap select:invalid {
+  color: #77797c;
+}
+
+.ls-register-gender-field {
+  grid-column: 1 / -1;
 }
 
 .ls-student-register-form .ls-login-input-wrap {
@@ -102,6 +135,14 @@
 }
 
 @media (max-width: 700px) {
+  .ls-student-register-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ls-register-gender-field {
+    grid-column: auto;
+  }
+
   .ls-student-register-page {
     padding: 16px;
   }

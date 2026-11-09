@@ -92,6 +92,11 @@ function StudentLogin({ onBack, onLoginSuccess }) {
     const email = form.email.value.trim();
     const password = form.password.value;
     const confirmPassword = form.confirmPassword.value;
+    const studentNumber = form.studentNumber.value.trim();
+    const program = form.program.value.trim();
+    const college = form.college.value.trim();
+    const yearLevel = Number(form.yearLevel.value);
+    const gender = form.gender.value;
 
     if (password !== confirmPassword) {
       setRegisterError("Passwords do not match.");
@@ -105,6 +110,11 @@ function StudentLogin({ onBack, onLoginSuccess }) {
         name: fullName,
         email,
         password,
+        student_number: studentNumber,
+        program,
+        college,
+        year_level: yearLevel,
+        gender,
       });
 
       setRegisterSuccess(
@@ -239,6 +249,85 @@ function StudentLogin({ onBack, onLoginSuccess }) {
                       autoComplete="email"
                       required
                     />
+                  </div>
+                </div>
+
+                <div className="ls-student-register-grid">
+                  <div className="ls-login-field">
+                    <label htmlFor="student-register-school-id">School ID</label>
+                    <div className="ls-login-input-wrap">
+                      <i className="bi bi-card-text" aria-hidden="true"></i>
+                      <input
+                        id="student-register-school-id"
+                        type="text"
+                        name="studentNumber"
+                        placeholder="Enter your school ID"
+                        maxLength={50}
+                        autoComplete="off"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="ls-login-field">
+                    <label htmlFor="student-register-year">Year Level</label>
+                    <div className="ls-login-input-wrap ls-register-select-wrap">
+                      <i className="bi bi-mortarboard" aria-hidden="true"></i>
+                      <select id="student-register-year" name="yearLevel" defaultValue="" required>
+                        <option value="" disabled>Select year level</option>
+                        <option value="1">1st Year</option>
+                        <option value="2">2nd Year</option>
+                        <option value="3">3rd Year</option>
+                        <option value="4">4th Year</option>
+                        <option value="5">5th Year</option>
+                        <option value="6">6th Year</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="ls-login-field">
+                    <label htmlFor="student-register-program">Program</label>
+                    <div className="ls-login-input-wrap">
+                      <i className="bi bi-journal-bookmark" aria-hidden="true"></i>
+                      <input
+                        id="student-register-program"
+                        type="text"
+                        name="program"
+                        placeholder="e.g. BS Information Technology"
+                        maxLength={100}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="ls-login-field">
+                    <label htmlFor="student-register-college">College</label>
+                    <div className="ls-login-input-wrap">
+                      <i className="bi bi-building" aria-hidden="true"></i>
+                      <input
+                        id="student-register-college"
+                        type="text"
+                        name="college"
+                        placeholder="Enter your college"
+                        maxLength={150}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="ls-login-field ls-register-gender-field">
+                    <label htmlFor="student-register-gender">Gender</label>
+                    <div className="ls-login-input-wrap ls-register-select-wrap">
+                      <i className="bi bi-person-vcard" aria-hidden="true"></i>
+                      <select id="student-register-gender" name="gender" defaultValue="" required>
+                        <option value="" disabled>Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Non-binary">Non-binary</option>
+                        <option value="Other">Other</option>
+                        <option value="Prefer not to say">Prefer not to say</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
