@@ -340,7 +340,7 @@ function StudentDashboard({ onLogout }) {
   const [openLibraryBookCovers, setOpenLibraryBookCovers] = useState({});
   const [studentRequests, setStudentRequests] = useState([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-  const [loanDays, setLoanDays] = useState(1);
+  const [countdownNow, setCountdownNow] = useState(() => Date.now());
   const [showReturnQr, setShowReturnQr] = useState(false);
   const [returnQrMessage, setReturnQrMessage] = useState("");
   const [studentBatches, setStudentBatches] = useState([]);
@@ -710,32 +710,64 @@ function StudentDashboard({ onLogout }) {
     return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 
+  const parseApiDateTime = (value) => {
+    if (!value) return null;
+
+    const raw = String(value).trim();
+    const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnly) {
+      return new Date(
+        Number(dateOnly[1]),
+        Number(dateOnly[2]) - 1,
+        Number(dateOnly[3])
+      );
+    }
+
+    // API values for batch release/deadline timestamps include a trailing Z
+    // because the backend stores them in UTC. Date parses those as UTC.
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const formatDueDate = (value) => {
     if (!value) return "Not set yet";
-    // Parse SQL DATE and DATETIME strings as local calendar dates to avoid UTC day shifts.
-    const dateOnly = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    const parsed = dateOnly
-      ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
-      : new Date(value);
-    if (Number.isNaN(parsed.getTime())) return String(value).slice(0, 10);
-    return parsed.toLocaleDateString(undefined, {
+    const parsed = parseApiDateTime(value);
+    if (!parsed) return String(value);
+    return parsed.toLocaleString(undefined, {
       year: "numeric",
       month: "long",
       day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   };
 
-  const getDaysRemaining = (value) => {
-    if (!value) return null;
-    const dateOnly = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    const due = dateOnly
-      ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
-      : new Date(value);
-    if (Number.isNaN(due.getTime())) return null;
-    due.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Math.round((due.getTime() - today.getTime()) / 86400000);
+  const getReturnCountdown = (borrowedAt, dueDate) => {
+    if (!borrowedAt) {
+      return { label: "Starts after librarian release", isOverdue: false };
+    }
+
+    const due = parseApiDateTime(dueDate);
+    if (!due) {
+      return { label: "Return deadline is being prepared", isOverdue: false };
+    }
+
+    const differenceMs = due.getTime() - countdownNow;
+    const isOverdue = differenceMs <= 0;
+    const totalSeconds = Math.floor(Math.abs(differenceMs) / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const clock = [hours, minutes, seconds]
+      .map((part) => String(part).padStart(2, "0"))
+      .join(":");
+    const duration = days > 0 ? `${days}d ${clock}` : clock;
+
+    return {
+      label: isOverdue ? `Overdue by ${duration}` : `${duration} remaining`,
+      isOverdue,
+    };
   };
 
   const activeQrBatch = useMemo(() => {
@@ -778,7 +810,7 @@ function StudentDashboard({ onLogout }) {
           qrRequest.returnQrUsedAt ??
           null,
         status: storedBatch?.status || qrRequest.status || "pending",
-        loanDays: Number(storedBatch?.loan_days ?? qrRequest.loanDays ?? 1),
+        loanDays: 1,
         dueDate: storedBatch?.due_date || qrRequest.dueDate || null,
         requestedAt:
           storedBatch?.requested_at || qrRequest.requestedAt || null,
@@ -805,7 +837,7 @@ function StudentDashboard({ onLogout }) {
       borrowQrUsedAt: latestActive.borrow_qr_used_at || null,
       returnQrUsedAt: latestActive.return_qr_used_at || null,
       status: latestActive.status,
-      loanDays: Number(latestActive.loan_days || 1),
+      loanDays: 1,
       dueDate: latestActive.due_date || null,
       requestedAt: latestActive.requested_at || null,
       approvedAt: latestActive.approved_at || null,
@@ -814,12 +846,27 @@ function StudentDashboard({ onLogout }) {
     };
   }, [qrRequest, studentBatches]);
 
+  // Tick only while the student is viewing a released borrowing batch. The
+  // countdown uses absolute server timestamps, so refreshing cannot reset it.
+  useEffect(() => {
+    if (activeMenu !== "qr" || !activeQrBatch?.borrowedAt) return undefined;
+
+    const timerId = window.setInterval(() => {
+      setCountdownNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [activeMenu, activeQrBatch?.borrowedAt]);
+
   const booksStillToReturn = (activeQrBatch?.books || []).filter(
     (book) => !["returned", "declined"].includes(String(book.status || "").toLowerCase())
   );
   const booksAlreadyReturned = (activeQrBatch?.books || []).filter(
     (book) => String(book.status || "").toLowerCase() === "returned"
   );
+  const returnCountdown = activeQrBatch
+    ? getReturnCountdown(activeQrBatch.borrowedAt, activeQrBatch.dueDate)
+    : null;
 
   const addBook = (book) => {
     setPageError("");
@@ -856,7 +903,6 @@ function StudentDashboard({ onLogout }) {
         body: {
           user_id: Number(user.id),
           book_ids: selectedBooks.map((book) => book.id),
-          loan_days: Number(loanDays),
         },
       });
 
@@ -870,7 +916,7 @@ function StudentDashboard({ onLogout }) {
         returnQrPayload: data.return_qr_token || null,
         borrowQrUsedAt: null,
         returnQrUsedAt: null,
-        loanDays: Number(data.loan_days || loanDays),
+        loanDays: 1,
         dueDate: data.due_date || null,
         requestedAt: data.requested_at || null,
         approvedAt: null,
@@ -1053,7 +1099,7 @@ function StudentDashboard({ onLogout }) {
             src="/libsync-logo.svg"
             alt="LibSync"
             draggable="false"
-            style={{ width: "300px", maxWidth: "100%", height: "70px", objectFit: "contain", objectPosition: "center" }}
+            style={{ width: "205px", maxWidth: "100%", height: "68px", objectFit: "contain", objectPosition: "center" }}
           />
         </div>
 
@@ -1323,26 +1369,18 @@ function StudentDashboard({ onLogout }) {
                     ))}
                   </div>
 
-                  <div className="student-loan-duration-control">
+                  <div className="student-loan-duration-control student-loan-duration-fixed">
                     <div className="student-loan-duration-copy">
                       <i className="bi bi-calendar-check"></i>
                       <div>
-                        <label htmlFor="student-loan-days">Choose return period</label>
-                        <p>Choose between 1 and 5 days. The due date starts when the librarian releases your approved books.</p>
+                        <label>Fixed return period</label>
+                        <p>All approved books must be returned within 24 hours after the librarian releases them. Your countdown starts when the Borrow QR is scanned.</p>
                       </div>
                     </div>
-                    <select
-                      id="student-loan-days"
-                      value={loanDays}
-                      onChange={(event) => setLoanDays(Number(event.target.value))}
-                      aria-label="Choose a return period from one to five days"
-                    >
-                      <option value={1}>1 day after release</option>
-                      <option value={2}>2 days after release</option>
-                      <option value={3}>3 days after release</option>
-                      <option value={4}>4 days after release</option>
-                      <option value={5}>5 days after release</option>
-                    </select>
+                    <div className="student-fixed-loan-badge" aria-label="Fixed return period: 24 hours after release">
+                      <strong>24 HOURS</strong>
+                      <span>after release</span>
+                    </div>
                   </div>
 
                   <button type="button" className="generate-qr-button" disabled={isGenerating} onClick={handleSubmitBorrowRequest}>
@@ -1366,7 +1404,7 @@ function StudentDashboard({ onLogout }) {
                 <div className="student-empty-state">
                   <i className="bi bi-qr-code"></i>
                   <h3>No borrowing QR yet</h3>
-                  <p>Select books, choose a return period of up to 5 days, and submit your borrowing request.</p>
+                  <p>Select books and submit your borrowing request. The fixed 24-hour countdown starts only after the librarian releases your books.</p>
                   <button type="button" className="go-books-button" onClick={() => navigateTo("books")}>Browse Books</button>
                   <button type="button" className="qr-refresh-button" disabled={isBatchesLoading} onClick={() => {
                     setBatchRefreshVersion((value) => value + 1);
@@ -1434,7 +1472,7 @@ function StudentDashboard({ onLogout }) {
                       </div>
                       <div className="qr-details-row">
                         <i className="bi bi-hourglass-split"></i>
-                        <div><span>Return period</span><strong>{activeQrBatch.loanDays} {activeQrBatch.loanDays === 1 ? "day" : "days"} (chosen by you)</strong></div>
+                        <div><span>Return period</span><strong>24 hours</strong></div>
                       </div>
                       <div className="qr-details-row">
                         <i className="bi bi-calendar-check"></i>
@@ -1544,18 +1582,14 @@ function StudentDashboard({ onLogout }) {
                     <div className="qr-return-date-panel">
                       <div className="qr-return-date-header">
                         <span className="qr-return-date-icon"><i className="bi bi-calendar3"></i></span>
-                        <div><span>RETURN BY</span><strong>{activeQrBatch.dueDate ? formatDueDate(activeQrBatch.dueDate) : "Date pending"}</strong></div>
+                        <div><span>RETURN BY</span><strong>{activeQrBatch.dueDate ? formatDueDate(activeQrBatch.dueDate) : "Set after librarian release"}</strong></div>
                       </div>
                       <div className="qr-return-date-footer">
-                        <div className="qr-return-borrowed-date"><i className="bi bi-calendar-check"></i><span>Borrowed on<br /><strong>{activeQrBatch.borrowedAt ? formatDueDate(activeQrBatch.borrowedAt) : "Not checked out yet"}</strong></span></div>
-                        {activeQrBatch.dueDate && ["approved", "partially_returned"].includes(activeQrBatch.status) && (
-                          <span className={`qr-days-remaining ${getDaysRemaining(activeQrBatch.dueDate) < 0 ? "is-overdue" : ""}`}>
+                        <div className="qr-return-borrowed-date"><i className="bi bi-calendar-check"></i><span>Released on<br /><strong>{activeQrBatch.borrowedAt ? formatDueDate(activeQrBatch.borrowedAt) : "Awaiting librarian release"}</strong></span></div>
+                        {activeQrBatch.borrowedAt && ["approved", "partially_returned"].includes(activeQrBatch.status) && (
+                          <span className={`qr-days-remaining qr-live-countdown ${returnCountdown?.isOverdue ? "is-overdue" : ""}`} aria-live="off">
                             <i className="bi bi-clock"></i>
-                            {getDaysRemaining(activeQrBatch.dueDate) < 0
-                              ? `${Math.abs(getDaysRemaining(activeQrBatch.dueDate))} day(s) overdue`
-                              : getDaysRemaining(activeQrBatch.dueDate) === 0
-                              ? "Due today"
-                              : `${getDaysRemaining(activeQrBatch.dueDate)} day(s) remaining`}
+                            {returnCountdown?.label}
                           </span>
                         )}
                       </div>

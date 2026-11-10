@@ -85,7 +85,7 @@ def _get_student_borrowing_records(cursor, user_id):
                     WHEN req.returned_at IS NOT NULL
                         THEN 'returned'
                     WHEN batch.due_date IS NOT NULL
-                         AND batch.due_date < CURDATE()
+                         AND batch.due_date < UTC_TIMESTAMP()
                         THEN 'overdue'
                     ELSE 'borrowed'
                 END AS status,
@@ -93,7 +93,7 @@ def _get_student_borrowing_records(cursor, user_id):
                     WHEN req.returned_at IS NOT NULL
                         THEN 'returned'
                     WHEN batch.due_date IS NOT NULL
-                         AND batch.due_date < CURDATE()
+                         AND batch.due_date < UTC_TIMESTAMP()
                         THEN 'overdue'
                     ELSE 'borrowed'
                 END AS borrowing_status

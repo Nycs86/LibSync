@@ -69,7 +69,7 @@ def get_borrowings():
                     req.returned_at,
                     CASE
                         WHEN req.returned_at IS NOT NULL THEN 'returned'
-                        WHEN batch.due_date < CURDATE() THEN 'overdue'
+                        WHEN batch.due_date < UTC_TIMESTAMP() THEN 'overdue'
                         ELSE 'borrowed'
                     END AS status,
                     u.name AS user_name,
@@ -185,7 +185,7 @@ def get_overdue_borrowings():
                 WHERE req.status = 'approved'
                   AND batch.borrow_qr_used_at IS NOT NULL
                   AND req.returned_at IS NULL
-                  AND batch.due_date < CURDATE()
+                  AND batch.due_date < UTC_TIMESTAMP()
             ) AS overdue_records
             ORDER BY due_date ASC, borrowed_at ASC
         """)

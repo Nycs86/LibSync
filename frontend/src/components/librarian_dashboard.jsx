@@ -91,7 +91,8 @@ function QRScanner({ onScan }) {
             throw new Error("No camera was detected on this device.");
           }
 
-       
+          // Prefer a rear camera on phones; use the first available camera
+          // on laptops/desktops.
           const selectedCamera =
             cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
             cameras[0];
@@ -122,7 +123,7 @@ function QRScanner({ onScan }) {
               }
             },
             () => {
-             
+              // No QR in this video frame is normal; don't show an error.
             }
           );
 
@@ -226,6 +227,7 @@ function LibrarianDashboard({ onLogout }) {
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
+  const [fetchingDescriptions, setFetchingDescriptions] = useState(false);
   const [bookSearch, setBookSearch] = useState("");
   const [bookCategoryFilter, setBookCategoryFilter] = useState("all");
   const [bookStatusFilter, setBookStatusFilter] = useState("all");
@@ -321,6 +323,28 @@ function LibrarianDashboard({ onLogout }) {
       setBooksLoading(false);
     }
   }, []);
+
+  const handleFetchMissingDescriptions = async () => {
+    if (fetchingDescriptions) return;
+
+    try {
+      setFetchingDescriptions(true);
+      setBooksError("");
+      setMessage("");
+
+      const result = await api.post("/api/books/fetch-missing-descriptions", {});
+      await loadBooks();
+      setMessage(
+        result.message ||
+          `Description fetch complete. Updated ${result.updated || 0} book(s).`
+      );
+    } catch (error) {
+      console.error("Fetch missing descriptions error:", error);
+      setBooksError(error.message || "Unable to fetch missing book descriptions.");
+    } finally {
+      setFetchingDescriptions(false);
+    }
+  };
 
   // Load approved borrowing transactions from the backend.
   // This is called from the navigation/button click (not a useEffect).
@@ -1935,6 +1959,25 @@ function LibrarianDashboard({ onLogout }) {
                 <h2>Book List</h2>
                 <p>View, search, and manage all library books.</p>
               </div>
+              <button
+                type="button"
+                className="ls-books-fetch-descriptions-button"
+                onClick={handleFetchMissingDescriptions}
+                disabled={fetchingDescriptions || booksLoading || !booksLoaded}
+                aria-live="polite"
+              >
+                {fetchingDescriptions ? (
+                  <>
+                    <span className="ls-books-fetch-spinner" aria-hidden="true" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-cloud-arrow-down" aria-hidden="true" />
+                    Fetch Missing Descriptions
+                  </>
+                )}
+              </button>
               <button type="button" className="ls-books-add-button" onClick={openAddBookModal}>
                 <i className="bi bi-plus-lg" aria-hidden="true" /> Add Book
               </button>
