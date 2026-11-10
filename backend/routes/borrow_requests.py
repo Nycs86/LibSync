@@ -670,29 +670,23 @@ def get_student_borrow_batches(user_id):
 
     try:
         cursor.execute("""
-                    SELECT
-                        id,
-                        user_id,
-                        borrow_qr_token,
-                        return_qr_token,
-                        DATE_FORMAT(
-                            borrow_qr_used_at,
-                            '%%Y-%%m-%%dT%%H:%%i:%%sZ'
-                        ) AS borrow_qr_used_at,
-                        return_qr_used_at,
-                        status,
-                        requested_at,
-                        approved_by,
-                        approved_at,
-                        loan_days,
-                        DATE_FORMAT(
-                            due_date,
-                            '%%Y-%%m-%%dT%%H:%%i:%%sZ'
-                        ) AS due_date
-                    FROM borrow_batches
-                    WHERE user_id = %s
-                    ORDER BY requested_at DESC
-                """, (user_id,))
+            SELECT
+                id,
+                user_id,
+                borrow_qr_token,
+                return_qr_token,
+                DATE_FORMAT(borrow_qr_used_at, '%Y-%m-%dT%H:%i:%sZ') AS borrow_qr_used_at,
+                return_qr_used_at,
+                status,
+                requested_at,
+                approved_by,
+                approved_at,
+                loan_days,
+                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date
+            FROM borrow_batches
+            WHERE user_id = %s
+            ORDER BY requested_at DESC
+        """, (user_id,))
         batches = cursor.fetchall()
 
         for batch in batches:
@@ -1243,7 +1237,7 @@ def release_borrow_batch(batch_id):
         cursor.execute("""
             SELECT
                 due_date,
-                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date_utc
+                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS due_date_utc
             FROM borrow_batches
             WHERE id = %s
         """, (batch_id,))
@@ -1352,8 +1346,7 @@ def return_borrow_batch_by_qr(batch_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Lock the requested batch row first. The URL batch_id identifies
-        # the batch; the scanned token is verified immediately afterward.
+        # Lock the batch first; this serializes simultaneous returns for it.
         cursor.execute("""
             SELECT
                 bb.id,
@@ -1378,9 +1371,10 @@ def return_borrow_batch_by_qr(batch_id):
             FROM borrow_batches bb
             INNER JOIN users u ON u.id = bb.user_id
             LEFT JOIN students s ON s.user_id = u.id
-            WHERE bb.id = %s
-            FOR UPDATE
-        """, (batch_id,))
+            WHERE bb.borrow_qr_token = %s
+            OR bb.return_qr_token = %s
+            LIMIT 1
+        """, (qr_token, qr_token))
         batch = cursor.fetchone()
 
         if not batch:

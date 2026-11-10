@@ -1136,7 +1136,7 @@ function StudentDashboard({ onLogout }) {
             </div>
           </div>
           <button type="button" className="student-logout" onClick={onLogout}>
-            <i className="bi bi-box-arrow-right"></i><span>Logout</span>
+            <i className="bi bi-box-arrow-left"></i><span>Logout</span>
           </button>
         </div>
       </aside>
