@@ -1,4 +1,3 @@
-/* LibSync Librarian Dashboard — matches the Student Dashboard palette */
 .ls-librarian-shell {
   --ls-lib-emerald: #006149;
   --ls-lib-emerald-deep: #00513C;
@@ -971,4 +970,131 @@
 .ls-records-status-mixed {
   color: #785500;
   background: #fff0c2;
+}
+
+
+/* =========================================================
+   Librarian workspace: independent sidebar and content scroll
+   ========================================================= */
+.ls-librarian-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.ls-librarian-sidebar {
+  position: relative;
+  top: auto;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167, 243, 208, .55) transparent;
+}
+
+.ls-librarian-brand,
+.ls-librarian-sidebar-label,
+.ls-librarian-navigation,
+.ls-librarian-sidebar-bottom {
+  flex-shrink: 0;
+}
+
+.ls-librarian-sidebar-bottom {
+  margin-top: auto;
+}
+
+.ls-librarian-sidebar::-webkit-scrollbar,
+.ls-librarian-workspace::-webkit-scrollbar {
+  width: 7px;
+}
+
+.ls-librarian-sidebar::-webkit-scrollbar-track,
+.ls-librarian-workspace::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ls-librarian-sidebar::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: rgba(167, 243, 208, .45);
+}
+
+.ls-librarian-workspace {
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdd9cb transparent;
+}
+
+.ls-librarian-workspace::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: #bdd9cb;
+}
+
+/* Book Description textarea uses the same field treatment as other inputs. */
+.ls-books-form-description-field {
+  grid-column: 1 / -1;
+}
+
+.ls-books-form-field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  padding: 11px 12px;
+  border: 1px solid #dbe5df;
+  border-radius: 8px;
+  outline: none;
+  color: #293b32;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.ls-books-form-field textarea::placeholder {
+  color: #a0aaa3;
+}
+
+.ls-books-form-field textarea:focus {
+  border-color: #62c49b;
+  box-shadow: 0 0 0 3px rgba(167, 243, 208, .25);
+}
+
+@media (max-width: 760px) {
+  .ls-librarian-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .ls-librarian-sidebar {
+    position: relative;
+    height: auto;
+    min-height: 0;
+    max-height: 55dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .ls-librarian-sidebar-bottom {
+    margin-top: 14px;
+  }
+
+  .ls-librarian-workspace {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .ls-books-form-description-field {
+    grid-column: auto;
+  }
 }

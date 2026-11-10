@@ -39,6 +39,7 @@ function mapApiBook(book) {
     isbn: book.isbn || "",
     publisher: book.publisher || "",
     yearPublished: book.year_published || book.yearPublished || "",
+    description: book.description || book.book_description || book.summary || "",
     quantity: Number(book.quantity ?? 0),
     availableQuantity,
     available: availableQuantity > 0,
@@ -70,6 +71,31 @@ function normalizeBookText(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function cleanBookDescription(value) {
+  return String(value || "")
+    .replace(/<br\s*\/?\s*>/gi, " ")
+    .replace(/<\/p\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getPreviewBookKey(book) {
+  if (!book) return "";
+  return JSON.stringify([
+    book.id ?? "",
+    book.isbn ?? "",
+    book.title ?? "",
+    book.author ?? "",
+  ]);
 }
 
 function mapGoogleVolumeToOnlineBook(item) {
@@ -158,6 +184,57 @@ async function findGoogleBookCover(book, signal) {
     const imageUrl = images.thumbnail || images.smallThumbnail || images.small || "";
     if (imageUrl) return imageUrl.replace(/^http:/i, "https:");
   }
+  return "";
+}
+
+async function findGoogleBookDescription(book, signal) {
+  if (!book?.title) return "";
+
+  const isbn = String(book.isbn || "").replace(/[^0-9Xx]/g, "");
+  const query = isbn
+    ? `isbn:${isbn}`
+    : `intitle:${book.title}${book.author && !/unknown author|n\/?a|none/i.test(book.author) ? ` inauthor:${book.author}` : ""}`;
+  const params = new URLSearchParams({ q: query, maxResults: "10" });
+  const response = await fetch(
+    `https://www.googleapis.com/books/v1/volumes?${params.toString()}`,
+    { signal }
+  );
+  if (!response.ok) return "";
+
+  const data = await response.json();
+  const items = Array.isArray(data.items) ? data.items : [];
+  const normalizedTitle = normalizeBookText(book.title);
+  const normalizedAuthor = normalizeBookText(book.author);
+  const hasSpecificAuthor = Boolean(normalizedAuthor) &&
+    !/unknown author|n a|none/.test(normalizedAuthor);
+
+  const exactIsbnMatch = isbn
+    ? items.find((item) =>
+        (item.volumeInfo?.industryIdentifiers || []).some(
+          (identifier) => String(identifier.identifier || "").replace(/[^0-9Xx]/g, "") === isbn
+        )
+      )
+    : null;
+
+  const titleMatch = items.find((item) => {
+    const info = item.volumeInfo || {};
+    const candidateTitle = normalizeBookText(info.title);
+    const candidateAuthors = normalizeBookText((info.authors || []).join(" "));
+    const matchesTitle = candidateTitle === normalizedTitle ||
+      candidateTitle.startsWith(`${normalizedTitle} `);
+    const matchesAuthor = !hasSpecificAuthor || (
+      Boolean(candidateAuthors) &&
+      (candidateAuthors.includes(normalizedAuthor) || normalizedAuthor.includes(candidateAuthors))
+    );
+    return matchesTitle && matchesAuthor;
+  });
+
+  // Never display a description from an unrelated search result.
+  for (const item of [exactIsbnMatch, titleMatch].filter(Boolean)) {
+    const description = cleanBookDescription(item.volumeInfo?.description);
+    if (description) return description;
+  }
+
   return "";
 }
 
@@ -258,6 +335,7 @@ function StudentDashboard({ onLogout }) {
   const [sortOrder, setSortOrder] = useState("az");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [previewBook, setPreviewBook] = useState(null);
+  const [previewDescriptionResult, setPreviewDescriptionResult] = useState(null);
   const [googleBookCovers, setGoogleBookCovers] = useState({});
   const [openLibraryBookCovers, setOpenLibraryBookCovers] = useState({});
   const [studentRequests, setStudentRequests] = useState([]);
@@ -477,6 +555,37 @@ function StudentDashboard({ onLogout }) {
     findCovers();
     return () => controller.abort();
   }, [books, googleBookCovers, openLibraryBookCovers]);
+
+  // Load a matching Google Books description only when the selected book
+  // does not already contain a saved description. The effect does not update
+  // React state synchronously; the result is stored after the async lookup.
+  useEffect(() => {
+    if (!previewBook || cleanBookDescription(previewBook.description)) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const bookKey = getPreviewBookKey(previewBook);
+
+    const loadPreviewDescription = async () => {
+      let description = "";
+
+      try {
+        description = await findGoogleBookDescription(previewBook, controller.signal);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.warn("Load book description error:", error);
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        setPreviewDescriptionResult({ bookKey, description });
+      }
+    };
+
+    loadPreviewDescription();
+    return () => controller.abort();
+  }, [previewBook]);
 
   // Load only the signed-in student's own borrowing requests for the dashboard activity panel.
   useEffect(() => {
@@ -924,18 +1033,28 @@ function StudentDashboard({ onLogout }) {
   };
 
   const firstName = String(user?.name || "Student").trim().split(/\s+/)[0] || "Student";
+  const previewBookKey = getPreviewBookKey(previewBook);
+  const savedPreviewDescription = cleanBookDescription(previewBook?.description);
+  const previewDescriptionResultMatches =
+    previewDescriptionResult?.bookKey === previewBookKey;
+  const previewDescription =
+    savedPreviewDescription ||
+    (previewDescriptionResultMatches ? previewDescriptionResult.description : "");
+  const isPreviewDescriptionLoading = Boolean(
+    previewBook && !savedPreviewDescription && !previewDescriptionResultMatches
+  );
 
   return (
     <div className="student-dashboard">
       <aside className="student-sidebar">
         <div className="student-brand">
-          <div className="student-brand-mark">
-            <i className="bi bi-book-half"></i>
-          </div>
-          <div className="student-brand-copy">
-            <span className="student-brand-name">LibSync</span>
-            <span className="student-brand-caption">Library Management System</span>
-          </div>
+          <img
+            className="student-brand-logo"
+            src="/libsync-logo.svg"
+            alt="LibSync"
+            draggable="false"
+            style={{ width: "300px", maxWidth: "100%", height: "70px", objectFit: "contain", objectPosition: "center" }}
+          />
         </div>
 
         <div className="student-sidebar-label">WORKSPACE</div>
@@ -1522,12 +1641,20 @@ function StudentDashboard({ onLogout }) {
                   {previewBook.yearPublished && <div><span>Year published</span><strong>{previewBook.yearPublished}</strong></div>}
                   {previewBook.isOnline ? <div><span>Source</span><strong>Google Books</strong></div> : <div><span>Book ID</span><strong>{previewBook.id}</strong></div>}
                 </div>
-                {previewBook.isOnline && previewBook.description ? (
-                  <div className="student-preview-description">
-                    <strong>About this book</strong>
-                    <p>{previewBook.description.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</p>
-                  </div>
-                ) : null}
+                <div className="student-preview-description" aria-live="polite">
+                  <strong>About this book</strong>
+                  {isPreviewDescriptionLoading ? (
+                    <p className="student-preview-description-loading">
+                      <i className="bi bi-arrow-repeat" aria-hidden="true"></i> Loading book description...
+                    </p>
+                  ) : previewDescription ? (
+                    <p>{previewDescription}</p>
+                  ) : (
+                    <p className="student-preview-description-empty">
+                      No description is available for this title yet. The librarian can add one when updating the book information.
+                    </p>
+                  )}
+                </div>
                 <p className="student-preview-help">
                   {previewBook.isOnline ? "You can view the online listing. To borrow this title, ask the librarian whether the library can add it to inventory." : "Review the book details before adding it to your borrowing request."}
                 </p>

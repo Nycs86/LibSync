@@ -422,6 +422,14 @@ def add_book():
 
         title = data.get("title")
         author = data.get("author")
+        description = data.get("description")
+        description = str(description).strip() if description is not None else None
+        description = description or None
+        if description and len(description) > 20000:
+            return jsonify({
+                "status": "error",
+                "message": "Book description must not exceed 20,000 characters."
+            }), 400
         isbn = data.get("isbn")
         category = data.get("category")
         publisher = data.get("publisher")
@@ -462,6 +470,7 @@ def add_book():
             (
                 title,
                 author,
+                description,
                 isbn,
                 category,
                 publisher,
@@ -470,12 +479,13 @@ def add_book():
                 available_quantity,
                 status
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'available')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'available')
         """
 
         values = (
             title,
             author,
+            description,
             isbn,
             category,
             publisher,
@@ -548,6 +558,14 @@ def update_book(book_id):
 
         title = data.get("title")
         author = data.get("author")
+        description = data.get("description")
+        description = str(description).strip() if description is not None else None
+        description = description or None
+        if description and len(description) > 20000:
+            return jsonify({
+                "status": "error",
+                "message": "Book description must not exceed 20,000 characters."
+            }), 400
         isbn = data.get("isbn")
         category = data.get("category")
         publisher = data.get("publisher")
@@ -621,6 +639,7 @@ def update_book(book_id):
             UPDATE books
             SET title = %s,
                 author = %s,
+                description = %s,
                 isbn = %s,
                 category = %s,
                 publisher = %s,
@@ -632,6 +651,7 @@ def update_book(book_id):
         """, (
             title,
             author,
+            description,
             isbn,
             category,
             publisher,

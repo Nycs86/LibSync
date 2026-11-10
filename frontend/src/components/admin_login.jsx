@@ -1,8 +1,8 @@
 ﻿import { useState } from "react";
 import { api, saveAuthSession } from "../services/api";
-import "./librarian_login.css";
+import "./admin_login.css";
 
-function AdminLogin({ onLoginSuccess, onBack }) {
+function AdminLogin({ onLoginSuccess }) {
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,39 +60,33 @@ function AdminLogin({ onLoginSuccess, onBack }) {
   };
 
   return (
-    <main className="ls-login-page">
-      <section className="ls-login-card" aria-label="LibSync administrator login">
+    <main className="ls-admin-login-page">
+      <section className="ls-admin-login-card" aria-label="LibSync administrator login">
         <aside
-          className="ls-login-visual"
+          className="ls-admin-login-visual"
           aria-label="LibSync library branding"
         >
-          {onBack && (
-            <button type="button" className="ls-login-back" onClick={onBack}>
-              <i className="bi bi-arrow-left" aria-hidden="true" />
-              <span>Back to Home</span>
-            </button>
-          )}
-        </aside>
+</aside>
 
-        <section className="ls-login-form-panel">
-          <div className="ls-login-content">
-            <div className="ls-login-badge">ADMINISTRATOR PORTAL</div>
+        <section className="ls-admin-login-form-panel">
+          <div className="ls-admin-login-content">
+            <div className="ls-admin-login-badge">ADMINISTRATOR PORTAL</div>
             <h1>Welcome Back</h1>
-            <p className="ls-login-subtitle">
+            <p className="ls-admin-login-subtitle">
               Sign in to manage the LibSync system.
             </p>
 
             {loginError && (
-              <div className="ls-login-error" role="alert">
+              <div className="ls-admin-login-error" role="alert">
                 <i className="bi bi-exclamation-circle-fill" aria-hidden="true" />
                 <span>{loginError}</span>
               </div>
             )}
 
-            <form className="ls-login-form" onSubmit={handleLogin}>
-              <div className="ls-login-field">
+            <form className="ls-admin-login-form" onSubmit={handleLogin}>
+              <div className="ls-admin-login-field">
                 <label htmlFor="admin-email">Email Address</label>
-                <div className="ls-login-input-wrap">
+                <div className="ls-admin-login-input-wrap">
                   <i className="bi bi-envelope" aria-hidden="true" />
                   <input
                     id="admin-email"
@@ -105,9 +99,9 @@ function AdminLogin({ onLoginSuccess, onBack }) {
                 </div>
               </div>
 
-              <div className="ls-login-field">
+              <div className="ls-admin-login-field">
                 <label htmlFor="admin-password">Password</label>
-                <div className="ls-login-input-wrap">
+                <div className="ls-admin-login-input-wrap">
                   <i className="bi bi-lock" aria-hidden="true" />
                   <input
                     id="admin-password"
@@ -119,7 +113,7 @@ function AdminLogin({ onLoginSuccess, onBack }) {
                   />
                   <button
                     type="button"
-                    className="ls-password-toggle"
+                    className="ls-admin-password-toggle"
                     onClick={() => setShowPassword((current) => !current)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
@@ -131,24 +125,23 @@ function AdminLogin({ onLoginSuccess, onBack }) {
                 </div>
               </div>
 
-              <div className="ls-login-options">
+              <div className="ls-admin-login-options">
                 <span />
                 <button
                   type="button"
-                  className="ls-forgot-link"
+                  className="ls-admin-forgot-link"
                   onClick={handleForgotPassword}
                 >
                   Forgot password?
                 </button>
               </div>
 
-              <button className="ls-login-submit" type="submit" disabled={isLoading}>
+              <button className="ls-admin-login-submit" type="submit" disabled={isLoading}>
                 <span>{isLoading ? "Signing in..." : "Login"}</span>
-                {!isLoading && <i className="bi bi-arrow-right" aria-hidden="true" />}
               </button>
             </form>
 
-            <div className="ls-admin-notice">
+            <div className="ls-admin-login-notice">
               <i className="bi bi-shield-lock" aria-hidden="true" />
               <span>Restricted access. Authorized administrators only.</span>
             </div>

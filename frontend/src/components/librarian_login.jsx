@@ -215,17 +215,10 @@ function LibrarianLogin({ onBack, onLoginSuccess }) {
                 <span>
                   {isLoading ? "Signing in..." : "Login"}
                 </span>
-
-                {!isLoading && (
-                  <i
-                    className="bi bi-arrow-right"
-                    aria-hidden="true"
-                  ></i>
-                )}
               </button>
             </form>
 
-            <div className="ls-admin-notice">
+            <div className="ls-librarian-notice">
               <i
                 className="bi bi-shield-lock"
                 aria-hidden="true"

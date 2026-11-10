@@ -174,3 +174,345 @@
     font-size: 13px;
   }
 }
+
+
+/* =========================================================
+   FULL-VIEWPORT STUDENT AUTH LAYOUT
+   Keep the left visual stationary; scroll only the form panel.
+   These rules intentionally override the older card-height rules.
+========================================================= */
+
+/* Lock the document only while the student login/register page is mounted. */
+html:has(.ls-login-page) {
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+}
+
+body:has(.ls-login-page) {
+  width: 100%;
+  height: 100%;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+body:has(.ls-login-page) #root {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  text-align: left !important;
+}
+
+/* Full-bleed viewport: no outer page/card scrolling or margins. */
+.ls-login-page {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000;
+  display: block !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.ls-login-card,
+.ls-student-register-card {
+  position: absolute;
+  inset: 0;
+  display: grid !important;
+  grid-template-columns: minmax(0, 46%) minmax(0, 54%) !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* The left image is its own non-scrolling panel. */
+.ls-login-page .ls-login-visual {
+  position: relative;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: scroll !important;
+}
+
+/* Only this right-hand panel can scroll. */
+.ls-login-page .ls-login-form-panel {
+  display: flex !important;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0 !important;
+  margin: 0;
+  padding: clamp(24px, 4.5vh, 56px) clamp(24px, 5vw, 76px);
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b5d8ca transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ls-login-page .ls-login-content {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 650px;
+  margin: auto 0;
+  text-align: initial;
+}
+
+/* Registration is taller, so it starts at the top of its own scroll area. */
+.ls-login-page .ls-student-register-panel {
+  justify-content: flex-start !important;
+  padding-top: clamp(22px, 3.5vh, 38px);
+  padding-bottom: clamp(22px, 3.5vh, 38px);
+}
+
+.ls-login-page .ls-student-register-content {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.ls-login-page .ls-student-register-form {
+  width: 100%;
+}
+
+.ls-login-page .ls-student-register-grid {
+  width: 100%;
+}
+
+/* Year Level and Gender: make the select occupy the whole input field. */
+.ls-login-page .ls-student-register-form .ls-register-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 50px;
+  padding-right: 18px;
+}
+
+.ls-login-page .ls-student-register-form .ls-register-select-wrap select {
+  display: block !important;
+  flex: 1 1 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 28px 0 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  color: #253b35 !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  line-height: normal !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  cursor: pointer;
+}
+
+.ls-login-page .ls-student-register-form .ls-register-select-wrap select:invalid {
+  color: #77797c !important;
+}
+
+.ls-login-page .ls-student-register-form .ls-register-select-wrap::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid #64766e;
+  border-bottom: 2px solid #64766e;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+/* Explicit text-link styling: never render these as browser-default buttons. */
+.ls-login-page .ls-login-content .ls-student-login-switch > button,
+.ls-login-page .ls-login-content .ls-student-register-switch > button,
+.ls-login-page .ls-login-content > .ls-student-login-switch button.ls-student-text-link,
+.ls-login-page .ls-login-content > .ls-student-register-switch button.ls-student-text-link {
+  display: inline !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 3px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0;
+  box-shadow: none !important;
+  color: #07845f !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: 800 !important;
+  line-height: inherit !important;
+  letter-spacing: normal !important;
+  text-align: inherit !important;
+  text-transform: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  vertical-align: baseline !important;
+  cursor: pointer !important;
+}
+
+.ls-login-page .ls-login-content .ls-student-login-switch > button:hover,
+.ls-login-page .ls-login-content .ls-student-register-switch > button:hover {
+  color: #064b3c !important;
+  background: transparent !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+.ls-login-page .ls-login-content .ls-student-login-switch > button:focus-visible,
+.ls-login-page .ls-login-content .ls-student-register-switch > button:focus-visible {
+  outline: 2px solid #0b8a68 !important;
+  outline-offset: 3px !important;
+  border-radius: 3px !important;
+}
+
+/* Keep all native scrolling inside the form panel, including on small screens. */
+.ls-login-page .ls-login-form-panel::-webkit-scrollbar {
+  width: 7px;
+}
+
+.ls-login-page .ls-login-form-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ls-login-page .ls-login-form-panel::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: #b5d8ca;
+}
+
+.ls-login-page .ls-login-form-panel::-webkit-scrollbar-thumb:hover {
+  background: #07845f;
+}
+
+@media (max-width: 700px) {
+  .ls-login-card,
+  .ls-student-register-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: 155px minmax(0, 1fr) !important;
+  }
+
+  .ls-login-page .ls-login-visual {
+    width: 100%;
+    height: 155px;
+    min-height: 0 !important;
+    background-position: center 35% !important;
+  }
+
+  .ls-login-page .ls-login-form-panel,
+  .ls-login-page .ls-student-register-panel {
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+    padding: 26px 22px;
+  }
+
+  .ls-login-page .ls-login-content {
+    margin: 0 auto;
+  }
+
+  .ls-login-page .ls-student-register-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .ls-login-page .ls-register-gender-field {
+    grid-column: auto !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .ls-login-page .ls-login-card,
+  .ls-login-page .ls-student-register-card {
+    grid-template-rows: 130px minmax(0, 1fr) !important;
+  }
+
+  .ls-login-page .ls-login-visual {
+    height: 130px;
+  }
+
+  .ls-login-page .ls-login-form-panel,
+  .ls-login-page .ls-student-register-panel {
+    padding: 22px 17px;
+  }
+}
+
+
+/* Student Login Library Notice */
+.ls-student-login-notice {
+  width: 100%;
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 13px 22px;
+  border-radius: 16px;
+  color: #104b3c;
+  background: #e0f7e9;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.ls-student-login-notice i {
+  flex: 0 0 auto;
+  padding-right: 17px;
+  border-right: 2px solid #0c8a64;
+  color: #07835f;
+  font-size: 31px;
+}
+
+.ls-student-login-notice span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Responsive */
+@media (max-width: 420px) {
+  .ls-student-login-notice {
+    gap: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  .ls-student-login-notice i {
+    padding-right: 12px;
+    font-size: 27px;
+  }
+}
+

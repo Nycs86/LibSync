@@ -5,6 +5,7 @@ import "./books_management.css";
 const EMPTY_FORM = {
   title: "",
   author: "",
+  description: "",
   isbn: "",
   category: "",
   publisher: "",
@@ -81,7 +82,7 @@ function BooksManagement({ onBack }) {
     if (!term) return books;
 
     return books.filter((book) =>
-      [book.title, book.author, book.isbn, book.category, book.publisher]
+      [book.title, book.author, book.description, book.isbn, book.category, book.publisher]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -102,6 +103,7 @@ function BooksManagement({ onBack }) {
     setForm({
       title: book.title || "",
       author: book.author || "",
+      description: book.description || "",
       isbn: book.isbn || "",
       category: book.category || "",
       publisher: book.publisher || "",
@@ -148,6 +150,7 @@ function BooksManagement({ onBack }) {
     const payload = {
       title,
       author,
+      description: form.description.trim() || null,
       isbn: form.isbn.trim() || null,
       category: form.category.trim() || null,
       publisher: form.publisher.trim() || null,
@@ -357,6 +360,19 @@ function BooksManagement({ onBack }) {
               <label className="books-form-field">
                 <span>Author *</span>
                 <input name="author" value={form.author} onChange={updateField} required maxLength={255} placeholder="Enter author name" />
+              </label>
+
+              <label className="books-form-field books-form-field-full">
+                <span>Book Description</span>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={updateField}
+                  rows={4}
+                  maxLength={10000}
+                  placeholder="Write a short summary or description of this book"
+                />
+                <small>This description will appear when students open the book preview.</small>
               </label>
 
               <label className="books-form-field">

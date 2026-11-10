@@ -1973,7 +1973,7 @@
   color: #087451;
 }
 .student-preview-description {
-  max-height: 135px;
+  max-height: 180px;
   margin-top: 17px;
   overflow: auto;
   padding: 12px 13px;
@@ -1988,8 +1988,18 @@
 .student-preview-description p {
   margin: 6px 0 0;
   color: #68777B;
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+.student-preview-description-loading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.student-preview-description-empty {
+  color: #829087 !important;
+  font-style: italic;
 }
 .student-preview-online-link {
   display: inline-flex;

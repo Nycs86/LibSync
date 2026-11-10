@@ -448,9 +448,26 @@
   font-size: 13px;
 }
 
-.books-form-field input:focus {
+.books-form-field input:focus,
+.books-form-field textarea:focus {
   border-color: #3a9b70;
   box-shadow: 0 0 0 3px rgba(58, 155, 112, .12);
+}
+
+.books-form-field textarea {
+  width: 100%;
+  min-height: 110px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #dfe8e1;
+  border-radius: 9px;
+  outline: none;
+  color: #26372f;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
 }
 
 .books-form-field small {

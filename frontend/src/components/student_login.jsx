@@ -575,13 +575,6 @@ function StudentLogin({ onBack, onLoginSuccess }) {
                 <span>
                   {isLoginLoading ? "Signing in..." : "Login"}
                 </span>
-
-                {!isLoginLoading && (
-                  <i
-                    className="bi bi-arrow-right"
-                    aria-hidden="true"
-                  ></i>
-                )}
               </button>
             </form>
 
@@ -589,6 +582,7 @@ function StudentLogin({ onBack, onLoginSuccess }) {
               Don't have an account?{" "}
               <button
                 type="button"
+                className="ls-student-text-link"
                 onClick={() => {
                   setShowRegister(true);
                   setLoginError("");
@@ -598,7 +592,7 @@ function StudentLogin({ onBack, onLoginSuccess }) {
               </button>
             </div>
 
-            <div className="ls-admin-notice ls-student-login-notice">
+            <div className="ls-student-login-notice">
               <i
                 className="bi bi-book-half"
                 aria-hidden="true"

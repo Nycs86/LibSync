@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import LibraryReports from "./library_reports";
 import { api, getStoredUser } from "../services/api";
 import "./dashboard_polish.css";
 import "./online_book_search.css";
@@ -8,8 +7,6 @@ import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
 
-// Group only records that share a real batch_id. Rows without a batch_id
-// remain independent transactions, even if they belong to the same student.
 function groupRowsByBatch(rows) {
   const groups = new Map();
 
@@ -94,8 +91,7 @@ function QRScanner({ onScan }) {
             throw new Error("No camera was detected on this device.");
           }
 
-          // Prefer a rear camera on phones; use the first available camera
-          // on laptops/desktops.
+       
           const selectedCamera =
             cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
             cameras[0];
@@ -126,7 +122,7 @@ function QRScanner({ onScan }) {
               }
             },
             () => {
-              // No QR in this video frame is normal; don't show an error.
+             
             }
           );
 
@@ -241,6 +237,7 @@ function LibrarianDashboard({ onLogout }) {
   const [bookForm, setBookForm] = useState({
     title: "",
     author: "",
+    description: "",
     isbn: "",
     category: "",
     publisher: "",
@@ -369,6 +366,7 @@ function LibrarianDashboard({ onLogout }) {
     setBookForm({
       title: "",
       author: "",
+      description: "",
       isbn: "",
       category: "",
       publisher: "",
@@ -390,6 +388,7 @@ function LibrarianDashboard({ onLogout }) {
     setBookForm({
       title: book.title ?? "",
       author: book.author ?? "",
+      description: book.description ?? "",
       isbn: book.isbn ?? "",
       category: book.category ?? "",
       publisher: book.publisher ?? "",
@@ -426,6 +425,7 @@ function LibrarianDashboard({ onLogout }) {
     const payload = {
       title,
       author,
+      description: bookForm.description.trim() || null,
       isbn: bookForm.isbn.trim() || null,
       category: bookForm.category.trim() || null,
       publisher: bookForm.publisher.trim() || null,
@@ -548,26 +548,6 @@ function LibrarianDashboard({ onLogout }) {
 
     getBorrowRequests();
 
-  };
-
-
-  const openReports = () => {
-    setMessage("");
-    setActiveSection("reports");
-    setBooksLoading(true);
-    setBooksError("");
-    void loadBooks();
-    void loadBorrowRecords();
-    void getBorrowRequests(false);
-  };
-
-  const refreshReports = () => {
-    setMessage("");
-    setBooksLoading(true);
-    setBooksError("");
-    void loadBooks();
-    void loadBorrowRecords();
-    void getBorrowRequests(false);
   };
 
 
@@ -1217,9 +1197,6 @@ function LibrarianDashboard({ onLogout }) {
           <button type="button" className={`ls-librarian-nav-item ${activeSection === "scan" || activeSection === "scan-result" ? "active" : ""}`} onClick={() => { setMessage(""); setScannedBatch(null); setScannedToken(""); setActiveSection("scan"); }}>
             <i className="bi bi-qr-code-scan" /><span>QR Scanner</span>
           </button>
-          <button type="button" className={`ls-librarian-nav-item ${activeSection === "reports" ? "active" : ""}`} onClick={openReports}>
-            <i className="bi bi-bar-chart-line" /><span>Reports & Analytics</span>
-          </button>
           <button
             type="button"
             className={`ls-librarian-nav-item ${activeSection === "records" ? "active" : ""}`}
@@ -1249,9 +1226,9 @@ function LibrarianDashboard({ onLogout }) {
       <main className="ls-librarian-workspace">
         <header className="ls-librarian-topbar">
           <div>
-            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "reports" ? "LIBSYNC / REPORTS & ANALYTICS" : activeSection === "students" ? "LIBSYNC / STUDENTS" : "LIBSYNC / LIBRARIAN"}</p>
-            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : activeSection === "reports" ? "Reports & Analytics" : "Librarian Dashboard"}</h1>
-            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "reports" ? "Review library performance, inventory, borrowing, returns, and borrower activity." : activeSection === "students" ? "View registered student accounts and quickly find a library member." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
+            <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "students" ? "LIBSYNC / STUDENTS" : "LIBSYNC / LIBRARIAN"}</p>
+            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : "Librarian Dashboard"}</h1>
+            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "students" ? "View registered student accounts and quickly find a library member." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
           </div>
         </header>
 
@@ -1393,17 +1370,6 @@ function LibrarianDashboard({ onLogout }) {
       )}
 
             {/* MESSAGE */}
-
-      {activeSection === "reports" && (
-        <LibraryReports
-          books={books}
-          borrowings={borrowingRecords}
-          requests={borrowRequests}
-          loading={booksLoading || recordsLoading || loading}
-          error={[booksError, recordsError].filter(Boolean).join(" ")}
-          onRefresh={refreshReports}
-        />
-      )}
 
       {message && activeSection !== "books" && (
 
@@ -2102,6 +2068,7 @@ function LibrarianDashboard({ onLogout }) {
                   <label className="ls-books-form-field"><span>Category</span><input name="category" value={bookForm.category} onChange={handleBookFormChange} placeholder="e.g. Technology" list="ls-books-category-suggestions" maxLength="100" /><datalist id="ls-books-category-suggestions">{bookCategories.map((category) => <option key={category} value={category} />)}</datalist></label>
                   <label className="ls-books-form-field"><span>Publisher</span><input name="publisher" value={bookForm.publisher} onChange={handleBookFormChange} placeholder="Enter publisher" maxLength="255" /></label>
                   <label className="ls-books-form-field"><span>Year Published</span><input type="number" name="year_published" value={bookForm.year_published} onChange={handleBookFormChange} placeholder="e.g. 2024" min="1000" max={new Date().getFullYear() + 1} step="1" /></label>
+                  <label className="ls-books-form-field ls-books-form-description-field"><span>Book Description</span><textarea name="description" value={bookForm.description} onChange={handleBookFormChange} placeholder="Write a short summary or description of this book..." rows={4} maxLength={20000} /></label>
                   <p className="ls-books-form-note"><i className="bi bi-info-circle" aria-hidden="true" /> Required fields are marked with an asterisk.</p>
                   {booksError && <div className="ls-books-feedback ls-books-feedback-error ls-books-form-error" role="alert">{booksError}</div>}
                   <footer className="ls-books-form-footer">

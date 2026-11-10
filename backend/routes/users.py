@@ -75,6 +75,62 @@ def get_users():
             connection.close()
 
 
+# GET STUDENT DIRECTORY: librarian only
+# Exposes student directory fields needed by the Librarian dashboard,
+# without granting access to admin-only user management endpoints.
+@users_bp.route("/api/librarian/students", methods=["GET"])
+@require_role("librarian")
+def get_librarian_students():
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
+            }), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                u.id,
+                u.name,
+                u.email,
+                u.created_at,
+                s.student_number,
+                s.program,
+                s.college,
+                s.year_level,
+                s.gender
+            FROM users u
+            LEFT JOIN students s ON s.user_id = u.id
+            WHERE LOWER(u.role) = 'student'
+            ORDER BY u.name ASC, u.id DESC
+            """
+        )
+        students = cursor.fetchall()
+        return jsonify({
+            "status": "success",
+            "students": students,
+        }), 200
+
+    except mysql.connector.Error:
+        logger.exception("Database error while retrieving librarian student directory")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve student accounts right now.",
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
 # CREATE USER / STUDENT ACCOUNT
 # Public registration is deliberately restricted to the student role.
 @users_bp.route("/api/users", methods=["POST"])
