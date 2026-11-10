@@ -656,23 +656,21 @@ def update_book(book_id):
 
         title = data.get("title")
         author = data.get("author")
+        isbn = data.get("isbn")
+
         description = data.get("description")
-        description = str(description).strip() if description is not None else None
-        description = description or None
+
+        if description is not None:
+            description = str(description).strip() or None
+
+        if not description and isbn:
+            description = _fetch_book_description(isbn)
+
         if description and len(description) > 20000:
             return jsonify({
                 "status": "error",
                 "message": "Book description must not exceed 20,000 characters."
             }), 400
-        isbn = data.get("isbn")
-
-        description = data.get("description")
-
-        if isinstance(description, str):
-            description = description.strip() or None
-
-        if not description and isbn:
-            description = _fetch_book_description(isbn)
 
         category = data.get("category")
         publisher = data.get("publisher")

@@ -670,23 +670,29 @@ def get_student_borrow_batches(user_id):
 
     try:
         cursor.execute("""
-            SELECT
-                id,
-                user_id,
-                borrow_qr_token,
-                return_qr_token,
-                DATE_FORMAT(borrow_qr_used_at, '%Y-%m-%dT%H:%i:%sZ') AS borrow_qr_used_at,
-                return_qr_used_at,
-                status,
-                requested_at,
-                approved_by,
-                approved_at,
-                loan_days,
-                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date
-            FROM borrow_batches
-            WHERE user_id = %s
-            ORDER BY requested_at DESC
-        """, (user_id,))
+                    SELECT
+                        id,
+                        user_id,
+                        borrow_qr_token,
+                        return_qr_token,
+                        DATE_FORMAT(
+                            borrow_qr_used_at,
+                            '%%Y-%%m-%%dT%%H:%%i:%%sZ'
+                        ) AS borrow_qr_used_at,
+                        return_qr_used_at,
+                        status,
+                        requested_at,
+                        approved_by,
+                        approved_at,
+                        loan_days,
+                        DATE_FORMAT(
+                            due_date,
+                            '%%Y-%%m-%%dT%%H:%%i:%%sZ'
+                        ) AS due_date
+                    FROM borrow_batches
+                    WHERE user_id = %s
+                    ORDER BY requested_at DESC
+                """, (user_id,))
         batches = cursor.fetchall()
 
         for batch in batches:
