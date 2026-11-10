@@ -51,7 +51,7 @@ def get_overdue_risk():
                     END) AS active_loans,
 
                     COUNT(DISTINCT CASE
-                        WHEN bb.due_date < CURDATE()
+                        WHEN bb.due_date < UTC_TIMESTAMP()
                          AND bb.status IN ('approved', 'partially_returned')
                         THEN bb.id
                     END) AS current_overdue_loans,
@@ -59,9 +59,9 @@ def get_overdue_risk():
                     COALESCE(
                         MAX(
                             CASE
-                                WHEN bb.due_date < CURDATE()
+                                WHEN bb.due_date < UTC_TIMESTAMP()
                                  AND bb.status IN ('approved', 'partially_returned')
-                                THEN DATEDIFF(CURDATE(), bb.due_date)
+                                THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
                                 ELSE 0
                             END
                         ),
@@ -71,14 +71,14 @@ def get_overdue_risk():
                     COUNT(DISTINCT CASE
                         WHEN br.returned_at IS NOT NULL
                          AND bb.due_date IS NOT NULL
-                         AND DATE(br.returned_at) > bb.due_date
+                         AND br.returned_at > bb.due_date
                         THEN br.id
                     END) AS past_late_returns,
 
                     LEAST(
                         100,
                         COUNT(DISTINCT CASE
-                            WHEN bb.due_date < CURDATE()
+                            WHEN bb.due_date < UTC_TIMESTAMP()
                              AND bb.status IN ('approved', 'partially_returned')
                             THEN bb.id
                         END) * 50
@@ -87,9 +87,9 @@ def get_overdue_risk():
                             COALESCE(
                                 MAX(
                                     CASE
-                                        WHEN bb.due_date < CURDATE()
+                                        WHEN bb.due_date < UTC_TIMESTAMP()
                                          AND bb.status IN ('approved', 'partially_returned')
-                                        THEN DATEDIFF(CURDATE(), bb.due_date)
+                                        THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
                                         ELSE 0
                                     END
                                 ),
@@ -102,7 +102,7 @@ def get_overdue_risk():
                             COUNT(DISTINCT CASE
                                 WHEN br.returned_at IS NOT NULL
                                  AND bb.due_date IS NOT NULL
-                                 AND DATE(br.returned_at) > bb.due_date
+                                 AND br.returned_at > bb.due_date
                                 THEN br.id
                             END) * 15,
                             30

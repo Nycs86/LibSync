@@ -7,6 +7,8 @@ import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
 
+// Group only records that share a real batch_id. Rows without a batch_id
+// remain independent transactions, even if they belong to the same student.
 function groupRowsByBatch(rows) {
   const groups = new Map();
 
@@ -28,6 +30,15 @@ function groupRowsByBatch(rows) {
     items,
     first: items[0],
   }));
+}
+
+
+function formatStudentYearLevel(value) {
+  const year = Number(value);
+  if (!Number.isInteger(year) || year < 1 || year > 6) return "N/A";
+
+  const suffix = year === 1 ? "st" : year === 2 ? "nd" : year === 3 ? "rd" : "th";
+  return `${year}${suffix} Year`;
 }
 
 
@@ -91,7 +102,8 @@ function QRScanner({ onScan }) {
             throw new Error("No camera was detected on this device.");
           }
 
-       
+          // Prefer a rear camera on phones; use the first available camera
+          // on laptops/desktops.
           const selectedCamera =
             cameras.find((camera) => /back|rear|environment/i.test(camera.label)) ||
             cameras[0];
@@ -122,7 +134,7 @@ function QRScanner({ onScan }) {
               }
             },
             () => {
-             
+              // No QR in this video frame is normal; don't show an error.
             }
           );
 
@@ -1266,9 +1278,9 @@ function LibrarianDashboard({ onLogout }) {
             <article className="ls-librarian-stat-card">
               <div className="ls-librarian-stat-icon"><i className="bi bi-bar-chart-line" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
-                <span className="ls-librarian-stat-label">Active Loans</span>
+                <span className="ls-librarian-stat-label">Active Borrowed Books</span>
                 <strong>{dashboardBorrowedCount}</strong>
-                <small>borrowing activity</small>
+                <small>books currently borrowed</small>
               </div>
               <span className="ls-librarian-stat-tag">ACTIVITY</span>
             </article>
@@ -1509,59 +1521,62 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-          <div style={{ marginBottom: "24px" }}>
+          <section className="ls-qr-student-information" aria-labelledby="ls-qr-student-information-title">
+            <h3 id="ls-qr-student-information-title">Student Information</h3>
 
-            <h3>Student Information</h3>
+            <div className="ls-qr-student-information__grid">
+              <div className="ls-qr-student-information__item">
+                <span>Student ID</span>
+                <strong>{scannedBatch.student_number || "N/A"}</strong>
+              </div>
 
+              <div className="ls-qr-student-information__item">
+                <span>Name</span>
+                <strong>{scannedBatch.student_name || "N/A"}</strong>
+              </div>
 
+              <div className="ls-qr-student-information__item">
+                <span>Email</span>
+                <strong>{scannedBatch.student_email || "N/A"}</strong>
+              </div>
 
-            <p>
+              <div className="ls-qr-student-information__item">
+                <span>Program</span>
+                <strong>{scannedBatch.program || "N/A"}</strong>
+              </div>
 
-              <strong>Name:</strong>{" "}
+              <div className="ls-qr-student-information__item">
+                <span>Course / College</span>
+                <strong>{scannedBatch.college || "N/A"}</strong>
+              </div>
 
-              {scannedBatch.student_name}
+              <div className="ls-qr-student-information__item">
+                <span>Year</span>
+                <strong>{formatStudentYearLevel(scannedBatch.year_level)}</strong>
+              </div>
 
-            </p>
+              <div className="ls-qr-student-information__item">
+                <span>Gender</span>
+                <strong>{scannedBatch.gender || "N/A"}</strong>
+              </div>
 
+              <div className="ls-qr-student-information__item">
+                <span>Batch Status</span>
+                <strong className="ls-qr-student-information__status">
+                  {String(scannedBatch.status || "N/A").replace(/_/g, " ")}
+                </strong>
+              </div>
 
-
-            <p>
-
-              <strong>Email:</strong>{" "}
-
-              {scannedBatch.student_email}
-
-            </p>
-
-
-
-            <p>
-
-              <strong>Batch Status:</strong>{" "}
-
-              {scannedBatch.status}
-
-            </p>
-
-
-
-            <p>
-
-              <strong>Date Requested:</strong>{" "}
-
-              {scannedBatch.requested_at
-
-                ? new Date(
-
-                    scannedBatch.requested_at
-
-                  ).toLocaleString()
-
-                : "N/A"}
-
-            </p>
-
-          </div>
+              <div className="ls-qr-student-information__item ls-qr-student-information__item--wide">
+                <span>Date Requested</span>
+                <strong>
+                  {scannedBatch.requested_at
+                    ? new Date(scannedBatch.requested_at).toLocaleString()
+                    : "N/A"}
+                </strong>
+              </div>
+            </div>
+          </section>
 
           {scannedBatch.qr_type === "borrow" && (
             <section className="ls-qr-workflow-card ls-qr-workflow-card--borrow" aria-live="polite">
@@ -1585,7 +1600,6 @@ function LibrarianDashboard({ onLogout }) {
                       onClick={() => openConfirmationModal({
                         type: "release",
                         title: "Confirm Book Release",
-                        message: `Have the approved book(s) for ${scannedBatch.student_name || "this student"} been physically handed over? The borrowing period will start after confirmation.`,
                         confirmLabel: "Confirm Release",
                         onConfirm: handleReleaseBatch,
                       })}
@@ -1646,7 +1660,6 @@ function LibrarianDashboard({ onLogout }) {
                       onClick={() => openConfirmationModal({
                         type: "return",
                         title: "Confirm Book Return",
-                        message: `Have all ${selectedReturnBookIds.length} selected book(s) been physically returned? The available book count will be restored after confirmation.`,
                         confirmLabel: "Confirm Return",
                         onConfirm: handleReturnBooks,
                       })}
@@ -2335,7 +2348,7 @@ function LibrarianDashboard({ onLogout }) {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="ls-confirm-modal-title"
-            aria-describedby="ls-confirm-modal-message"
+            aria-describedby={confirmationModal.message ? "ls-confirm-modal-message" : undefined}
           >
             <div className="ls-confirm-modal-icon" aria-hidden="true">
               <i className={`bi ${
@@ -2347,7 +2360,9 @@ function LibrarianDashboard({ onLogout }) {
               }`} />
             </div>
             <h2 id="ls-confirm-modal-title">{confirmationModal.title}</h2>
-            <p id="ls-confirm-modal-message">{confirmationModal.message}</p>
+            {confirmationModal.message && (
+              <p id="ls-confirm-modal-message">{confirmationModal.message}</p>
+            )}
             <div className="ls-confirm-modal-actions">
               <button
                 type="button"

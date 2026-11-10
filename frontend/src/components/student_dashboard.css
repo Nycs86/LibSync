@@ -3474,3 +3474,59 @@
   background: #004D3A;
 }
 
+
+
+/* Fixed one-day return policy and live countdown */
+.student-loan-duration-fixed .student-loan-duration-copy {
+  flex: 1 1 auto;
+}
+
+.student-fixed-loan-badge {
+  flex: 0 0 auto;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 16px;
+  border: 1px solid #C8DDD0;
+  border-radius: 12px;
+  color: #006149;
+  background: #FFFFFF;
+  text-align: center;
+}
+
+.student-fixed-loan-badge strong {
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0.7px;
+}
+
+.student-fixed-loan-badge span {
+  color: #64776D;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.qr-live-countdown {
+  min-width: 170px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .student-loan-duration-fixed {
+    align-items: stretch;
+  }
+
+  .student-fixed-loan-badge {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .qr-live-countdown {
+    align-self: flex-start;
+    white-space: normal;
+  }
+}
