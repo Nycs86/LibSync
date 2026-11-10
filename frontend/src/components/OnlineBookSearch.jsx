@@ -13,7 +13,6 @@ function OnlineBookSearch({ onBookAdded }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Prevent duplicate requests and cache successful searches.
   const searchCache = useRef(new Map());
   const activeRequest = useRef(false);
   const cooldownUntil = useRef(0);
@@ -29,11 +28,8 @@ function OnlineBookSearch({ onBookAdded }) {
       return;
     }
 
-    if (activeRequest.current) {
-      return;
-    }
+    if (activeRequest.current) return;
 
-    // Respect the cooldown after receiving HTTP 429.
     const remainingCooldown = Math.ceil(
       (cooldownUntil.current - Date.now()) / 1000
     );
@@ -48,7 +44,6 @@ function OnlineBookSearch({ onBookAdded }) {
 
     const cacheKey = search.toLowerCase();
 
-    // Reuse previously successful search results.
     if (searchCache.current.has(cacheKey)) {
       setBooks(searchCache.current.get(cacheKey));
       setError("");
@@ -140,6 +135,7 @@ function OnlineBookSearch({ onBookAdded }) {
         body: JSON.stringify({
           title: book.title,
           author: book.author,
+          description: book.description || null,
           isbn: book.isbn,
           category: book.category || "General",
           publisher: book.publisher,
@@ -227,6 +223,14 @@ function OnlineBookSearch({ onBookAdded }) {
                 <p><strong>Category:</strong> {book.category || "General"}</p>
                 <p><strong>Publisher:</strong> {book.publisher || "Not available"}</p>
                 <p><strong>Year:</strong> {book.year_published || "Not available"}</p>
+
+                <div className="online-book-description">
+                  <strong>Description:</strong>
+                  <p>
+                    {book.description ||
+                      "No description available for this book."}
+                  </p>
+                </div>
 
                 <div className="online-book-add-row">
                   <label>

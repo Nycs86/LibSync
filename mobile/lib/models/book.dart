@@ -1,7 +1,9 @@
+
 class Book {
   final int id;
   final String title;
   final String author;
+  final String? description;
   final String? isbn;
   final String? category;
   final String? publisher;
@@ -14,6 +16,7 @@ class Book {
     required this.id,
     required this.title,
     required this.author,
+    this.description,
     this.isbn,
     this.category,
     this.publisher,
@@ -28,6 +31,7 @@ class Book {
       id: int.tryParse('${json['id']}') ?? 0,
       title: '${json['title'] ?? 'Untitled'}',
       author: '${json['author'] ?? 'Unknown Author'}',
+      description: json['description']?.toString(),
       isbn: json['isbn']?.toString(),
       category: json['category']?.toString(),
       publisher: json['publisher']?.toString(),

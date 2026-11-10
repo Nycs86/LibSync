@@ -1,3 +1,4 @@
+
 import logging
 import time
 
@@ -25,9 +26,8 @@ def _get_json_object():
         )
     return data, None
 
+
 # Starter catalog settings.
-# If the books table has fewer than 5 books, LibSync automatically tops it up
-# to around 20 books from Open Library the next time GET /api/books is called.
 AUTO_SEED_TRIGGER_COUNT = 5
 STARTER_TARGET_COUNT = 20
 DEFAULT_STARTER_QUANTITY = 1
@@ -52,6 +52,92 @@ def _pick_isbn(isbn_list):
             return str(value)
 
     return str(isbn_list[0])
+
+
+def _fetch_book_description(isbn):
+    """
+    Fetch a book description from Google Books first,
+    then fall back to Open Library.
+    Returns None when no description is available.
+    """
+    if not isbn:
+        return None
+
+    cleaned_isbn = (
+        str(isbn).replace("-", "").replace(" ", "").strip()
+    )
+
+    if not cleaned_isbn:
+        return None
+
+    # First source: Google Books
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params={
+                "q": f"isbn:{cleaned_isbn}",
+                "maxResults": 1,
+            },
+            timeout=8,
+        )
+        response.raise_for_status()
+
+        items = response.json().get("items", [])
+
+        if items:
+            description = (
+                items[0]
+                .get("volumeInfo", {})
+                .get("description")
+            )
+
+            if isinstance(description, str) and description.strip():
+                return description.strip()
+
+    except (requests.exceptions.RequestException, ValueError):
+        logger.warning(
+            "Google Books description lookup failed for ISBN %s",
+            cleaned_isbn,
+        )
+
+    # Fallback source: Open Library
+    try:
+        response = requests.get(
+            f"https://openlibrary.org/isbn/{cleaned_isbn}.json",
+            headers={"User-Agent": "LibSync/1.0"},
+            timeout=8,
+        )
+        response.raise_for_status()
+
+        book_data = response.json()
+        works = book_data.get("works", [])
+
+        if works:
+            work_key = works[0].get("key")
+
+            if work_key:
+                work_response = requests.get(
+                    f"https://openlibrary.org{work_key}.json",
+                    headers={"User-Agent": "LibSync/1.0"},
+                    timeout=8,
+                )
+                work_response.raise_for_status()
+
+                description = work_response.json().get("description")
+
+                if isinstance(description, dict):
+                    description = description.get("value")
+
+                if isinstance(description, str) and description.strip():
+                    return description.strip()
+
+    except (requests.exceptions.RequestException, ValueError):
+        logger.warning(
+            "Open Library description lookup failed for ISBN %s",
+            cleaned_isbn,
+        )
+
+    return None
 
 
 def seed_starter_books(max_new_books):
@@ -80,9 +166,7 @@ def seed_starter_books(max_new_books):
                         "first_publish_year,publisher,cover_i"
                     ),
                 },
-                headers={
-                    "User-Agent": "LibSync/1.0"
-                },
+                headers={"User-Agent": "LibSync/1.0"},
                 timeout=10,
             )
 
@@ -95,18 +179,17 @@ def seed_starter_books(max_new_books):
                 if len(collected) >= max_new_books:
                     break
 
-                # Keep the starter catalog balanced across categories.
                 if category_added >= 4:
                     break
 
                 isbn = _pick_isbn(item.get("isbn", []))
 
-                # Skip items without an ISBN so duplicate checking is reliable.
                 if not isbn or isbn in seen_isbns:
                     continue
 
                 title = (item.get("title") or "Unknown Title").strip()
                 authors = item.get("author_name", [])
+
                 author = (
                     ", ".join(authors).strip()
                     if authors
@@ -118,16 +201,15 @@ def seed_starter_books(max_new_books):
 
                 year_published = item.get("first_publish_year")
 
-                # Keep text safely within common VARCHAR sizes.
                 title = title[:255]
-                author = author[:255]
-                publisher = publisher[:255] if publisher else None
+                author = author[:150]
+                publisher = publisher[:150] if publisher else None
                 category = category_name[:100]
 
                 collected.append({
                     "title": title,
                     "author": author,
-                    "isbn": isbn[:30],
+                    "isbn": isbn[:50],
                     "category": category,
                     "publisher": publisher,
                     "year_published": year_published,
@@ -136,7 +218,6 @@ def seed_starter_books(max_new_books):
                 seen_isbns.add(isbn)
                 category_added += 1
 
-            # Be polite to the public Open Library API.
             time.sleep(0.4)
 
     except (requests.exceptions.RequestException, ValueError):
@@ -149,6 +230,7 @@ def seed_starter_books(max_new_books):
 
     try:
         connection = get_db_connection()
+
         if connection is None:
             logger.error("Starter catalog import skipped: database connection failed")
             return 0
@@ -156,7 +238,6 @@ def seed_starter_books(max_new_books):
         cursor = connection.cursor()
 
         for book in collected:
-            # Avoid duplicates if this function is ever called again.
             cursor.execute(
                 """
                 SELECT id
@@ -170,11 +251,14 @@ def seed_starter_books(max_new_books):
             if cursor.fetchone():
                 continue
 
+            description = _fetch_book_description(book["isbn"])
+
             cursor.execute(
                 """
                 INSERT INTO books (
                     title,
                     author,
+                    description,
                     isbn,
                     category,
                     publisher,
@@ -183,11 +267,12 @@ def seed_starter_books(max_new_books):
                     available_quantity,
                     status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'available')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'available')
                 """,
                 (
                     book["title"],
                     book["author"],
+                    description,
                     book["isbn"],
                     book["category"],
                     book["publisher"],
@@ -249,9 +334,7 @@ def search_online_books():
                     "first_publish_year,publisher,subject,cover_i"
                 )
             },
-            headers={
-                "User-Agent": "LibSync/1.0"
-            },
+            headers={"User-Agent": "LibSync/1.0"},
             timeout=10
         )
 
@@ -305,7 +388,12 @@ def search_online_books():
                     else None
                 ),
                 "year_published": item.get("first_publish_year"),
-                "cover_url": cover_url
+                "cover_url": cover_url,
+                "description": (
+                    _fetch_book_description(isbn)
+                    if isbn
+                    else None
+                )
             })
 
         return jsonify({
@@ -342,6 +430,7 @@ def get_books():
 
     try:
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
@@ -362,13 +451,12 @@ def get_books():
         cursor = None
         connection = None
 
-        # Automatic starter catalog:
-        # a nearly empty database gets populated from Open Library.
         if total < AUTO_SEED_TRIGGER_COUNT:
             needed = STARTER_TARGET_COUNT - total
             seed_starter_books(needed)
 
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
@@ -417,20 +505,28 @@ def add_book():
 
     try:
         data, error_response = _get_json_object()
+
         if error_response:
             return error_response
 
         title = data.get("title")
         author = data.get("author")
+        isbn = data.get("isbn")
+
         description = data.get("description")
-        description = str(description).strip() if description is not None else None
-        description = description or None
+
+        if description is not None:
+            description = str(description).strip() or None
+
+        if not description and isbn:
+            description = _fetch_book_description(isbn)
+
         if description and len(description) > 20000:
             return jsonify({
                 "status": "error",
                 "message": "Book description must not exceed 20,000 characters."
             }), 400
-        isbn = data.get("isbn")
+
         category = data.get("category")
         publisher = data.get("publisher")
         year_published = data.get("year_published")
@@ -457,6 +553,7 @@ def add_book():
             }), 400
 
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
@@ -553,6 +650,7 @@ def update_book(book_id):
 
     try:
         data, error_response = _get_json_object()
+
         if error_response:
             return error_response
 
@@ -567,6 +665,15 @@ def update_book(book_id):
                 "message": "Book description must not exceed 20,000 characters."
             }), 400
         isbn = data.get("isbn")
+
+        description = data.get("description")
+
+        if isinstance(description, str):
+            description = description.strip() or None
+
+        if not description and isbn:
+            description = _fetch_book_description(isbn)
+
         category = data.get("category")
         publisher = data.get("publisher")
         year_published = data.get("year_published")
@@ -593,6 +700,7 @@ def update_book(book_id):
             }), 400
 
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
@@ -629,6 +737,7 @@ def update_book(book_id):
             }), 400
 
         new_available_quantity = quantity - borrowed_quantity
+
         status = (
             "available"
             if new_available_quantity > 0
@@ -717,6 +826,7 @@ def delete_book(book_id):
 
     try:
         connection = get_db_connection()
+
         if connection is None:
             return jsonify({
                 "status": "error",
