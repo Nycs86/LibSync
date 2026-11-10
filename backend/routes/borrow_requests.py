@@ -89,19 +89,9 @@ def create_borrow_request():
                 "message": "Invalid user_id."
             }), 400
 
-    try:
-        loan_days = int(data.get("loan_days", 1))
-    except (TypeError, ValueError):
-        return jsonify({
-            "status": "error",
-            "message": "Return period must be between 1 and 5 days."
-        }), 400
-
-    if not 1 <= loan_days <= 5:
-        return jsonify({
-            "status": "error",
-            "message": "Return period must be between 1 and 5 days."
-        }), 400
+    # Return duration is fixed by library policy. Ignore any client-supplied
+    # loan_days value so the 24-hour period cannot be changed from the browser.
+    loan_days = 1
 
     raw_book_ids = data.get("book_ids")
     if not raw_book_ids:
@@ -372,7 +362,7 @@ def get_borrow_records():
                     WHEN br.returned_at IS NOT NULL THEN 'returned'
                     WHEN bb.borrow_qr_used_at IS NOT NULL
                          AND bb.due_date IS NOT NULL
-                         AND bb.due_date < CURDATE() THEN 'overdue'
+                         AND bb.due_date < UTC_TIMESTAMP() THEN 'overdue'
                     WHEN bb.borrow_qr_used_at IS NOT NULL THEN 'borrowed'
                     WHEN br.status = 'approved' THEN 'approved'
                     ELSE LOWER(br.status)
@@ -685,14 +675,14 @@ def get_student_borrow_batches(user_id):
                 user_id,
                 borrow_qr_token,
                 return_qr_token,
-                borrow_qr_used_at,
+                DATE_FORMAT(borrow_qr_used_at, '%Y-%m-%dT%H:%i:%sZ') AS borrow_qr_used_at,
                 return_qr_used_at,
                 status,
                 requested_at,
                 approved_by,
                 approved_at,
                 loan_days,
-                due_date
+                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date
             FROM borrow_batches
             WHERE user_id = %s
             ORDER BY requested_at DESC
@@ -1046,9 +1036,15 @@ def lookup_borrow_batch_by_qr():
                 bb.loan_days,
                 bb.due_date,
                 u.name AS student_name,
-                u.email AS student_email
+                u.email AS student_email,
+                s.student_number AS student_number,
+                s.program AS program,
+                s.college AS college,
+                s.year_level AS year_level,
+                s.gender AS gender
             FROM borrow_batches bb
             INNER JOIN users u ON u.id = bb.user_id
+            LEFT JOIN students s ON s.user_id = u.id
             WHERE bb.borrow_qr_token = %s
                OR bb.return_qr_token = %s
             LIMIT 1
@@ -1223,9 +1219,10 @@ def release_borrow_batch(batch_id):
         cursor.execute("""
             UPDATE borrow_batches
             SET
-                borrow_qr_used_at = NOW(),
+                borrow_qr_used_at = UTC_TIMESTAMP(),
                 return_qr_token = %s,
-                due_date = DATE_ADD(CURDATE(), INTERVAL loan_days DAY)
+                loan_days = 1,
+                due_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
             WHERE id = %s
               AND borrow_qr_used_at IS NULL
         """, (return_qr_token, batch_id))
@@ -1238,17 +1235,16 @@ def release_borrow_batch(batch_id):
             }), 409
 
         cursor.execute("""
-            SELECT due_date
+            SELECT
+                due_date,
+                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date_utc
             FROM borrow_batches
             WHERE id = %s
         """, (batch_id,))
         updated_batch = cursor.fetchone()
 
-        due_date = (
-            updated_batch["due_date"]
-            if updated_batch
-            else None
-        )
+        due_date = updated_batch["due_date"] if updated_batch else None
+        due_date_utc = updated_batch["due_date_utc"] if updated_batch else None
 
         cursor.execute("""
             SELECT b.title
@@ -1280,7 +1276,7 @@ def release_borrow_batch(batch_id):
             "borrow_qr_used": True,
             "return_qr_available": True,
             "return_qr_token": return_qr_token,
-            "due_date": due_date
+            "due_date": due_date_utc
         }), 200
 
     except Exception:
@@ -1350,16 +1346,32 @@ def return_borrow_batch_by_qr(batch_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Lock the batch first; this serializes simultaneous returns for it.
+        # Lock the requested batch row first. The URL batch_id identifies
+        # the batch; the scanned token is verified immediately afterward.
         cursor.execute("""
             SELECT
-                bb.id, bb.user_id, bb.status, bb.due_date,
-                bb.borrow_qr_used_at, bb.return_qr_token,
+                bb.id,
+                bb.user_id,
+                bb.status,
+                bb.borrow_qr_token,
+                bb.return_qr_token,
+                bb.borrow_qr_used_at,
                 bb.return_qr_used_at,
+                bb.requested_at,
+                bb.approved_by,
+                bb.approved_at,
+                bb.loan_days,
+                bb.due_date,
                 u.name AS student_name,
-                u.email AS student_email
+                u.email AS student_email,
+                s.student_number AS student_number,
+                s.program AS program,
+                s.college AS college,
+                s.year_level AS year_level,
+                s.gender AS gender
             FROM borrow_batches bb
             INNER JOIN users u ON u.id = bb.user_id
+            LEFT JOIN students s ON s.user_id = u.id
             WHERE bb.id = %s
             FOR UPDATE
         """, (batch_id,))
@@ -1497,7 +1509,7 @@ def return_borrow_batch_by_qr(batch_id):
 
             cursor.execute("""
                 UPDATE borrow_requests
-                SET returned_at = NOW()
+                SET returned_at = UTC_TIMESTAMP()
                 WHERE id = %s
                   AND returned_at IS NULL
                   AND status = 'approved'
@@ -1534,7 +1546,7 @@ def return_borrow_batch_by_qr(batch_id):
             cursor.execute("""
                 UPDATE borrow_batches
                 SET status = %s,
-                    return_qr_used_at = NOW()
+                    return_qr_used_at = UTC_TIMESTAMP()
                 WHERE id = %s
             """, (new_status, batch_id))
         else:
