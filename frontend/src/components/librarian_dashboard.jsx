@@ -7,8 +7,6 @@ import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
 
-// Group only records that share a real batch_id. Rows without a batch_id
-// remain independent transactions, even if they belong to the same student.
 function groupRowsByBatch(rows) {
   const groups = new Map();
 
@@ -30,15 +28,6 @@ function groupRowsByBatch(rows) {
     items,
     first: items[0],
   }));
-}
-
-
-function formatStudentYearLevel(value) {
-  const year = Number(value);
-  if (!Number.isInteger(year) || year < 1 || year > 6) return "N/A";
-
-  const suffix = year === 1 ? "st" : year === 2 ? "nd" : year === 3 ? "rd" : "th";
-  return `${year}${suffix} Year`;
 }
 
 
@@ -238,6 +227,7 @@ function LibrarianDashboard({ onLogout }) {
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
+  const [fetchingDescriptions, setFetchingDescriptions] = useState(false);
   const [bookSearch, setBookSearch] = useState("");
   const [bookCategoryFilter, setBookCategoryFilter] = useState("all");
   const [bookStatusFilter, setBookStatusFilter] = useState("all");
@@ -333,6 +323,28 @@ function LibrarianDashboard({ onLogout }) {
       setBooksLoading(false);
     }
   }, []);
+
+  const handleFetchMissingDescriptions = async () => {
+    if (fetchingDescriptions) return;
+
+    try {
+      setFetchingDescriptions(true);
+      setBooksError("");
+      setMessage("");
+
+      const result = await api.post("/api/books/fetch-missing-descriptions", {});
+      await loadBooks();
+      setMessage(
+        result.message ||
+          `Description fetch complete. Updated ${result.updated || 0} book(s).`
+      );
+    } catch (error) {
+      console.error("Fetch missing descriptions error:", error);
+      setBooksError(error.message || "Unable to fetch missing book descriptions.");
+    } finally {
+      setFetchingDescriptions(false);
+    }
+  };
 
   // Load approved borrowing transactions from the backend.
   // This is called from the navigation/button click (not a useEffect).
@@ -1278,9 +1290,9 @@ function LibrarianDashboard({ onLogout }) {
             <article className="ls-librarian-stat-card">
               <div className="ls-librarian-stat-icon"><i className="bi bi-bar-chart-line" aria-hidden="true" /></div>
               <div className="ls-librarian-stat-copy">
-                <span className="ls-librarian-stat-label">Active Borrowed Books</span>
+                <span className="ls-librarian-stat-label">Active Loans</span>
                 <strong>{dashboardBorrowedCount}</strong>
-                <small>books currently borrowed</small>
+                <small>borrowing activity</small>
               </div>
               <span className="ls-librarian-stat-tag">ACTIVITY</span>
             </article>
@@ -1521,62 +1533,59 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-          <section className="ls-qr-student-information" aria-labelledby="ls-qr-student-information-title">
-            <h3 id="ls-qr-student-information-title">Student Information</h3>
+          <div style={{ marginBottom: "24px" }}>
 
-            <div className="ls-qr-student-information__grid">
-              <div className="ls-qr-student-information__item">
-                <span>Student ID</span>
-                <strong>{scannedBatch.student_number || "N/A"}</strong>
-              </div>
+            <h3>Student Information</h3>
 
-              <div className="ls-qr-student-information__item">
-                <span>Name</span>
-                <strong>{scannedBatch.student_name || "N/A"}</strong>
-              </div>
 
-              <div className="ls-qr-student-information__item">
-                <span>Email</span>
-                <strong>{scannedBatch.student_email || "N/A"}</strong>
-              </div>
 
-              <div className="ls-qr-student-information__item">
-                <span>Program</span>
-                <strong>{scannedBatch.program || "N/A"}</strong>
-              </div>
+            <p>
 
-              <div className="ls-qr-student-information__item">
-                <span>Course / College</span>
-                <strong>{scannedBatch.college || "N/A"}</strong>
-              </div>
+              <strong>Name:</strong>{" "}
 
-              <div className="ls-qr-student-information__item">
-                <span>Year</span>
-                <strong>{formatStudentYearLevel(scannedBatch.year_level)}</strong>
-              </div>
+              {scannedBatch.student_name}
 
-              <div className="ls-qr-student-information__item">
-                <span>Gender</span>
-                <strong>{scannedBatch.gender || "N/A"}</strong>
-              </div>
+            </p>
 
-              <div className="ls-qr-student-information__item">
-                <span>Batch Status</span>
-                <strong className="ls-qr-student-information__status">
-                  {String(scannedBatch.status || "N/A").replace(/_/g, " ")}
-                </strong>
-              </div>
 
-              <div className="ls-qr-student-information__item ls-qr-student-information__item--wide">
-                <span>Date Requested</span>
-                <strong>
-                  {scannedBatch.requested_at
-                    ? new Date(scannedBatch.requested_at).toLocaleString()
-                    : "N/A"}
-                </strong>
-              </div>
-            </div>
-          </section>
+
+            <p>
+
+              <strong>Email:</strong>{" "}
+
+              {scannedBatch.student_email}
+
+            </p>
+
+
+
+            <p>
+
+              <strong>Batch Status:</strong>{" "}
+
+              {scannedBatch.status}
+
+            </p>
+
+
+
+            <p>
+
+              <strong>Date Requested:</strong>{" "}
+
+              {scannedBatch.requested_at
+
+                ? new Date(
+
+                    scannedBatch.requested_at
+
+                  ).toLocaleString()
+
+                : "N/A"}
+
+            </p>
+
+          </div>
 
           {scannedBatch.qr_type === "borrow" && (
             <section className="ls-qr-workflow-card ls-qr-workflow-card--borrow" aria-live="polite">
@@ -1600,6 +1609,7 @@ function LibrarianDashboard({ onLogout }) {
                       onClick={() => openConfirmationModal({
                         type: "release",
                         title: "Confirm Book Release",
+                        message: `Have the approved book(s) for ${scannedBatch.student_name || "this student"} been physically handed over? The borrowing period will start after confirmation.`,
                         confirmLabel: "Confirm Release",
                         onConfirm: handleReleaseBatch,
                       })}
@@ -1660,6 +1670,7 @@ function LibrarianDashboard({ onLogout }) {
                       onClick={() => openConfirmationModal({
                         type: "return",
                         title: "Confirm Book Return",
+                        message: `Have all ${selectedReturnBookIds.length} selected book(s) been physically returned? The available book count will be restored after confirmation.`,
                         confirmLabel: "Confirm Return",
                         onConfirm: handleReturnBooks,
                       })}
@@ -1948,6 +1959,25 @@ function LibrarianDashboard({ onLogout }) {
                 <h2>Book List</h2>
                 <p>View, search, and manage all library books.</p>
               </div>
+              <button
+                type="button"
+                className="ls-books-fetch-descriptions-button"
+                onClick={handleFetchMissingDescriptions}
+                disabled={fetchingDescriptions || booksLoading || !booksLoaded}
+                aria-live="polite"
+              >
+                {fetchingDescriptions ? (
+                  <>
+                    <span className="ls-books-fetch-spinner" aria-hidden="true" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-cloud-arrow-down" aria-hidden="true" />
+                    Fetch Missing Descriptions
+                  </>
+                )}
+              </button>
               <button type="button" className="ls-books-add-button" onClick={openAddBookModal}>
                 <i className="bi bi-plus-lg" aria-hidden="true" /> Add Book
               </button>
@@ -2348,7 +2378,7 @@ function LibrarianDashboard({ onLogout }) {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="ls-confirm-modal-title"
-            aria-describedby={confirmationModal.message ? "ls-confirm-modal-message" : undefined}
+            aria-describedby="ls-confirm-modal-message"
           >
             <div className="ls-confirm-modal-icon" aria-hidden="true">
               <i className={`bi ${
@@ -2360,9 +2390,7 @@ function LibrarianDashboard({ onLogout }) {
               }`} />
             </div>
             <h2 id="ls-confirm-modal-title">{confirmationModal.title}</h2>
-            {confirmationModal.message && (
-              <p id="ls-confirm-modal-message">{confirmationModal.message}</p>
-            )}
+            <p id="ls-confirm-modal-message">{confirmationModal.message}</p>
             <div className="ls-confirm-modal-actions">
               <button
                 type="button"

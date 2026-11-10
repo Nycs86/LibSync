@@ -1,14 +1,10 @@
 import logging
-
 from flask import Blueprint, jsonify
-
 from database import get_db_connection
 from .auth import require_role
 
-
 admin_risk_bp = Blueprint("admin_risk", __name__)
 logger = logging.getLogger(__name__)
-
 
 @admin_risk_bp.route("/api/admin/overdue-risk", methods=["GET"])
 @require_role("admin")

@@ -1,4 +1,3 @@
-/* Shared Reports & Analytics styles for Admin and Librarian dashboards. */
 .lr-reports-page { display: grid; gap: 16px; min-width: 0; color: #173b31; }
 .lr-report-toolbar-card, .lr-filter-panel, .lr-report-stat, .lr-report-card { min-width: 0; border: 1px solid #eee8d9; border-radius: 16px; background: #fff; box-shadow: 0 6px 18px rgba(35, 67, 49, .045); }
 .lr-report-toolbar-card { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 21px; }

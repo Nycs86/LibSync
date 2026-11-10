@@ -1,4 +1,3 @@
-/* LibSync Librarian Dashboard — matches the Student Dashboard palette */
 .ls-librarian-shell {
   --ls-lib-emerald: #006149;
   --ls-lib-emerald-deep: #00513C;
@@ -556,7 +555,44 @@
   box-shadow: 0 4px 10px rgba(0,97,73,.08);
   transition: background .16s ease, transform .16s ease, box-shadow .16s ease;
 }
-.ls-books-add-button { margin-left: auto; }
+.ls-books-fetch-descriptions-button {
+  display: inline-flex;
+  margin-left: auto;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 43px;
+  padding: 11px 15px;
+  border: 1px solid #9bd8bc;
+  border-radius: 10px;
+  color: #006149;
+  background: #eaf8f0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.ls-books-fetch-descriptions-button:hover:not(:disabled) {
+  border-color: #006149;
+  background: #dff4e8;
+  transform: translateY(-1px);
+}
+.ls-books-fetch-descriptions-button:disabled {
+  opacity: .62;
+  cursor: not-allowed;
+}
+.ls-books-fetch-descriptions-button i { font-size: 15px; }
+.ls-books-fetch-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 97, 73, .22);
+  border-top-color: #006149;
+  border-radius: 50%;
+  animation: lsBooksSpin .7s linear infinite;
+}
+.ls-books-add-button { margin-left: 0; }
 .ls-books-add-button:hover, .ls-books-submit-button:hover { background: #004e3b; box-shadow: 0 7px 15px rgba(0,97,73,.15); transform: translateY(-1px); }
 .ls-books-add-button i { font-size: 15px; }
 
@@ -673,7 +709,7 @@
   .ls-books-list-panel { padding: 14px; }
   .ls-books-list-heading { flex-wrap: wrap; }
   .ls-books-heading-copy h2 { font-size: 19px; }
-  .ls-books-add-button { width: 100%; margin-left: 0; }
+  .ls-books-fetch-descriptions-button, .ls-books-add-button { width: 100%; margin-left: 0; }
   .ls-books-toolbar { grid-template-columns: 1fr; }
   .ls-books-reset-button { grid-column: auto; width: 100%; }
   .ls-books-list-footer { align-items: flex-start; flex-direction: column; }

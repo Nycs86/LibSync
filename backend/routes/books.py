@@ -1,4 +1,3 @@
-
 import logging
 import time
 
@@ -138,6 +137,136 @@ def _fetch_book_description(isbn):
         )
 
     return None
+
+
+
+@books_bp.route("/api/books/fetch-missing-descriptions", methods=["POST"])
+@require_role("admin", "librarian")
+def fetch_missing_book_descriptions():
+    """Fill only blank descriptions for existing books that have an ISBN."""
+    connection = None
+    cursor = None
+
+    try:
+        # Read candidates first, then release the DB connection while making
+        # external API requests so a slow lookup does not hold a DB connection.
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed."
+            }), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, isbn
+            FROM books
+            WHERE description IS NULL OR TRIM(description) = ''
+            ORDER BY id ASC
+        """)
+        candidates = cursor.fetchall()
+
+        cursor.close()
+        connection.close()
+        cursor = None
+        connection = None
+
+        candidates_with_isbn = [
+            book for book in candidates
+            if book.get("isbn") and str(book["isbn"]).strip()
+        ]
+        skipped_without_isbn = len(candidates) - len(candidates_with_isbn)
+
+        # A small worker pool avoids waiting serially for each remote lookup.
+        from concurrent.futures import ThreadPoolExecutor
+
+        descriptions = {}
+        if candidates_with_isbn:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(_fetch_book_description, book["isbn"]): book["id"]
+                    for book in candidates_with_isbn
+                }
+                for future, book_id in futures.items():
+                    try:
+                        description = future.result()
+                    except Exception:
+                        logger.exception(
+                            "Description lookup failed for book ID %s",
+                            book_id,
+                        )
+                        description = None
+                    if isinstance(description, str) and description.strip():
+                        descriptions[book_id] = description.strip()[:20000]
+
+        updated = 0
+        if descriptions:
+            connection = get_db_connection()
+            if connection is None:
+                return jsonify({
+                    "status": "error",
+                    "message": "Database connection failed while saving descriptions."
+                }), 500
+
+            cursor = connection.cursor()
+            for book_id, description in descriptions.items():
+                # The WHERE guard ensures an existing description is never overwritten.
+                cursor.execute("""
+                    UPDATE books
+                    SET description = %s
+                    WHERE id = %s
+                      AND (description IS NULL OR TRIM(description) = '')
+                """, (description, book_id))
+                updated += cursor.rowcount
+
+            connection.commit()
+
+        checked = len(candidates_with_isbn)
+        not_found = checked - len(descriptions)
+        message = (
+            f"Fetched descriptions for {updated} of {len(candidates)} book(s). "
+            f"{not_found} not found; {skipped_without_isbn} skipped without ISBN."
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": message,
+            "total_missing": len(candidates),
+            "checked": checked,
+            "updated": updated,
+            "not_found": not_found,
+            "skipped_without_isbn": skipped_without_isbn,
+        }), 200
+
+    except mysql.connector.Error:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after description fetch error")
+        logger.exception("Database error while fetching missing descriptions")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to save the fetched descriptions right now."
+        }), 500
+
+    except Exception:
+        if connection:
+            try:
+                connection.rollback()
+            except mysql.connector.Error:
+                logger.exception("Rollback failed after unexpected description fetch error")
+        logger.exception("Unexpected error while fetching missing descriptions")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to fetch missing book descriptions right now."
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 
 def seed_starter_books(max_new_books):
