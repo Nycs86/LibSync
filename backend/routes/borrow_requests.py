@@ -675,7 +675,10 @@ def get_student_borrow_batches(user_id):
                 user_id,
                 borrow_qr_token,
                 return_qr_token,
-                DATE_FORMAT(borrow_qr_used_at, '%Y-%m-%dT%H:%i:%sZ') AS borrow_qr_used_at,
+                DATE_FORMAT(
+                    borrow_qr_used_at,
+                    '%%Y-%%m-%%dT%%H:%%i:%%sZ'
+                ) AS borrow_qr_used_at,
                 return_qr_used_at,
                 status,
                 requested_at,
