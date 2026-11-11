@@ -4,6 +4,7 @@ import uuid
 import qrcode
 import io
 import base64
+from datetime import date, datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from database import get_db_connection
@@ -12,6 +13,24 @@ from .auth import require_role
 logger = logging.getLogger(__name__)
 
 borrow_requests_bp = Blueprint("borrow_requests", __name__)
+
+
+
+
+def _serialize_utc_datetime(value):
+    """Serialize MySQL UTC date/time values as ISO-8601 strings for the frontend."""
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.isoformat(timespec="seconds") + "Z"
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    return value
 
 
 def _get_json_object():
@@ -675,17 +694,14 @@ def get_student_borrow_batches(user_id):
                 user_id,
                 borrow_qr_token,
                 return_qr_token,
-                DATE_FORMAT(
-                    borrow_qr_used_at,
-                    '%%Y-%%m-%%dT%%H:%%i:%%SZ'
-                ) AS borrow_qr_used_at,
+                borrow_qr_used_at,
                 return_qr_used_at,
                 status,
                 requested_at,
                 approved_by,
                 approved_at,
                 loan_days,
-                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%SZ') AS due_date
+                due_date
             FROM borrow_batches
             WHERE user_id = %s
             ORDER BY requested_at DESC
@@ -693,6 +709,15 @@ def get_student_borrow_batches(user_id):
         batches = cursor.fetchall()
 
         for batch in batches:
+            for date_key in (
+                "borrow_qr_used_at",
+                "return_qr_used_at",
+                "requested_at",
+                "approved_at",
+                "due_date",
+            ):
+                batch[date_key] = _serialize_utc_datetime(batch.get(date_key))
+
             cursor.execute("""
                 SELECT
                     br.id AS request_id,
@@ -710,6 +735,10 @@ def get_student_borrow_batches(user_id):
                 ORDER BY br.id ASC
             """, (batch["id"],))
             batch["books"] = cursor.fetchall()
+            for book in batch["books"]:
+                book["returned_at"] = _serialize_utc_datetime(
+                    book.get("returned_at")
+                )
 
             token, qr_type = _current_qr_for_batch(batch)
             batch["qr_available"] = token is not None
@@ -1239,15 +1268,14 @@ def release_borrow_batch(batch_id):
 
         cursor.execute("""
             SELECT
-                due_date,
-                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%SZ') AS due_date_utc
+                due_date
             FROM borrow_batches
             WHERE id = %s
         """, (batch_id,))
         updated_batch = cursor.fetchone()
 
         due_date = updated_batch["due_date"] if updated_batch else None
-        due_date_utc = updated_batch["due_date_utc"] if updated_batch else None
+        due_date_utc = _serialize_utc_datetime(due_date)
 
         cursor.execute("""
             SELECT b.title
