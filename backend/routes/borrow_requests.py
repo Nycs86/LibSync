@@ -685,7 +685,7 @@ def get_student_borrow_batches(user_id):
                 approved_by,
                 approved_at,
                 loan_days,
-                DATE_FORMAT(due_date, '%Y-%m-%dT%H:%i:%sZ') AS due_date
+                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS due_date
             FROM borrow_batches
             WHERE user_id = %s
             ORDER BY requested_at DESC
