@@ -7,6 +7,8 @@ import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 
 
+// Group only records that share a real batch_id. Rows without a batch_id
+// remain independent transactions, even if they belong to the same student.
 function groupRowsByBatch(rows) {
   const groups = new Map();
 
@@ -227,7 +229,6 @@ function LibrarianDashboard({ onLogout }) {
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
-  const [fetchingDescriptions, setFetchingDescriptions] = useState(false);
   const [bookSearch, setBookSearch] = useState("");
   const [bookCategoryFilter, setBookCategoryFilter] = useState("all");
   const [bookStatusFilter, setBookStatusFilter] = useState("all");
@@ -323,28 +324,6 @@ function LibrarianDashboard({ onLogout }) {
       setBooksLoading(false);
     }
   }, []);
-
-  const handleFetchMissingDescriptions = async () => {
-    if (fetchingDescriptions) return;
-
-    try {
-      setFetchingDescriptions(true);
-      setBooksError("");
-      setMessage("");
-
-      const result = await api.post("/api/books/fetch-missing-descriptions", {});
-      await loadBooks();
-      setMessage(
-        result.message ||
-          `Description fetch complete. Updated ${result.updated || 0} book(s).`
-      );
-    } catch (error) {
-      console.error("Fetch missing descriptions error:", error);
-      setBooksError(error.message || "Unable to fetch missing book descriptions.");
-    } finally {
-      setFetchingDescriptions(false);
-    }
-  };
 
   // Load approved borrowing transactions from the backend.
   // This is called from the navigation/button click (not a useEffect).
@@ -1533,59 +1512,78 @@ function LibrarianDashboard({ onLogout }) {
 
 
 
-          <div style={{ marginBottom: "24px" }}>
-
+          <section className="ls-scanned-student-info">
             <h3>Student Information</h3>
 
+            <div className="ls-scanned-student-info__grid">
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Student ID</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.student_number || "N/A"}
+                </strong>
+              </div>
 
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Name</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.student_name || "N/A"}
+                </strong>
+              </div>
 
-            <p>
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Email</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.student_email || "N/A"}
+                </strong>
+              </div>
 
-              <strong>Name:</strong>{" "}
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Program</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.program || "N/A"}
+                </strong>
+              </div>
 
-              {scannedBatch.student_name}
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Course / College</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.college || "N/A"}
+                </strong>
+              </div>
 
-            </p>
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Year Level</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.year_level
+                    ? `${scannedBatch.year_level}${Number(scannedBatch.year_level) === 1 ? "st" : Number(scannedBatch.year_level) === 2 ? "nd" : Number(scannedBatch.year_level) === 3 ? "rd" : "th"} Year`
+                    : "N/A"}
+                </strong>
+              </div>
 
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Gender</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.gender || "N/A"}
+                </strong>
+              </div>
 
+              <div className="ls-scanned-student-info__item">
+                <span className="ls-scanned-student-info__label">Batch Status</span>
+                <strong className="ls-scanned-student-info__value ls-scanned-student-info__value--status">
+                  {scannedBatch.status || "N/A"}
+                </strong>
+              </div>
 
-            <p>
-
-              <strong>Email:</strong>{" "}
-
-              {scannedBatch.student_email}
-
-            </p>
-
-
-
-            <p>
-
-              <strong>Batch Status:</strong>{" "}
-
-              {scannedBatch.status}
-
-            </p>
-
-
-
-            <p>
-
-              <strong>Date Requested:</strong>{" "}
-
-              {scannedBatch.requested_at
-
-                ? new Date(
-
-                    scannedBatch.requested_at
-
-                  ).toLocaleString()
-
-                : "N/A"}
-
-            </p>
-
-          </div>
+              <div className="ls-scanned-student-info__item ls-scanned-student-info__item--wide">
+                <span className="ls-scanned-student-info__label">Date Requested</span>
+                <strong className="ls-scanned-student-info__value">
+                  {scannedBatch.requested_at
+                    ? new Date(scannedBatch.requested_at).toLocaleString()
+                    : "N/A"}
+                </strong>
+              </div>
+            </div>
+          </section>
 
           {scannedBatch.qr_type === "borrow" && (
             <section className="ls-qr-workflow-card ls-qr-workflow-card--borrow" aria-live="polite">
@@ -1959,25 +1957,6 @@ function LibrarianDashboard({ onLogout }) {
                 <h2>Book List</h2>
                 <p>View, search, and manage all library books.</p>
               </div>
-              <button
-                type="button"
-                className="ls-books-fetch-descriptions-button"
-                onClick={handleFetchMissingDescriptions}
-                disabled={fetchingDescriptions || booksLoading || !booksLoaded}
-                aria-live="polite"
-              >
-                {fetchingDescriptions ? (
-                  <>
-                    <span className="ls-books-fetch-spinner" aria-hidden="true" />
-                    Fetching...
-                  </>
-                ) : (
-                  <>
-                    <i className="bi bi-cloud-arrow-down" aria-hidden="true" />
-                    Fetch Missing Descriptions
-                  </>
-                )}
-              </button>
               <button type="button" className="ls-books-add-button" onClick={openAddBookModal}>
                 <i className="bi bi-plus-lg" aria-hidden="true" /> Add Book
               </button>

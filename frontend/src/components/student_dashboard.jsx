@@ -341,8 +341,9 @@ function StudentDashboard({ onLogout }) {
   const [studentRequests, setStudentRequests] = useState([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [countdownNow, setCountdownNow] = useState(() => Date.now());
-  const [showReturnQr, setShowReturnQr] = useState(false);
-  const [returnQrMessage, setReturnQrMessage] = useState("");
+  // Each active borrowing batch has an independent Return QR visibility state.
+  const [qrListTab, setQrListTab] = useState("all");
+  const [expandedQrBatch, setExpandedQrBatch] = useState(null);
   const [studentBatches, setStudentBatches] = useState([]);
   const [isBatchesLoading, setIsBatchesLoading] = useState(false);
   const [batchStatusError, setBatchStatusError] = useState("");
@@ -619,6 +620,38 @@ function StudentDashboard({ onLogout }) {
     return () => controller.abort();
   }, [userId]);
 
+  // Refresh individual request decisions whenever the student opens the QR page
+  // or manually refreshes borrowing status. This keeps declined notices current
+  // even when the dashboard component stayed mounted while the librarian decided.
+  useEffect(() => {
+    if (activeMenu !== "qr" || !userId) return undefined;
+
+    const controller = new AbortController();
+
+    const refreshStudentRequests = async () => {
+      try {
+        const data = await apiRequest(
+          `/api/student/borrow-requests/${encodeURIComponent(userId)}`,
+          {
+            method: "GET",
+            signal: controller.signal,
+          }
+        );
+
+        if (!controller.signal.aborted) {
+          setStudentRequests(Array.isArray(data.requests) ? data.requests : []);
+        }
+      } catch (error) {
+        if (error.name !== "AbortError" && !controller.signal.aborted) {
+          console.warn("Refresh student borrowing decisions error:", error);
+        }
+      }
+    };
+
+    refreshStudentRequests();
+    return () => controller.abort();
+  }, [activeMenu, userId, batchRefreshVersion]);
+
   // Load the student's borrowing batches when the QR page opens or is refreshed.
   // The server sets due_date only when the librarian finishes approving the batch,
   // so a pending approval does not consume the student's chosen loan period.
@@ -703,6 +736,7 @@ function StudentDashboard({ onLogout }) {
   );
 
   const recentStudentRequests = studentRequests.slice(0, 4);
+
   const formatActivityDate = (value) => {
     if (!value) return "Date unavailable";
     const parsed = new Date(value);
@@ -770,12 +804,7 @@ function StudentDashboard({ onLogout }) {
     };
   };
 
-  const activeQrBatch = useMemo(() => {
-    const activeStatuses = ["pending", "approved", "partially_returned"];
-    const storedBatch = qrRequest?.batchId
-      ? studentBatches.find((batch) => Number(batch.id) === Number(qrRequest.batchId))
-      : null;
-
+  const qrBatches = useMemo(() => {
     const normalizeBooks = (batchBooks, fallbackBooks = []) => {
       const source =
         Array.isArray(batchBooks) && batchBooks.length
@@ -789,84 +818,117 @@ function StudentDashboard({ onLogout }) {
       }));
     };
 
-    if (qrRequest) {
-      return {
+    const normalizedBatches = studentBatches.map((batch) => ({
+      batchId: batch.id,
+      borrowQrPayload: batch.borrow_qr_token || null,
+      returnQrPayload: batch.return_qr_token || null,
+      borrowQrUsedAt: batch.borrow_qr_used_at || null,
+      returnQrUsedAt: batch.return_qr_used_at || null,
+      status: String(batch.status || "pending").toLowerCase(),
+      loanDays: 1,
+      dueDate: batch.due_date || null,
+      requestedAt: batch.requested_at || null,
+      approvedAt: batch.approved_at || null,
+      borrowedAt: batch.borrow_qr_used_at || null,
+      books: normalizeBooks(batch.books),
+    }));
+
+    // Keep a just-submitted request visible while the first batch refresh is
+    // still in flight. Replace it with the authoritative API batch when loaded.
+    if (
+      qrRequest?.batchId &&
+      !normalizedBatches.some(
+        (batch) => Number(batch.batchId) === Number(qrRequest.batchId)
+      )
+    ) {
+      normalizedBatches.push({
         ...qrRequest,
-        batchId: storedBatch?.id ?? qrRequest.batchId,
-        borrowQrPayload:
-          storedBatch?.borrow_qr_token ??
-          qrRequest.borrowQrPayload ??
-          null,
-        returnQrPayload:
-          storedBatch?.return_qr_token ??
-          qrRequest.returnQrPayload ??
-          null,
-        borrowQrUsedAt:
-          storedBatch?.borrow_qr_used_at ??
-          qrRequest.borrowQrUsedAt ??
-          null,
-        returnQrUsedAt:
-          storedBatch?.return_qr_used_at ??
-          qrRequest.returnQrUsedAt ??
-          null,
-        status: storedBatch?.status || qrRequest.status || "pending",
+        batchId: qrRequest.batchId,
+        borrowQrPayload: qrRequest.borrowQrPayload || null,
+        returnQrPayload: qrRequest.returnQrPayload || null,
+        borrowQrUsedAt: qrRequest.borrowQrUsedAt || null,
+        returnQrUsedAt: qrRequest.returnQrUsedAt || null,
+        status: String(qrRequest.status || "pending").toLowerCase(),
         loanDays: 1,
-        dueDate: storedBatch?.due_date || qrRequest.dueDate || null,
-        requestedAt:
-          storedBatch?.requested_at || qrRequest.requestedAt || null,
-        approvedAt:
-          storedBatch?.approved_at || qrRequest.approvedAt || null,
-        borrowedAt:
-          storedBatch?.borrow_qr_used_at ||
-          qrRequest.borrowedAt ||
-          null,
-        books: normalizeBooks(storedBatch?.books, qrRequest.books),
-      };
+        dueDate: qrRequest.dueDate || null,
+        requestedAt: qrRequest.requestedAt || new Date().toISOString(),
+        approvedAt: qrRequest.approvedAt || null,
+        borrowedAt: qrRequest.borrowedAt || null,
+        books: normalizeBooks(qrRequest.books),
+      });
     }
 
-    const latestActive =
-      studentBatches.find((batch) => activeStatuses.includes(batch.status)) ||
-      studentBatches.find((batch) => batch.status === "returned");
-
-    if (!latestActive) return null;
-
-    return {
-      batchId: latestActive.id,
-      borrowQrPayload: latestActive.borrow_qr_token || null,
-      returnQrPayload: latestActive.return_qr_token || null,
-      borrowQrUsedAt: latestActive.borrow_qr_used_at || null,
-      returnQrUsedAt: latestActive.return_qr_used_at || null,
-      status: latestActive.status,
-      loanDays: 1,
-      dueDate: latestActive.due_date || null,
-      requestedAt: latestActive.requested_at || null,
-      approvedAt: latestActive.approved_at || null,
-      borrowedAt: latestActive.borrow_qr_used_at || null,
-      books: normalizeBooks(latestActive.books),
-    };
+    return normalizedBatches.sort((a, b) => {
+      const dateA = a.requestedAt ? new Date(a.requestedAt).getTime() : 0;
+      const dateB = b.requestedAt ? new Date(b.requestedAt).getTime() : 0;
+      if (dateA !== dateB) return dateB - dateA;
+      return Number(b.batchId || 0) - Number(a.batchId || 0);
+    });
   }, [qrRequest, studentBatches]);
 
-  // Tick only while the student is viewing a released borrowing batch. The
-  // countdown uses absolute server timestamps, so refreshing cannot reset it.
+  const pendingQrBatches = qrBatches.filter(
+    (batch) => batch.status === "pending"
+  );
+
+  const activeQrBatches = qrBatches.filter((batch) => {
+    const hasOutstandingBooks = (batch.books || []).some(
+      (book) => !["returned", "declined"].includes(String(book.status || "").toLowerCase())
+    );
+    return (
+      ["approved", "partially_returned"].includes(batch.status) &&
+      hasOutstandingBooks
+    );
+  });
+
+  const returnedQrBatches = qrBatches.filter(
+    (batch) => batch.status === "returned"
+  );
+
+  const historyQrBatches = qrBatches.filter(
+    (batch) => ["returned", "declined"].includes(batch.status)
+  );
+
+  const allRequestQrBatches = qrBatches.filter(
+    (batch) =>
+      batch.status === "pending" ||
+      ["approved", "partially_returned"].includes(batch.status)
+  );
+
+  const visibleQrTab =
+    pendingQrBatches.length > 0
+      ? qrListTab
+      : ["all", "pending"].includes(qrListTab)
+      ? "active"
+      : qrListTab;
+
+  const displayedQrBatches =
+    visibleQrTab === "all"
+      ? allRequestQrBatches
+      : visibleQrTab === "pending"
+      ? pendingQrBatches
+      : visibleQrTab === "active"
+      ? activeQrBatches
+      : visibleQrTab === "returned"
+      ? returnedQrBatches
+      : visibleQrTab === "history"
+      ? historyQrBatches
+      : activeQrBatches;
+
+  const hasReleasedQrBatch = activeQrBatches.some(
+    (batch) => Boolean(batch.borrowedAt)
+  );
+
+  // One clock updates all visible batch countdowns, each based on its own
+  // librarian release timestamp and 24-hour deadline from the backend.
   useEffect(() => {
-    if (activeMenu !== "qr" || !activeQrBatch?.borrowedAt) return undefined;
+    if (activeMenu !== "qr" || !hasReleasedQrBatch) return undefined;
 
     const timerId = window.setInterval(() => {
       setCountdownNow(Date.now());
     }, 1000);
 
     return () => window.clearInterval(timerId);
-  }, [activeMenu, activeQrBatch?.borrowedAt]);
-
-  const booksStillToReturn = (activeQrBatch?.books || []).filter(
-    (book) => !["returned", "declined"].includes(String(book.status || "").toLowerCase())
-  );
-  const booksAlreadyReturned = (activeQrBatch?.books || []).filter(
-    (book) => String(book.status || "").toLowerCase() === "returned"
-  );
-  const returnCountdown = activeQrBatch
-    ? getReturnCountdown(activeQrBatch.borrowedAt, activeQrBatch.dueDate)
-    : null;
+  }, [activeMenu, hasReleasedQrBatch]);
 
   const addBook = (book) => {
     setPageError("");
@@ -925,12 +987,11 @@ function StudentDashboard({ onLogout }) {
       });
 
       setSelectedBooks([]);
-      setShowReturnQr(false);
-      setReturnQrMessage("");
       setRequestSuccess(
         data.message ||
           "Borrow request submitted successfully. Wait for librarian approval before the Borrow QR becomes available."
       );
+      setQrListTab("all");
       setActiveMenu("qr");
       setBatchRefreshVersion((value) => value + 1);
     } catch (error) {
@@ -1162,13 +1223,15 @@ function StudentDashboard({ onLogout }) {
           </div>
         )}
 
-        <header className="student-header">
-          <div className="student-header-copy">
-            <span className="student-header-label">YOUR LIBRARY SPACE</span>
-            <h1>{activeMenu === "books" ? `Hello ${firstName}, what will you read today?` : activeMenu === "categories" ? "Explore book categories" : activeMenu === "selected" ? "Your selected books" : "Your borrowing QR code"}</h1>
-            <p>{activeMenu === "books" ? "Discover your next favorite book from the library catalogue." : activeMenu === "categories" ? "Browse the collection by subject or genre." : activeMenu === "selected" ? "Review your book choices before submitting a request." : "Show this QR code to the librarian when it is ready."}</p>
-          </div>
-        </header>
+        {activeMenu !== "qr" && (
+          <header className="student-header libsync-page-hero libsync-page-hero--compact">
+            <div className="student-header-copy libsync-page-hero-copy">
+              <span className="student-header-label">YOUR LIBRARY SPACE</span>
+              <h1>{activeMenu === "books" ? `Hello ${firstName}, what will you read today?` : activeMenu === "categories" ? "Explore book categories" : activeMenu === "selected" ? "Your selected books" : "Your borrowing QR code"}</h1>
+              <p>{activeMenu === "books" ? "Discover your next favorite book from the library catalogue." : activeMenu === "categories" ? "Browse the collection by subject or genre." : activeMenu === "selected" ? "Review your book choices before submitting a request." : "Show this QR code to the librarian when it is ready."}</p>
+            </div>
+          </header>
+        )}
 
         <main className="student-main">
           {pageError && <div className="form-error" role="alert">{pageError}</div>}
@@ -1393,255 +1456,209 @@ function StudentDashboard({ onLogout }) {
 
           {activeMenu === "qr" && (
             <section>
-              <div className="student-section-heading">
-                <h2>Borrowing &amp; Return QR</h2>
-                <p>Your borrowing QR and separate return QR are shown here.</p>
-              </div>
-
               {batchStatusError && <div className="form-error" role="alert">{batchStatusError}</div>}
 
-              {!activeQrBatch ? (
-                <div className="student-empty-state">
-                  <i className="bi bi-qr-code"></i>
-                  <h3>No borrowing QR yet</h3>
-                  <p>Select books and submit your borrowing request. The fixed 24-hour countdown starts only after the librarian releases your books.</p>
-                  <button type="button" className="go-books-button" onClick={() => navigateTo("books")}>Browse Books</button>
-                  <button type="button" className="qr-refresh-button" disabled={isBatchesLoading} onClick={() => {
-                    setBatchRefreshVersion((value) => value + 1);
-                    setInventoryRefreshVersion((value) => value + 1);
-                  }}>
-                    <i className="bi bi-arrow-clockwise"></i> {isBatchesLoading ? "Refreshing..." : "Refresh status and book availability"}
+              <section className="libsync-qr-page">
+                <header className="libsync-qr-hero">
+                  <div className="libsync-qr-hero-copy">
+                    <span>YOUR LIBRARY SPACE</span>
+                    <h2>Borrowing &amp; Return QR</h2>
+                    <p>Manage your active borrowings and return them using their respective QR codes.</p>
+                  </div>
+                </header>
+
+                <nav className="libsync-qr-tabs" aria-label="Borrowing request filters">
+                  {pendingQrBatches.length > 0 && (
+                    <>
+                      <button type="button" className={`libsync-qr-tab ${visibleQrTab === "all" ? "active" : ""}`} onClick={() => setQrListTab("all")}>
+                        <i className="bi bi-list-ul"></i><span>All Requests ({allRequestQrBatches.length})</span>
+                      </button>
+                      <button type="button" className={`libsync-qr-tab ${visibleQrTab === "pending" ? "active" : ""}`} onClick={() => setQrListTab("pending")}>
+                        <i className="bi bi-hourglass-split"></i><span>Pending Approval ({pendingQrBatches.length})</span>
+                      </button>
+                    </>
+                  )}
+                  <button type="button" className={`libsync-qr-tab ${visibleQrTab === "active" ? "active" : ""}`} onClick={() => setQrListTab("active")}>
+                    <i className="bi bi-check-circle"></i><span>Active Borrowings ({activeQrBatches.length})</span>
                   </button>
-                </div>
-              ) : (
-                <div className="qr-dual-grid">
-                  <article className="qr-card qr-card--borrow">
-                    <div className="qr-card-banner">
-                      <div className="qr-card-banner-icon"><i className="bi bi-book-half"></i></div>
-                      <h2>Borrowing QR</h2>
-                      <p>Present this QR to the librarian for checkout.</p>
-                    </div>
+                  <button type="button" className={`libsync-qr-tab ${visibleQrTab === "returned" ? "active" : ""}`} onClick={() => setQrListTab("returned")}>
+                    <i className="bi bi-calendar-check"></i><span>Returned ({returnedQrBatches.length})</span>
+                  </button>
+                  <button type="button" className={`libsync-qr-tab ${visibleQrTab === "history" ? "active" : ""}`} onClick={() => setQrListTab("history")}>
+                    <i className="bi bi-clock-history"></i><span>History</span>
+                  </button>
+                </nav>
 
-                    <p className="qr-student-name">Student: <strong>{user?.name || "Student"}</strong></p>
-                    {activeQrBatch.batchId && <p className="qr-batch-id">Batch ID: {activeQrBatch.batchId}</p>}
-                    <span className={`qr-status-pill qr-status-pill--${activeQrBatch.status || "pending"}`}>
-                      {activeQrBatch.status === "returned"
-                        ? "Returned"
-                        : activeQrBatch.status === "partially_returned"
-                        ? "Partially returned"
-                        : activeQrBatch.status === "approved" && activeQrBatch.borrowQrUsedAt
-                        ? "Books released"
-                        : activeQrBatch.status === "approved"
-                        ? "Approved | Borrow QR ready"
-                        : activeQrBatch.status === "declined"
-                        ? "Declined"
-                        : "Pending librarian approval"}
-                    </span>
-
-                    {activeQrBatch.status === "approved" &&
-                    activeQrBatch.borrowQrPayload &&
-                    !activeQrBatch.borrowQrUsedAt ? (
-                      <div className="qr-real-container">
-                        <QRCodeCanvas value={activeQrBatch.borrowQrPayload} size={220} level="H" includeMargin />
-                      </div>
-                    ) : activeQrBatch.borrowQrUsedAt ? (
-                      <div className="qr-placeholder">
-                        <i className="bi bi-check-circle"></i>
-                        <span>Borrow QR already used | Books released</span>
-                      </div>
-                    ) : activeQrBatch.status === "declined" ? (
-                      <div className="qr-placeholder">
-                        <i className="bi bi-x-circle"></i>
-                        <span>Borrow request declined</span>
-                      </div>
-                    ) : (
-                      <div className="qr-placeholder">
-                        <i className="bi bi-qr-code"></i>
-                        <span>Borrow QR available after librarian approval</span>
-                      </div>
-                    )}
-
-                    <div className="qr-details-panel qr-details-panel--borrow">
-                      <div className="qr-details-heading">
-                        <span className="qr-details-heading-icon"><i className="bi bi-calendar2-check"></i></span>
-                        <strong>Borrowing Details</strong>
-                      </div>
-                      <div className="qr-details-row">
-                        <i className="bi bi-calendar3"></i>
-                        <div><span>Borrowed on</span><strong>{activeQrBatch.borrowedAt ? formatDueDate(activeQrBatch.borrowedAt) : "Not checked out yet"}</strong></div>
-                      </div>
-                      <div className="qr-details-row">
-                        <i className="bi bi-hourglass-split"></i>
-                        <div><span>Return period</span><strong>24 hours</strong></div>
-                      </div>
-                      <div className="qr-details-row">
-                        <i className="bi bi-calendar-check"></i>
-                        <div><span>Expected due date</span><strong>{activeQrBatch.dueDate ? formatDueDate(activeQrBatch.dueDate) : "Set after librarian releases the books"}</strong></div>
-                      </div>
-                      {!activeQrBatch.borrowedAt && activeQrBatch.status !== "returned" && activeQrBatch.status !== "declined" && (
-                        <div className="qr-info-note"><i className="bi bi-info-circle"></i><span>{activeQrBatch.status === "approved" ? "Your Borrow QR is ready. The return period starts after the librarian scans it and releases the books." : "Your Borrow QR will appear after librarian approval. The return period starts only when the books are released."}</span></div>
-                      )}
-                    </div>
-
-                    <div className="qr-book-summary">
-                      <h3>Books in this request</h3>
-                      {activeQrBatch.books.map((book) => (
-                        <div className="qr-book-item" key={book.request_id || book.id}>
-                          <i className={`bi ${book.status === "returned" ? "bi-check-circle-fill" : book.status === "declined" ? "bi-x-circle" : "bi-book"}`}></i>
-                          <span>{book.title}{book.status === "returned" ? " | Returned" : book.status === "declined" ? " | Declined" : ""}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="qr-total-books">Total books: {activeQrBatch.books.length}</p>
-                  </article>
-
-                  <article className="qr-card qr-card--return">
-                    <div className="qr-card-banner">
-                      <div className="qr-card-banner-icon"><i className="bi bi-arrow-return-left"></i></div>
-                      <h2>Return QR</h2>
-                      <p>Show this separate QR to the librarian. The librarian scans and confirms the returned books.</p>
-                    </div>
-
-                    <p className="qr-student-name">Student: <strong>{user?.name || "Student"}</strong></p>
-                    {activeQrBatch.batchId && <p className="qr-batch-id">Batch ID: {activeQrBatch.batchId}</p>}
-                    <span className={`qr-status-pill qr-status-pill--${activeQrBatch.status || "pending"}`}>
-                      {activeQrBatch.status === "returned"
-                        ? "All books returned"
-                        : activeQrBatch.status === "partially_returned"
-                        ? "Books still to return"
-                        : activeQrBatch.borrowQrUsedAt && activeQrBatch.returnQrPayload
-                        ? "Ready to return"
-                        : activeQrBatch.status === "declined"
-                        ? "Not available"
-                        : "Available after checkout"}
-                    </span>
-
-                    {showReturnQr && activeQrBatch.returnQrPayload && activeQrBatch.borrowQrUsedAt && ["approved", "partially_returned"].includes(activeQrBatch.status) ? (
-                      <>
-                        <div className="qr-real-container qr-real-container--return">
-                          <QRCodeCanvas value={activeQrBatch.returnQrPayload} size={220} level="H" includeMargin />
-                        </div>
-                        <p className="qr-return-ready-note">
-                          <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
-                          This is your separate Return QR. Show it to the librarian when returning your book(s).
-                        </p>
-                        <button
-                          type="button"
-                          className="qr-generate-return-button qr-generate-return-button--secondary"
-                          onClick={() => setShowReturnQr(false)}
-                        >
-                          <i className="bi bi-eye-slash" aria-hidden="true"></i> Hide Return QR
-                        </button>
-                      </>
-                    ) : activeQrBatch.status === "returned" ? (
-                      <div className="qr-return-unavailable">
-                        <i className="bi bi-check-circle-fill" aria-hidden="true"></i>
-                        <strong>Return completed</strong>
-                        <span>All approved books in this batch have been returned.</span>
-                      </div>
-                    ) : activeQrBatch.status === "declined" ? (
-                      <div className="qr-return-unavailable">
-                        <i className="bi bi-x-circle" aria-hidden="true"></i>
-                        <strong>Return QR unavailable</strong>
-                        <span>This borrowing request was declined.</span>
-                      </div>
-                    ) : (
-                      <div className="qr-return-cta">
-                        <div className="qr-return-cta-icon">
-                          <i className="bi bi-qr-code" aria-hidden="true"></i>
-                        </div>
-                        <strong>{activeQrBatch.returnQrPayload && activeQrBatch.borrowQrUsedAt ? "Ready to return your books?" : "Return QR not available yet"}</strong>
-                        <span>
-                          {activeQrBatch.returnQrPayload && activeQrBatch.borrowQrUsedAt
-                            ? "Press the button to show your Return QR. It is different from your Borrow QR."
-                            : "The Return QR appears only after the librarian scans your Borrow QR and releases the approved books."}
-                        </span>
-                        <button
-                          type="button"
-                          className="qr-generate-return-button"
-                          disabled={!(activeQrBatch.borrowQrUsedAt && activeQrBatch.returnQrPayload && ["approved", "partially_returned"].includes(activeQrBatch.status))}
-                          onClick={() => {
-                            if (!activeQrBatch.borrowQrUsedAt || !activeQrBatch.returnQrPayload) {
-                              setReturnQrMessage("Return QR is not available yet. Refresh after the librarian scans your Borrow QR and releases the books.");
-                              setBatchRefreshVersion((value) => value + 1);
-                              return;
-                            }
-                            setReturnQrMessage("");
-                            setShowReturnQr(true);
-                          }}
-                        >
-                          <i className="bi bi-qr-code-scan" aria-hidden="true"></i>
-                          Show Return QR
-                        </button>
-                        {returnQrMessage && (
-                          <p className="qr-return-action-message" role="status">{returnQrMessage}</p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="qr-return-date-panel">
-                      <div className="qr-return-date-header">
-                        <span className="qr-return-date-icon"><i className="bi bi-calendar3"></i></span>
-                        <div><span>RETURN BY</span><strong>{activeQrBatch.dueDate ? formatDueDate(activeQrBatch.dueDate) : "Set after librarian release"}</strong></div>
-                      </div>
-                      <div className="qr-return-date-footer">
-                        <div className="qr-return-borrowed-date"><i className="bi bi-calendar-check"></i><span>Released on<br /><strong>{activeQrBatch.borrowedAt ? formatDueDate(activeQrBatch.borrowedAt) : "Awaiting librarian release"}</strong></span></div>
-                        {activeQrBatch.borrowedAt && ["approved", "partially_returned"].includes(activeQrBatch.status) && (
-                          <span className={`qr-days-remaining qr-live-countdown ${returnCountdown?.isOverdue ? "is-overdue" : ""}`} aria-live="off">
-                            <i className="bi bi-clock"></i>
-                            {returnCountdown?.label}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="qr-book-summary">
-                      <h3>Books to return ({booksStillToReturn.length})</h3>
-                      {booksStillToReturn.length > 0 ? (
-                        booksStillToReturn.map((book) => (
-                          <div className="qr-book-item" key={book.request_id || book.id}>
-                            <i className="bi bi-book"></i>
-                            <span>{book.title}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="qr-return-ready-note">No remaining books to return.</p>
-                      )}
-                    </div>
-
-                    {booksAlreadyReturned.length > 0 && (
-                      <div className="qr-book-summary qr-book-summary--returned">
-                        <h3>Returned books ({booksAlreadyReturned.length})</h3>
-                        {booksAlreadyReturned.map((book) => (
-                          <div className="qr-book-item" key={book.request_id || book.id}>
-                            <i className="bi bi-check-circle-fill"></i>
-                            <span>{book.title} | Returned</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <p className="qr-total-books">
-                      Remaining: {booksStillToReturn.length} | Returned: {booksAlreadyReturned.length}
+                {isBatchesLoading && qrBatches.length === 0 ? (
+                  <div className="libsync-qr-empty"><i className="bi bi-arrow-repeat"></i><strong>Loading your borrowing activity...</strong></div>
+                ) : displayedQrBatches.length === 0 ? (
+                  <div className="libsync-qr-empty">
+                    <i className={visibleQrTab === "pending" ? "bi bi-hourglass" : visibleQrTab === "returned" ? "bi bi-check-circle" : visibleQrTab === "history" ? "bi bi-clock-history" : "bi bi-qr-code"}></i>
+                    <strong>
+                      {visibleQrTab === "pending" ? "No pending approval"
+                        : visibleQrTab === "returned" ? "No returned books yet"
+                        : visibleQrTab === "history" ? "No borrowing history yet"
+                        : "No active borrowing yet"}
+                    </strong>
+                    <p>
+                      {visibleQrTab === "active"
+                        ? "When your approved books are ready for checkout or have been released, they will appear here."
+                        : visibleQrTab === "pending"
+                        ? "New borrowing requests waiting for librarian approval will appear here."
+                        : "Your borrowing transactions will appear here as you use the library."}
                     </p>
-                    <button
-                      type="button"
-                      className="qr-refresh-button"
-                      disabled={isBatchesLoading || isLoading}
-                      onClick={() => {
-                        setBatchRefreshVersion((value) => value + 1);
-                        setInventoryRefreshVersion((value) => value + 1);
-                      }}
-                    >
-                      <i className="bi bi-arrow-clockwise"></i>
-                      {isBatchesLoading || isLoading ? "Refreshing..." : "Refresh status and book availability"}
-                    </button>
-                  </article>
-                </div>
-              )}
-            </section>
+                    {visibleQrTab === "active" && <button type="button" onClick={() => navigateTo("books")}>Browse Books</button>}
+                  </div>
+                ) : (
+                  <div className="libsync-qr-list">
+                    {displayedQrBatches.map((batch) => {
+                      const books = batch.books || [];
+                      const returnCountdown = batch.borrowedAt
+                        ? getReturnCountdown(batch.borrowedAt, batch.dueDate)
+                        : null;
+                      const isPending = batch.status === "pending";
+                      const isReturned = batch.status === "returned";
+                      const isDeclined = batch.status === "declined";
+                      const isReleased = Boolean(batch.borrowQrUsedAt);
+                      const qrType = isReleased ? "return" : "borrow";
+                      const qrPayload = isReleased ? batch.returnQrPayload : batch.borrowQrPayload;
+                      const qrHeading = isReleased ? `Return QR (Batch ${batch.batchId})` : `Borrow QR (Batch ${batch.batchId})`;
+                      const qrCanBeShown = Boolean(qrPayload) && !isPending && !isReturned && !isDeclined;
+                      const cardBooks = isPending
+                        ? books
+                        : books.filter(book => String(book.status || "").toLowerCase() !== "declined");
+
+                      if (isPending) {
+                        return (
+                          <article className="libsync-pending-card" key={batch.batchId}>
+                            <div className="libsync-batch-identity libsync-batch-identity--pending">
+                              <span className="libsync-batch-icon"><i className="bi bi-book-half"></i></span>
+                              <small>Batch ID</small><strong>{batch.batchId}</strong>
+                              <span className="libsync-state-pill libsync-state-pill--pending"><i className="bi bi-hourglass-split"></i> Pending</span>
+                            </div>
+                            <div className="libsync-request-details">
+                              <h3><i className="bi bi-calendar2-check"></i> Borrowing Request</h3>
+                              <div className="libsync-request-detail">
+                                <i className="bi bi-calendar-check"></i>
+                                <div><span>Requested on</span><strong>{formatDueDate(batch.requestedAt)}</strong></div>
+                              </div>
+                              <div className="libsync-request-detail">
+                                <i className="bi bi-layers"></i>
+                                <div><span>Total books</span><strong>{cardBooks.length}</strong></div>
+                              </div>
+                              <div className="libsync-request-books">
+                                <i className="bi bi-book"></i>
+                                <div><span>Books Requested</span><ul>{cardBooks.map(book => <li key={book.request_id || book.id}>{book.title}</li>)}</ul></div>
+                              </div>
+                            </div>
+                            <div className="libsync-waiting-panel">
+                              <span className="libsync-waiting-icon"><i className="bi bi-hourglass-split"></i></span>
+                              <h3>Waiting for Approval</h3>
+                              <p>Your borrowing request is currently under review by the librarian. Once approved, your Borrowing QR will be generated here.</p>
+                            </div>
+                          </article>
+                        );
+                      }
+
+                      if (visibleQrTab === "history" || isReturned || isDeclined) {
+                        return (
+                          <article className={`libsync-history-card ${isDeclined ? "is-declined" : ""}`} key={batch.batchId}>
+                            <div className="libsync-batch-identity">
+                              <span className="libsync-batch-icon"><i className="bi bi-book-half"></i></span>
+                              <small>Batch ID</small><strong>{batch.batchId}</strong>
+                              <span className={`libsync-state-pill ${isDeclined ? "libsync-state-pill--declined" : "libsync-state-pill--returned"}`}>{isDeclined ? "Declined" : "Returned"}</span>
+                            </div>
+                            <div className="libsync-history-details">
+                              <h3>{isDeclined ? "Borrowing Request Declined" : "Borrowing Details"}</h3>
+                              <p><i className="bi bi-calendar3"></i>{isDeclined ? "Reviewed on" : "Borrowed on"}: <strong>{formatDueDate(batch.approvedAt || batch.requestedAt)}</strong></p>
+                              <p><i className="bi bi-book"></i>{books.length} {books.length === 1 ? "book" : "books"}</p>
+                              <ul>{books.map(book => <li key={book.request_id || book.id}>{book.title}</li>)}</ul>
+                            </div>
+                          </article>
+                        );
+                      }
+
+                      const statusLabel = batch.status === "partially_returned" ? "Partially returned" : "Approved";
+                      return (
+                        <article className="libsync-active-card" key={batch.batchId}>
+                          <div className="libsync-batch-identity">
+                            <span className="libsync-batch-icon"><i className="bi bi-book-half"></i></span>
+                            <small>Batch ID</small><strong>{batch.batchId}</strong>
+                            <span className={`libsync-state-pill ${batch.status === "partially_returned" ? "libsync-state-pill--partial" : "libsync-state-pill--active"}`}>
+                              <i className="bi bi-check-circle-fill"></i> {statusLabel}
+                            </span>
+                          </div>
+
+                          <div className="libsync-borrowing-details">
+                            <h3><i className="bi bi-calendar-event"></i> Borrowing Details</h3>
+                            <div className="libsync-request-detail">
+                              <i className="bi bi-calendar-check"></i>
+                              <div><span>Borrowed on</span><strong>{batch.borrowedAt ? formatDueDate(batch.borrowedAt) : "Awaiting checkout"}</strong></div>
+                            </div>
+                            <div className="libsync-request-detail">
+                              <i className="bi bi-hourglass-split"></i>
+                              <div><span>Return period</span><strong>24 hours</strong></div>
+                            </div>
+                            <div className="libsync-request-detail">
+                              <i className="bi bi-calendar2-check"></i>
+                              <div><span>Due on</span><strong>{batch.dueDate ? formatDueDate(batch.dueDate) : "Set after librarian release"}</strong></div>
+                            </div>
+                          </div>
+
+                          <div className="libsync-active-books">
+                            <h3><i className="bi bi-book"></i> Books ({cardBooks.length})</h3>
+                            <ul>{cardBooks.map(book => <li key={book.request_id || book.id}>{book.title}{String(book.status || "").toLowerCase() === "returned" ? " — Returned" : ""}</li>)}</ul>
+                          </div>
+
+                          <div className="libsync-qr-panel">
+                            <h3><i className="bi bi-arrow-repeat"></i> {qrHeading}</h3>
+                            <div className="libsync-qr-panel-body">
+                              <div className="libsync-qr-thumb">
+                                {qrCanBeShown ? <QRCodeCanvas value={qrPayload} size={100} level="H" includeMargin /> : <i className="bi bi-qr-code"></i>}
+                              </div>
+                              <div className="libsync-qr-panel-action">
+                                {isReleased && returnCountdown && (
+                                  <span className={`libsync-countdown ${returnCountdown.isOverdue ? "is-overdue" : ""}`}>
+                                    <i className="bi bi-clock"></i> {returnCountdown.label}
+                                  </span>
+                                )}
+                                {!isReleased && <span className="libsync-qr-panel-hint">Borrow QR ready after librarian approval.</span>}
+                                {isReleased && <span className="libsync-qr-panel-hint">Show this QR when returning these books.</span>}
+                                <button
+                                  type="button"
+                                  disabled={!qrCanBeShown}
+                                  onClick={() => setExpandedQrBatch({ batchId: batch.batchId, type: qrType, payload: qrPayload })}
+                                >
+                                  <i className="bi bi-qr-code-scan"></i>{qrType === "return" ? "Show Return QR" : "Show Borrow QR"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>            </section>
           )}
         </main>
       </div>
+
+      {expandedQrBatch && (
+        <div className="libsync-qr-modal-backdrop" onClick={() => setExpandedQrBatch(null)}>
+          <section className="libsync-qr-modal" role="dialog" aria-modal="true" aria-labelledby="libsync-qr-modal-title" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="libsync-qr-modal-close" aria-label="Close QR code" onClick={() => setExpandedQrBatch(null)}>
+              <i className="bi bi-x-lg"></i>
+            </button>
+            <span className="libsync-qr-modal-eyebrow">LIBSYNC • {expandedQrBatch.type === "return" ? "RETURN CODE" : "BORROW CODE"}</span>
+            <h2 id="libsync-qr-modal-title">{expandedQrBatch.type === "return" ? "Return QR" : "Borrowing QR"}</h2>
+            <p>Batch ID: {expandedQrBatch.batchId}</p>
+            <div className="libsync-qr-modal-code"><QRCodeCanvas value={expandedQrBatch.payload} size={260} level="H" includeMargin /></div>
+            <p className="libsync-qr-modal-note">{expandedQrBatch.type === "return" ? "Show this separate Return QR to the librarian when returning these books." : "Present this Borrow QR to the librarian for checkout."}</p>
+            <button type="button" className="libsync-qr-modal-done" onClick={() => setExpandedQrBatch(null)}>Done</button>
+          </section>
+        </div>
+      )}
 
       {previewBook && (
         <div className="student-preview-backdrop" onClick={() => setPreviewBook(null)}>

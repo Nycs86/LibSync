@@ -555,44 +555,7 @@
   box-shadow: 0 4px 10px rgba(0,97,73,.08);
   transition: background .16s ease, transform .16s ease, box-shadow .16s ease;
 }
-.ls-books-fetch-descriptions-button {
-  display: inline-flex;
-  margin-left: auto;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  min-height: 43px;
-  padding: 11px 15px;
-  border: 1px solid #9bd8bc;
-  border-radius: 10px;
-  color: #006149;
-  background: #eaf8f0;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 750;
-  cursor: pointer;
-  transition: background .16s ease, border-color .16s ease, transform .16s ease;
-}
-.ls-books-fetch-descriptions-button:hover:not(:disabled) {
-  border-color: #006149;
-  background: #dff4e8;
-  transform: translateY(-1px);
-}
-.ls-books-fetch-descriptions-button:disabled {
-  opacity: .62;
-  cursor: not-allowed;
-}
-.ls-books-fetch-descriptions-button i { font-size: 15px; }
-.ls-books-fetch-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(0, 97, 73, .22);
-  border-top-color: #006149;
-  border-radius: 50%;
-  animation: lsBooksSpin .7s linear infinite;
-}
-.ls-books-add-button { margin-left: 0; }
+.ls-books-add-button { margin-left: auto; }
 .ls-books-add-button:hover, .ls-books-submit-button:hover { background: #004e3b; box-shadow: 0 7px 15px rgba(0,97,73,.15); transform: translateY(-1px); }
 .ls-books-add-button i { font-size: 15px; }
 
@@ -709,7 +672,7 @@
   .ls-books-list-panel { padding: 14px; }
   .ls-books-list-heading { flex-wrap: wrap; }
   .ls-books-heading-copy h2 { font-size: 19px; }
-  .ls-books-fetch-descriptions-button, .ls-books-add-button { width: 100%; margin-left: 0; }
+  .ls-books-add-button { width: 100%; margin-left: 0; }
   .ls-books-toolbar { grid-template-columns: 1fr; }
   .ls-books-reset-button { grid-column: auto; width: 100%; }
   .ls-books-list-footer { align-items: flex-start; flex-direction: column; }
@@ -1137,71 +1100,68 @@
 }
 
 
-/* Student profile details shown after a Borrow/Return QR scan. */
-.ls-qr-student-information {
+/* Scanned QR student details: compact two-column layout */
+.ls-scanned-student-info {
   margin: 0 0 24px;
-  padding: 22px 24px;
-  border: 1px solid #dcebe2;
-  border-radius: 16px;
-  background: #fbfefc;
 }
 
-.ls-qr-student-information > h3 {
-  margin: 0 0 18px;
-  color: #163c30;
-  font-size: 20px;
-  font-weight: 800;
+.ls-scanned-student-info > h3 {
+  margin: 0 0 16px;
 }
 
-.ls-qr-student-information__grid {
+.ls-scanned-student-info__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 28px;
+  gap: 12px;
 }
 
-.ls-qr-student-information__item {
+.ls-scanned-student-info__item {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 5px;
   min-width: 0;
+  padding: 13px 16px;
+  border: 1px solid #dceee4;
+  border-radius: 12px;
+  background: #f8fcf9;
 }
 
-.ls-qr-student-information__item > span {
-  color: #718078;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.ls-qr-student-information__item > strong {
-  overflow-wrap: anywhere;
-  color: #253b35;
-  font-size: 15px;
-  font-weight: 650;
-  line-height: 1.45;
-}
-
-.ls-qr-student-information__item--wide {
+.ls-scanned-student-info__item--wide {
   grid-column: 1 / -1;
 }
 
-.ls-qr-student-information__item > .ls-qr-student-information__status {
-  color: #087653;
+.ls-scanned-student-info__label {
+  color: #668077;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.ls-scanned-student-info__value {
+  display: block;
+  min-width: 0;
+  color: #203b33;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ls-scanned-student-info__value--status {
+  color: #087451;
   text-transform: capitalize;
 }
 
 @media (max-width: 640px) {
-  .ls-qr-student-information {
-    padding: 18px;
+  .ls-scanned-student-info__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
 
-  .ls-qr-student-information__grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .ls-qr-student-information__item--wide {
+  .ls-scanned-student-info__item--wide {
     grid-column: auto;
   }
 }
