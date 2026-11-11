@@ -1,13 +1,8 @@
+
 from flask import Flask
 from flask_cors import CORS
+
 from routes.student import student_bp
-from routes import (
-    auth_bp,
-    users_bp,
-    books_bp,
-    borrowings_bp,
-    borrow_requests_bp,
-)
 from routes import (
     auth_bp,
     users_bp,
@@ -19,7 +14,7 @@ from routes import (
 
 app = Flask(__name__)
 
-
+# CORS Configuration
 CORS(
     app,
     resources={
@@ -50,7 +45,7 @@ CORS(
     max_age=600,
 )
 
-
+# Register Blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(books_bp)
