@@ -677,7 +677,7 @@ def get_student_borrow_batches(user_id):
                 return_qr_token,
                 DATE_FORMAT(
                     borrow_qr_used_at,
-                    '%%Y-%%m-%%dT%%H:%%i:%%sZ'
+                    '%%Y-%%m-%%dT%%H:%%i:%%SZ'
                 ) AS borrow_qr_used_at,
                 return_qr_used_at,
                 status,
@@ -685,7 +685,7 @@ def get_student_borrow_batches(user_id):
                 approved_by,
                 approved_at,
                 loan_days,
-                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS due_date
+                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%SZ') AS due_date
             FROM borrow_batches
             WHERE user_id = %s
             ORDER BY requested_at DESC
@@ -1240,7 +1240,7 @@ def release_borrow_batch(batch_id):
         cursor.execute("""
             SELECT
                 due_date,
-                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%sZ') AS due_date_utc
+                DATE_FORMAT(due_date, '%%Y-%%m-%%dT%%H:%%i:%%SZ') AS due_date_utc
             FROM borrow_batches
             WHERE id = %s
         """, (batch_id,))
@@ -1374,10 +1374,9 @@ def return_borrow_batch_by_qr(batch_id):
             FROM borrow_batches bb
             INNER JOIN users u ON u.id = bb.user_id
             LEFT JOIN students s ON s.user_id = u.id
-            WHERE bb.borrow_qr_token = %s
-            OR bb.return_qr_token = %s
-            LIMIT 1
-        """, (qr_token, qr_token))
+            WHERE bb.id = %s
+            FOR UPDATE
+        """, (batch_id,))
         batch = cursor.fetchone()
 
         if not batch:
