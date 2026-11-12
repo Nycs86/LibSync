@@ -5,6 +5,7 @@ import "./dashboard_polish.css";
 import "./online_book_search.css";
 import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
+import "./librarian_qr_history.css";
 
 
 // Group only records that share a real batch_id. Rows without a batch_id
@@ -266,10 +267,7 @@ function LibrarianDashboard({ onLogout }) {
   const [qrAudit, setQrAudit] = useState({ events: [], pending: [] });
   const [qrAuditLoading, setQrAuditLoading] = useState(false);
   const [qrAuditError, setQrAuditError] = useState("");
-  const [resolvingBatchId, setResolvingBatchId] = useState(null);
-  const [recoveryNote, setRecoveryNote] = useState("");
-  const [handoverDateTime, setHandoverDateTime] = useState("");
-  const [recoveryAction, setRecoveryAction] = useState("handed_over");
+  const [recoverySavingId, setRecoverySavingId] = useState(null);
 
   const loadQrAudit = async () => {
     setQrAuditLoading(true);
@@ -284,24 +282,22 @@ function LibrarianDashboard({ onLogout }) {
     }
   };
 
-  const submitRecovery = async () => {
-    if (!resolvingBatchId) return;
+  const submitRecovery = async (batchId) => {
+    if (recoverySavingId !== null) return;
     try {
+      setRecoverySavingId(batchId);
       setQrAuditError("");
-      const payload = { action: recoveryAction, note: recoveryNote.trim() };
-      if (recoveryAction === "handed_over") {
-        if (!handoverDateTime) throw new Error("Enter the actual handover date and time.");
-        payload.actual_handover_at = new Date(handoverDateTime).toISOString();
-      }
-      await api.post(`/api/librarian/pending-releases/${resolvingBatchId}/resolve`, payload);
-      setResolvingBatchId(null);
-      setRecoveryNote("");
-      setHandoverDateTime("");
-      setMessage("Pending release resolved successfully.");
+      await api.post(`/api/librarian/pending-releases/${batchId}/resolve`, {
+        action: "handed_over",
+      });
+      setMessage(`Batch #${batchId} released successfully.`);
       await loadQrAudit();
       void loadBorrowRecords();
     } catch (error) {
-      setQrAuditError(error.message || "Recovery failed.");
+      setQrAuditError(error.message || "Unable to release this borrowing batch.");
+      throw error;
+    } finally {
+      setRecoverySavingId(null);
     }
   };
 
@@ -337,6 +333,9 @@ function LibrarianDashboard({ onLogout }) {
       setConfirmationLoading(true);
       await confirmationModal.onConfirm();
       setConfirmationModal(null);
+    } catch (error) {
+      console.error("Confirmation action failed:", error);
+      // Keep the dialog open; the relevant section displays the API error.
     } finally {
       setConfirmationLoading(false);
     }
@@ -1276,8 +1275,8 @@ function LibrarianDashboard({ onLogout }) {
         <header className="ls-librarian-topbar">
           <div>
             <p className="ls-librarian-eyebrow">{activeSection === "books" ? "LIBSYNC / BOOKS MANAGEMENT" : activeSection === "records" ? "LIBSYNC / BORROWING RECORDS" : activeSection === "students" ? "LIBSYNC / STUDENTS" : "LIBSYNC / LIBRARIAN"}</p>
-            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "records" ? "Borrowing Records" : "Librarian Dashboard"}</h1>
-            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "students" ? "View registered student accounts and quickly find a library member." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
+            <h1>{activeSection === "requests" ? "Borrow Requests" : activeSection === "books" ? "Books Management" : activeSection === "students" ? "Students" : activeSection === "scan" ? "QR Scanner" : activeSection === "scan-result" ? "Scanned Request" : activeSection === "qr-history" ? "QR Scan History" : activeSection === "records" ? "Borrowing Records" : "Librarian Dashboard"}</h1>
+            <p className="ls-librarian-welcome">{activeSection === "books" ? "Manage library books, add new titles, update information, and organize the collection." : activeSection === "records" ? "View all borrowing transactions, due dates, and return status." : activeSection === "qr-history" ? "Track QR scans and resolve pending book releases." : activeSection === "students" ? "View registered student accounts and quickly find a library member." : `Welcome back, ${user?.name || "Librarian"}. Manage your library from here.`}</p>
           </div>
         </header>
 
@@ -2212,47 +2211,83 @@ function LibrarianDashboard({ onLogout }) {
       )}
 
       {activeSection === "qr-history" && (
-        <section className="ls-librarian-panel management-section">
-          <div className="ls-librarian-panel-header">
-            <div><h2>QR Scan History &amp; Pending Releases</h2><p>Scans and recovery actions are saved in the database.</p></div>
-            <button type="button" disabled={qrAuditLoading} onClick={() => void loadQrAudit()}>
+        <section className="ls-librarian-panel management-section ls-qr-history-page" aria-label="QR Scan History">
+          <div className="ls-librarian-panel-header ls-qr-history-header">
+            <div>
+              <h2><i className="bi bi-clock-history" aria-hidden="true" /> QR Scan History</h2>
+              <p>Review scanned QR codes and complete pending book releases.</p>
+            </div>
+            <button type="button" className="ls-qr-history-refresh" disabled={qrAuditLoading} onClick={() => void loadQrAudit()}>
+              <i className={`bi bi-arrow-clockwise ${qrAuditLoading ? "ls-librarian-spin" : ""}`} aria-hidden="true" />
               {qrAuditLoading ? "Loading..." : "Refresh"}
             </button>
           </div>
-          {qrAuditError && <p role="alert" style={{ color: "#b91c1c" }}>{qrAuditError}</p>}
-          <h3>Pending Release ({qrAudit.pending.length})</h3>
-          {qrAudit.pending.length === 0 ? <p>No unresolved scanned borrow QR batches.</p> : (
-            <div style={{ overflowX: "auto" }}><table className="ls-librarian-table"><thead><tr>
-              <th>Batch</th><th>Student</th><th>Books</th><th>Last Scanned</th><th>Action</th>
-            </tr></thead><tbody>{qrAudit.pending.map(item => <tr key={item.batch_id}>
-              <td>#{item.batch_id}</td><td>{item.student_name}<small style={{ display: "block" }}>{item.student_email}</small></td>
-              <td>{item.book_titles || "—"}</td><td>{item.last_scanned_at ? new Date(item.last_scanned_at).toLocaleString() : "—"}</td>
-              <td><button type="button" onClick={() => { setResolvingBatchId(item.batch_id); setRecoveryAction("handed_over"); setRecoveryNote(""); setHandoverDateTime(""); }}>Resolve</button></td>
-            </tr>)}</tbody></table></div>
-          )}
-          {resolvingBatchId !== null && (
-            <div style={{ padding: 20, border: "1px solid #cbd5e1", borderRadius: 12, marginTop: 16 }}>
-              <h3>Resolve Batch #{resolvingBatchId}</h3>
-              <p>Only confirm handover if the student physically received the books. The due date will be 24 hours after actual handover.</p>
-              <label style={{ display: "block", marginBottom: 12 }}>Resolution <select value={recoveryAction} onChange={e => setRecoveryAction(e.target.value)}>
-                <option value="handed_over">Already handed over</option><option value="not_handed_over">Not handed over</option>
-              </select></label>
-              {recoveryAction === "handed_over" && <label style={{ display: "block", marginBottom: 12 }}>Actual handover (local time) <input type="datetime-local" value={handoverDateTime} onChange={e => setHandoverDateTime(e.target.value)} /></label>}
-              <label style={{ display: "block", marginBottom: 12 }}>Audit note <textarea value={recoveryNote} onChange={e => setRecoveryNote(e.target.value)} maxLength={500} placeholder="How was physical handover verified?" /></label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" onClick={() => void submitRecovery()}>Save Resolution</button>
-                <button type="button" onClick={() => setResolvingBatchId(null)}>Cancel</button>
-              </div>
-            </div>
-          )}
-          <h3 style={{ marginTop: 28 }}>Recent QR Scans ({qrAudit.events.length})</h3>
-          <div style={{ overflowX: "auto" }}><table className="ls-librarian-table"><thead><tr>
-            <th>Scanned At</th><th>Batch</th><th>Student</th><th>QR Type</th><th>Librarian</th><th>Outcome</th>
-          </tr></thead><tbody>{qrAudit.events.map(item => <tr key={item.id}>
-            <td>{new Date(item.scanned_at).toLocaleString()}</td><td>#{item.batch_id}</td><td>{item.student_name}</td>
-            <td>{item.qr_type}</td><td>{item.librarian_name}</td>
-            <td>{item.disposition === "not_handed_over" ? "Not handed over" : item.released_at ? (item.disposition === "handed_over" ? "Recovered release" : "Released") : item.qr_type === "borrow" ? "Pending release" : item.batch_status}</td>
-          </tr>)}</tbody></table></div>
+
+          {qrAuditError && <div className="ls-qr-history-alert" role="alert"><i className="bi bi-exclamation-circle" aria-hidden="true" /> {qrAuditError}</div>}
+
+          <div className="ls-qr-history-section-heading">
+            <div className="ls-qr-history-heading-icon"><i className="bi bi-box-arrow-up-right" aria-hidden="true" /></div>
+            <div><h3>Pending Releases <span className="ls-qr-history-count">{qrAudit.pending.length}</span></h3><p>Only save a release when the student has received the physical book.</p></div>
+          </div>
+          <div className="ls-qr-history-table-wrap">
+            <table className="ls-librarian-table ls-qr-history-table">
+              <thead><tr><th>Batch</th><th>Student</th><th>Books</th><th>Last Scanned</th><th>Action</th></tr></thead>
+              <tbody>
+                {qrAudit.pending.length === 0 ? (
+                  <tr><td colSpan="5" className="ls-qr-history-empty"><i className="bi bi-check-circle" aria-hidden="true" /> No pending releases.</td></tr>
+                ) : qrAudit.pending.map((item) => (
+                  <tr key={item.batch_id}>
+                    <td><span className="ls-qr-history-batch">#{item.batch_id}</span></td>
+                    <td><strong>{item.student_name || "Unknown student"}</strong><small className="ls-qr-history-subtext">{item.student_email}</small></td>
+                    <td>{item.book_titles || "—"}</td>
+                    <td>{item.last_scanned_at ? new Date(item.last_scanned_at).toLocaleString() : "—"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="ls-qr-history-save"
+                        disabled={recoverySavingId !== null || confirmationLoading}
+                        onClick={() => openConfirmationModal({
+                          type: "release",
+                          title: "Confirm Pending Release",
+                          message: `Have the approved book(s) for ${item.student_name || "this student"} (Batch #${item.batch_id}) already been physically handed over? Saving will record the release now and start the 24-hour loan period.`,
+                          confirmLabel: "Save Resolution",
+                          onConfirm: () => submitRecovery(item.batch_id),
+                        })}
+                      >
+                        <i className="bi bi-check2-circle" aria-hidden="true" />
+                        {recoverySavingId === item.batch_id ? "Saving..." : "Save Resolution"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="ls-qr-history-section-heading ls-qr-history-section-heading--scans">
+            <div className="ls-qr-history-heading-icon"><i className="bi bi-qr-code-scan" aria-hidden="true" /></div>
+            <div><h3>Recent QR Scans <span className="ls-qr-history-count">{qrAudit.events.length}</span></h3><p>Recorded scan activity and release outcomes.</p></div>
+          </div>
+          <div className="ls-qr-history-table-wrap">
+            <table className="ls-librarian-table ls-qr-history-table">
+              <thead><tr><th>Scanned At</th><th>Batch</th><th>Student</th><th>QR Type</th><th>Librarian</th><th>Outcome</th></tr></thead>
+              <tbody>
+                {qrAudit.events.length === 0 ? (
+                  <tr><td colSpan="6" className="ls-qr-history-empty">No QR scans recorded yet.</td></tr>
+                ) : qrAudit.events.map((item) => {
+                  const outcome = item.disposition === "not_handed_over" ? "Not handed over" : item.released_at ? (item.disposition === "handed_over" ? "Recovered release" : "Released") : item.qr_type === "borrow" ? "Pending release" : item.batch_status;
+                  return <tr key={item.id}>
+                    <td>{item.scanned_at ? new Date(item.scanned_at).toLocaleString() : "—"}</td>
+                    <td><span className="ls-qr-history-batch">#{item.batch_id}</span></td>
+                    <td>{item.student_name || "—"}</td>
+                    <td><span className="ls-qr-history-type">{item.qr_type}</span></td>
+                    <td>{item.librarian_name || "—"}</td>
+                    <td><span className={`ls-qr-history-status ${outcome === "Pending release" ? "is-pending" : outcome === "Not handed over" ? "is-neutral" : "is-released"}`}>{outcome || "—"}</span></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

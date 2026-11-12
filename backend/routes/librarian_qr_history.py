@@ -89,19 +89,25 @@ def resolve(batch_id):
         return jsonify({'message': 'Note must be 500 characters or less.'}), 400
     handover = None
     if action == 'handed_over':
-        if not note:
-            return jsonify({'message': 'Provide an audit note confirming physical handover.'}), 400
-        try:
-            raw = str(data.get('actual_handover_at') or '')
-            parsed = datetime.fromisoformat(raw.replace('Z', '+00:00'))
-            if parsed.tzinfo is None:
-                return jsonify({'message': 'Handover time must include a timezone.'}), 400
-            handover = parsed.astimezone(timezone.utc).replace(tzinfo=None)
-        except (TypeError, ValueError):
-            return jsonify({'message': 'Valid actual handover date/time required.'}), 400
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        if handover > now or handover < now - timedelta(days=7):
-            return jsonify({'message': 'Handover time must be within the past 7 days.'}), 400
+        # The simplified Save Resolution workflow records release at confirmation.
+        # Retain support for explicit historical handover timestamps from older clients.
+        raw = data.get('actual_handover_at')
+        if raw:
+            if not note:
+                return jsonify({'message': 'Provide an audit note for a historical handover.'}), 400
+            try:
+                parsed = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+                if parsed.tzinfo is None:
+                    return jsonify({'message': 'Handover time must include a timezone.'}), 400
+                handover = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            except (TypeError, ValueError):
+                return jsonify({'message': 'Valid actual handover date/time required.'}), 400
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            if handover > now or handover < now - timedelta(days=7):
+                return jsonify({'message': 'Handover time must be within the past 7 days.'}), 400
+        else:
+            handover = datetime.now(timezone.utc).replace(tzinfo=None)
+            note = note or 'Librarian confirmed physical handover using Save Resolution; release time recorded at confirmation.'
     conn = get_db_connection()
     if conn is None:
         return jsonify({'message': 'Database unavailable.'}), 500
@@ -136,7 +142,7 @@ def resolve(batch_id):
                        VALUES (%s,%s,%s,%s,%s)''',
                     (batch_id, action, request.authenticated_user_id, handover, note or None))
         conn.commit()
-        return jsonify({'status': 'success', 'message': 'Pending release resolved and audited.', 'batch_id': batch_id})
+        return jsonify({'status': 'success', 'message': 'Books released successfully. Resolution recorded in the audit log.', 'batch_id': batch_id})
     except Exception:
         conn.rollback()
         log.exception('Pending release recovery failed')
