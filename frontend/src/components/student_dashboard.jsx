@@ -349,6 +349,46 @@ function StudentDashboard({ onLogout }) {
   const [batchStatusError, setBatchStatusError] = useState("");
   const [batchRefreshVersion, setBatchRefreshVersion] = useState(0);
   const [inventoryRefreshVersion, setInventoryRefreshVersion] = useState(0);
+  const [borrowingRisk, setBorrowingRisk] = useState(null);
+  const [isRiskLoading, setIsRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState("");
+
+  // Load the authenticated student's personal borrowing risk score.
+  // This endpoint uses the same rule-based scoring model as the Admin dashboard.
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const controller = new AbortController();
+
+    const loadBorrowingRisk = async () => {
+      setIsRiskLoading(true);
+      setRiskError("");
+
+      try {
+        const data = await apiRequest("/api/student/borrowing-risk", {
+          method: "GET",
+          signal: controller.signal,
+        });
+
+        if (!controller.signal.aborted) {
+          if (data?.status !== "success" || !data.risk) {
+            throw new Error(data?.message || "Unable to load your borrowing risk score.");
+          }
+          setBorrowingRisk(data.risk);
+        }
+      } catch (error) {
+        if (error.name !== "AbortError" && !controller.signal.aborted) {
+          console.error("Load student borrowing risk error:", error);
+          setRiskError(error.message || "Unable to load your borrowing risk score.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsRiskLoading(false);
+      }
+    };
+
+    loadBorrowingRisk();
+    return () => controller.abort();
+  }, [userId, batchRefreshVersion]);
 
   // Load the real book catalogue from the existing backend.
   useEffect(() => {
@@ -1240,6 +1280,89 @@ function StudentDashboard({ onLogout }) {
           {activeMenu === "books" && (
             <section className="student-home-grid">
               <div className="student-home-primary">
+                <section className="student-risk-card" aria-labelledby="student-risk-title">
+                  <div className="student-risk-card-heading">
+                    <h2 id="student-risk-title">My Borrowing Risk</h2>
+                    {!isRiskLoading && borrowingRisk && (
+                      <span className={`student-risk-badge student-risk-badge--${String(borrowingRisk.risk_level || "low").toLowerCase()}`}>
+                        {borrowingRisk.risk_level || "Low"} Risk
+                      </span>
+                    )}
+                  </div>
+
+                  {isRiskLoading && !borrowingRisk ? (
+                    <div className="student-risk-message"><i className="bi bi-arrow-repeat"></i> Calculating your borrowing risk...</div>
+                  ) : riskError && !borrowingRisk ? (
+                    <div className="student-risk-message student-risk-message--error" role="alert">{riskError}</div>
+                  ) : borrowingRisk ? (
+                    <>
+                      <div className="student-risk-score-block">
+                        <span className="student-risk-label">Your current risk score</span>
+                        <div className="student-risk-score-line">
+                          <strong>{Number(borrowingRisk.risk_score || 0)}</strong>
+                          <span>/ 100</span>
+                        </div>
+                        <div
+                          className="student-risk-progress"
+                          role="progressbar"
+                          aria-label="Borrowing risk score"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          aria-valuenow={Number(borrowingRisk.risk_score || 0)}
+                        >
+                          <span
+                            className={`student-risk-progress-fill student-risk-progress-fill--${String(borrowingRisk.risk_level || "low").toLowerCase()}`}
+                            style={{ width: `${Math.max(0, Math.min(100, Number(borrowingRisk.risk_score || 0)))}%` }}
+                          ></span>
+                        </div>
+                        <small>Calculated from your LibSync borrowing and return records.</small>
+                      </div>
+
+                      <div className="student-risk-factors">
+                        <h3>What affects your score?</h3>
+                        <div className="student-risk-factor-row">
+                          <span>Previous late returns</span>
+                          <strong className={Number(borrowingRisk.past_late_returns || 0) > 0 ? "is-contributing" : "is-clear"}>
+                            {Number(borrowingRisk.past_late_returns || 0) > 0
+                              ? `${borrowingRisk.past_late_returns} late ${Number(borrowingRisk.past_late_returns) === 1 ? "return" : "returns"}`
+                              : "None"}
+                          </strong>
+                        </div>
+                        <div className="student-risk-factor-row">
+                          <span>Current overdue books</span>
+                          <strong className={Number(borrowingRisk.current_overdue_books || 0) > 0 ? "is-contributing" : "is-clear"}>
+                            {Number(borrowingRisk.current_overdue_books || 0) > 0
+                              ? `${borrowingRisk.current_overdue_books} overdue ${Number(borrowingRisk.current_overdue_books) === 1 ? "book" : "books"}`
+                              : "None"}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="student-risk-improve">
+                        <h3><i className="bi bi-lightbulb"></i> How to improve your score</h3>
+                        <p>
+                          Return borrowed books on or before their due dates to maintain a good borrowing record.
+                          {Number(borrowingRisk.current_overdue_books || 0) > 0
+                            ? " Please return your overdue books as soon as possible."
+                            : ""}
+                        </p>
+                      </div>
+
+                      <div className="student-risk-updated">
+                        Last updated: {borrowingRisk.calculated_at
+                          ? new Date(borrowingRisk.calculated_at).toLocaleString("en-PH", {
+                              dateStyle: "long",
+                              timeStyle: "short",
+                            })
+                          : "Just now"}
+                        {riskError && <span className="student-risk-refresh-note"> · Latest refresh unavailable</span>}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="student-risk-message">Your borrowing risk information will appear here.</div>
+                  )}
+                </section>
+
                 <div className="student-stats">
                   <article className="student-stat-card">
                     <div className="student-stat-icon catalog"><i className="bi bi-collection"></i></div>
