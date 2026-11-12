@@ -441,3 +441,172 @@ def get_student_borrowing_status(user_id):
         return ownership_error
 
     return _load_student_borrowings(user_id)
+
+
+# =========================================================
+# GET THE AUTHENTICATED STUDENT'S BORROWING RISK SCORE
+# =========================================================
+@student_bp.route(
+    "/api/student/borrowing-risk",
+    methods=["GET"],
+)
+@require_role("student")
+def get_student_borrowing_risk():
+    """Return the same rule-based risk score used by the Admin dashboard."""
+    user_id = request.authenticated_user_id
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({
+                "status": "error",
+                "message": "Database connection failed.",
+            }), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                risk_data.*,
+                CASE
+                    WHEN risk_score >= 60 THEN 'High'
+                    WHEN risk_score >= 25 THEN 'Medium'
+                    ELSE 'Low'
+                END AS risk_level,
+                UTC_TIMESTAMP() AS calculated_at
+            FROM (
+                SELECT
+                    u.id AS user_id,
+
+                    COUNT(DISTINCT CASE
+                        WHEN bb.status IN ('approved', 'partially_returned')
+                        THEN bb.id
+                    END) AS active_loans,
+
+                    COUNT(DISTINCT CASE
+                        WHEN bb.due_date < UTC_TIMESTAMP()
+                         AND bb.status IN ('approved', 'partially_returned')
+                        THEN bb.id
+                    END) AS current_overdue_loans,
+
+                    COUNT(DISTINCT CASE
+                        WHEN bb.due_date < UTC_TIMESTAMP()
+                         AND bb.status IN ('approved', 'partially_returned')
+                         AND br.status = 'approved'
+                         AND br.returned_at IS NULL
+                        THEN br.id
+                    END) AS current_overdue_books,
+
+                    COALESCE(
+                        MAX(
+                            CASE
+                                WHEN bb.due_date < UTC_TIMESTAMP()
+                                 AND bb.status IN ('approved', 'partially_returned')
+                                THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS max_days_overdue,
+
+                    COUNT(DISTINCT CASE
+                        WHEN br.returned_at IS NOT NULL
+                         AND bb.due_date IS NOT NULL
+                         AND br.returned_at > bb.due_date
+                        THEN br.id
+                    END) AS past_late_returns,
+
+                    LEAST(
+                        100,
+                        COUNT(DISTINCT CASE
+                            WHEN bb.due_date < UTC_TIMESTAMP()
+                             AND bb.status IN ('approved', 'partially_returned')
+                            THEN bb.id
+                        END) * 50
+                        +
+                        LEAST(
+                            COALESCE(
+                                MAX(
+                                    CASE
+                                        WHEN bb.due_date < UTC_TIMESTAMP()
+                                         AND bb.status IN ('approved', 'partially_returned')
+                                        THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
+                                        ELSE 0
+                                    END
+                                ),
+                                0
+                            ) * 2,
+                            40
+                        )
+                        +
+                        LEAST(
+                            COUNT(DISTINCT CASE
+                                WHEN br.returned_at IS NOT NULL
+                                 AND bb.due_date IS NOT NULL
+                                 AND br.returned_at > bb.due_date
+                                THEN br.id
+                            END) * 15,
+                            30
+                        )
+                        +
+                        GREATEST(
+                            COUNT(DISTINCT CASE
+                                WHEN bb.status IN ('approved', 'partially_returned')
+                                THEN bb.id
+                            END) - 1,
+                            0
+                        ) * 5
+                    ) AS risk_score
+
+                FROM users u
+                LEFT JOIN borrow_batches bb ON bb.user_id = u.id
+                LEFT JOIN borrow_requests br ON br.batch_id = bb.id
+                WHERE u.id = %s
+                  AND LOWER(u.role) = 'student'
+                GROUP BY u.id
+            ) AS risk_data
+            """,
+            (user_id,),
+        )
+        risk = cursor.fetchone()
+
+        if not risk:
+            return jsonify({
+                "status": "error",
+                "message": "Student risk information was not found.",
+            }), 404
+
+        return jsonify({
+            "status": "success",
+            "model": {
+                "type": "rule_based_overdue_risk_scoring",
+                "version": "1.0",
+                "score_range": {"minimum": 0, "maximum": 100},
+                "levels": {
+                    "low": "0-24",
+                    "medium": "25-59",
+                    "high": "60-100",
+                },
+            },
+            "risk": risk,
+        }), 200
+
+    except mysql.connector.Error:
+        logger.exception("Database error while calculating student borrowing risk.")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to calculate your borrowing risk score right now.",
+        }), 500
+    except Exception:
+        logger.exception("Unexpected error while calculating student borrowing risk.")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to calculate your borrowing risk score right now.",
+        }), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
