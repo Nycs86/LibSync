@@ -129,10 +129,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment:
                         CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(
-                        Icons.local_library,
-                        size: 72,
-                      ),
+                      Image.asset(
+                          'assets/images/logo.png',
+                          width: 250,
+                          fit: BoxFit.contain,
+                        ),
                       const SizedBox(height: 16),
                       const Text(
                         'LibSync',
