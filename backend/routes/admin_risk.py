@@ -172,3 +172,41 @@ def get_my_return_performance():
             cursor.close()
         if connection is not None:
             connection.close()
+
+
+@admin_risk_bp.route("/api/librarian/students/<int:student_id>/return-performance", methods=["GET"])
+@require_role("librarian")
+def get_student_return_performance_for_librarian(student_id):
+    """Provide existing rule-based performance to librarians for request review."""
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT id FROM users WHERE id = %s AND role = 'student'", (student_id,))
+        if cursor.fetchone() is None:
+            return jsonify({"status": "error", "message": "Student not found."}), 404
+        cursor.execute("""
+            SELECT br.returned_at, bb.due_date
+            FROM borrow_requests br
+            INNER JOIN borrow_batches bb ON bb.id = br.batch_id
+            WHERE bb.user_id = %s
+              AND br.returned_at IS NOT NULL
+              AND bb.due_date IS NOT NULL
+            ORDER BY br.returned_at ASC, br.id ASC
+        """, (student_id,))
+        return jsonify({
+            "status": "success",
+            "student_id": student_id,
+            "performance": _calculate_performance(cursor.fetchall()),
+        }), 200
+    except Exception:
+        logger.exception("Failed to calculate librarian-visible return performance.")
+        return jsonify({"status": "error", "message": "Unable to load student performance."}), 500
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None:
+            connection.close()
