@@ -933,28 +933,6 @@ def generate_batch_qr(batch_id):
 
         qr_token, qr_type = _current_qr_for_batch(batch)
 
-        
-        qr_token, qr_type = _current_qr_for_batch(batch)
-
-        # Keep the original Receiving QR visible after release.
-        # The librarian release endpoint still rejects duplicate scans.
-        if (
-            not qr_token
-            and batch["status"] == "approved"
-            and batch["borrow_qr_used_at"] is not None
-            and batch["return_qr_token"] is None
-            and batch["borrow_qr_token"]
-        ):
-            qr_token = batch["borrow_qr_token"]
-            qr_type = "borrow"
-
-        if not qr_token:
-            return jsonify({
-                "status": "error",
-                "message": "QR code is not available for this batch yet."
-            }), 400
-
-
         if not qr_token:
             return jsonify({
                 "status": "error",
@@ -1281,11 +1259,12 @@ def release_borrow_batch(batch_id):
                 UPDATE borrow_batches
                 SET
                     borrow_qr_used_at = UTC_TIMESTAMP(),
+                    return_qr_token = %s,
                     loan_days = 1,
                     due_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
                 WHERE id = %s
                 AND borrow_qr_used_at IS NULL
-            """, (batch_id,))
+            """, (return_qr_token, batch_id))
 
         if cursor.rowcount != 1:
             conn.rollback()
@@ -1333,7 +1312,7 @@ def release_borrow_batch(batch_id):
             "message": "Books released successfully.",
             "batch_id": batch_id,
             "borrow_qr_used": True,
-            "return_qr_available": False,
+            "return_qr_available": True,
             "return_qr_token": return_qr_token,
             "due_date": due_date_utc
         }), 200
@@ -1354,12 +1333,6 @@ def release_borrow_batch(batch_id):
 # =========================================================
 # RETURN BOOKS USING RETURN QR / BATCH
 # =========================================================
-@borrow_requests_bp.route(
-    "/api/borrow-batches/<int:batch_id>/return",
-    methods=["PUT"]
-)
-
-
 @borrow_requests_bp.route(
     "/api/borrow-batches/<int:batch_id>/request-return",
     methods=["POST"]
@@ -1470,6 +1443,10 @@ def request_return_qr(batch_id):
         conn.close()
 
 
+@borrow_requests_bp.route(
+    "/api/borrow-batches/<int:batch_id>/return",
+    methods=["PUT"]
+)
 @require_role("librarian")
 def return_borrow_batch_by_qr(batch_id):
     data, error_response = _get_json_object()
