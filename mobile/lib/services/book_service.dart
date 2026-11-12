@@ -1,5 +1,7 @@
+
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
@@ -21,14 +23,32 @@ class BookService {
 
     final decoded = jsonDecode(response.body);
 
+    // DEBUG: Check kung may online book cover URL.
+    if (kDebugMode) {
+      debugPrint('BOOKS API RESPONSE: $decoded');
+
+      if (decoded is List && decoded.isNotEmpty) {
+        final firstBook = decoded.first;
+
+        if (firstBook is Map) {
+          debugPrint(
+            'FIRST BOOK COVER URL: '
+            '${firstBook['cover_image_url']}',
+          );
+        }
+      }
+    }
+
     if (decoded is! List) {
       throw Exception('Unexpected books response.');
     }
 
     return decoded
-        .map((item) => Book.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            ))
+        .map(
+          (item) => Book.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
         .toList();
   }
 }

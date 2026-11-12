@@ -28,6 +28,9 @@ class _StudentProfileState extends State<StudentProfile> {
   final _genderController = TextEditingController();
 
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _performance;
+  String _performanceError = '';
+  bool _performanceLoading = true;
   String _errorMessage = '';
   bool _isLoading = true;
   bool _isEditing = false;
@@ -37,6 +40,7 @@ class _StudentProfileState extends State<StudentProfile> {
   void initState() {
     super.initState();
     _loadProfile();
+    _loadPerformance();
   }
 
   @override
@@ -61,6 +65,32 @@ class _StudentProfileState extends State<StudentProfile> {
       ),
       (route) => false,
     );
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out of LibSync?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFB42318),
+            ),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || shouldLogout != true) return;
+    await _goToLogin();
   }
 
   Future<void> _loadProfile() async {
@@ -109,6 +139,138 @@ class _StudentProfileState extends State<StudentProfile> {
           result['message']?.toString() ??
           'Unable to load student profile.';
     });
+  }
+
+  Future<void> _loadPerformance() async {
+    setState(() {
+      _performanceLoading = true;
+      _performanceError = '';
+    });
+    final result = await _profileService.getReturnPerformance();
+    if (!mounted) return;
+    setState(() {
+      _performanceLoading = false;
+      if (result['success'] == true) {
+        _performance = result['performance'] as Map<String, dynamic>;
+        _performanceError = '';
+      } else {
+        _performance = null;
+        _performanceError = result['message']?.toString() ??
+            'Unable to load return performance.';
+      }
+    });
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([_loadProfile(), _loadPerformance()]);
+  }
+
+  Widget _buildPerformanceCard() {
+    const green = Color(0xFF146B4A);
+    final data = _performance;
+    final score = ((data?['performance_score'] as num?)?.toInt() ?? 100).clamp(0, 100);
+    final level = data?['performance_level']?.toString() ?? 'High';
+    final levelColor = level == 'High'
+        ? const Color(0xFF16845A)
+        : level == 'Medium'
+            ? const Color(0xFFB77B12)
+            : const Color(0xFFB42318);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF7F0),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFCDE5D8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text('MY RETURN PERFORMANCE',
+                    style: TextStyle(fontWeight: FontWeight.w800,
+                        color: green, fontSize: 13)),
+              ),
+              IconButton(
+                tooltip: 'Refresh performance',
+                onPressed: _performanceLoading ? null : _loadPerformance,
+                icon: const Icon(Icons.refresh, color: green),
+              ),
+            ],
+          ),
+          if (_performanceLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (data == null)
+            Text(_performanceError,
+                style: const TextStyle(color: Color(0xFFB42318)))
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text('$score/100',
+                      style: const TextStyle(fontSize: 30,
+                          fontWeight: FontWeight.w900, color: green)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: levelColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(level.toUpperCase(),
+                      style: TextStyle(color: levelColor,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: LinearProgressIndicator(
+                value: score / 100, minHeight: 10,
+                backgroundColor: const Color(0xFFCDE5D8),
+                valueColor: AlwaysStoppedAnimation<Color>(levelColor),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                _performanceStat('Completed', data['completed_returns']),
+                _performanceStat('On-Time', data['on_time_returns']),
+                _performanceStat('Late', data['late_returns']),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'On-time returns restore 5 points. Late returns deduct 10 points '
+              'per day (up to 50 per book).',
+              style: TextStyle(fontSize: 12, color: Color(0xFF376A53)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _performanceStat(String label, dynamic count) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12,
+              color: Color(0xFF376A53))),
+          const SizedBox(height: 4),
+          Text('${count ?? 0}', style: const TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w800,
+              color: Color(0xFF135B3E))),
+        ],
+      ),
+    );
   }
 
   void _fillControllers(Map<String, dynamic> profile) {
@@ -456,7 +618,7 @@ class _StudentProfileState extends State<StudentProfile> {
     final name = _displayValue(profile['name']);
 
     return RefreshIndicator(
-      onRefresh: _loadProfile,
+      onRefresh: _refreshAll,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(18),
@@ -524,6 +686,8 @@ class _StudentProfileState extends State<StudentProfile> {
             ),
           ),
           const SizedBox(height: 24),
+          _buildPerformanceCard(),
+          const SizedBox(height: 18),
           _profileRow(
             icon: Icons.badge_outlined,
             label: 'Student ID',
@@ -558,6 +722,24 @@ class _StudentProfileState extends State<StudentProfile> {
             icon: Icons.wc_outlined,
             label: 'Gender',
             value: _displayValue(profile['gender']),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: _confirmLogout,
+              icon: const Icon(Icons.logout),
+              label: const Text('Log Out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFB42318),
+                side: const BorderSide(color: Color(0xFFB42318)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                textStyle: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           const Text(

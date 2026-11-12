@@ -152,4 +152,45 @@ class StudentProfileService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> getReturnPerformance() async {
+    if (!AuthSession.isAuthenticated) {
+      return {
+        'success': false,
+        'sessionExpired': true,
+        'message': 'Your session has expired. Please log in again.',
+      };
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/student/return-performance'),
+        headers: AuthSession.authorizationHeaders,
+      );
+      final data = _decodeObject(response);
+
+      if (response.statusCode == 401) {
+        AuthSession.clear();
+        return {
+          'success': false,
+          'sessionExpired': true,
+          'message': 'Your session has expired. Please log in again.',
+        };
+      }
+      if (response.statusCode >= 200 && response.statusCode < 300 &&
+          data['performance'] is Map<String, dynamic>) {
+        return {'success': true, 'performance': data['performance']};
+      }
+      return {
+        'success': false,
+        'message': data['message']?.toString() ?? 'Unable to load return performance.',
+      };
+    } catch (_) {
+      return {
+        'success': false,
+        'message': 'Unable to connect to the server.',
+      };
+    }
+  }
+
 }

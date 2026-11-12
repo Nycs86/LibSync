@@ -12,6 +12,9 @@ class Book {
   final int availableQuantity;
   final String status;
 
+  // Shared online book cover from the backend
+  final String? coverImageUrl;
+
   const Book({
     required this.id,
     required this.title,
@@ -24,9 +27,12 @@ class Book {
     required this.quantity,
     required this.availableQuantity,
     required this.status,
+    this.coverImageUrl,
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
+    final rawCover = json['cover_image_url']?.toString().trim();
+
     return Book(
       id: int.tryParse('${json['id']}') ?? 0,
       title: '${json['title'] ?? 'Untitled'}',
@@ -35,11 +41,20 @@ class Book {
       isbn: json['isbn']?.toString(),
       category: json['category']?.toString(),
       publisher: json['publisher']?.toString(),
-      yearPublished: int.tryParse('${json['year_published'] ?? ''}'),
-      quantity: int.tryParse('${json['quantity'] ?? 0}') ?? 0,
+      yearPublished:
+          int.tryParse('${json['year_published'] ?? ''}'),
+      quantity:
+          int.tryParse('${json['quantity'] ?? 0}') ?? 0,
       availableQuantity:
           int.tryParse('${json['available_quantity'] ?? 0}') ?? 0,
       status: '${json['status'] ?? 'unavailable'}',
+
+      // Accept only HTTP(S) image URLs
+      coverImageUrl: rawCover != null &&
+              (Uri.tryParse(rawCover)?.isScheme('https') == true ||
+                  Uri.tryParse(rawCover)?.isScheme('http') == true)
+          ? rawCover
+          : null,
     );
   }
 

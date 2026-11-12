@@ -6,6 +6,7 @@ import "./online_book_search.css";
 import "./librarian_dashboard.css";
 import "./librarian_qr_workflow.css";
 import "./librarian_qr_history.css";
+import "./borrow_request_details.css";
 
 
 // Group only records that share a real batch_id. Rows without a batch_id
@@ -311,6 +312,12 @@ function LibrarianDashboard({ onLogout }) {
   const [selectedReturnBookIds, setSelectedReturnBookIds] = useState([]);
   const [confirmationModal, setConfirmationModal] = useState(null);
   const [confirmationLoading, setConfirmationLoading] = useState(false);
+
+  const [selectedBorrowGroupId, setSelectedBorrowGroupId] = useState(null);
+  const [borrowerPerformance, setBorrowerPerformance] = useState(null);
+  const [borrowerPerformanceLoading, setBorrowerPerformanceLoading] = useState(false);
+  const [borrowerPerformanceError, setBorrowerPerformanceError] = useState("");
+  const performanceFetchSequence = useRef(0);
 
   const [processingRequestId, setProcessingRequestId] =
 
@@ -787,6 +794,42 @@ function LibrarianDashboard({ onLogout }) {
     }
   };
 
+  const loadBorrowerPerformance = async (studentId) => {
+    const sequence = ++performanceFetchSequence.current;
+    setBorrowerPerformance(null);
+    setBorrowerPerformanceError("");
+    if (studentId == null || studentId === "") {
+      setBorrowerPerformanceError("Student account ID is missing from this request.");
+      setBorrowerPerformanceLoading(false);
+      return;
+    }
+    setBorrowerPerformanceLoading(true);
+    try {
+      const data = await api.get(`/api/librarian/students/${encodeURIComponent(studentId)}/return-performance`);
+      if (sequence === performanceFetchSequence.current) {
+        if (!data.performance) throw new Error("The server did not return performance data.");
+        setBorrowerPerformance(data.performance);
+      }
+    } catch (error) {
+      if (sequence === performanceFetchSequence.current) {
+        setBorrowerPerformanceError(error.message || "Could not connect to the performance API.");
+      }
+    } finally {
+      if (sequence === performanceFetchSequence.current) setBorrowerPerformanceLoading(false);
+    }
+  };
+
+  const openBorrowDetails = (group) => {
+    setSelectedBorrowGroupId(group.id);
+    void loadBorrowerPerformance(group.first?.user_id ?? group.first?.student_id);
+  };
+
+  const closeBorrowDetails = () => {
+    if (processingRequestId !== null) return;
+    ++performanceFetchSequence.current;
+    setSelectedBorrowGroupId(null);
+  };
+
   // ==========================================
 
   // APPROVE OR DECLINE AN INDIVIDUAL BOOK
@@ -806,6 +849,7 @@ function LibrarianDashboard({ onLogout }) {
       );
 
       await getBorrowRequests(false);
+      void loadBorrowRecords();
 
       if (scannedToken) {
         try {
@@ -1013,6 +1057,8 @@ function LibrarianDashboard({ onLogout }) {
   };
   const recordsPerPage = 8;
   const groupedBorrowRequests = groupRowsByBatch(borrowRequests);
+  const selectedBorrowGroup = groupedBorrowRequests.find((group) => group.id === selectedBorrowGroupId) ?? null;
+  const selectedBorrowerRecords = selectedBorrowGroup ? borrowingRecords.filter((record) => String(record.user_id ?? record.student_id ?? "") === String(selectedBorrowGroup.first.user_id ?? selectedBorrowGroup.first.student_id ?? "")) : [];
   const groupedFilteredBorrowingRecords = groupRowsByBatch(filteredBorrowingRecords);
   const totalRecordPages = Math.max(1, Math.ceil(groupedFilteredBorrowingRecords.length / recordsPerPage));
   const currentRecordPage = Math.min(recordPage, totalRecordPages);
@@ -1788,7 +1834,7 @@ function LibrarianDashboard({ onLogout }) {
 
                       <td>
 
-                        {renderDecisionButtons(request)}
+                        {request.status === "pending" ? "Review in Borrow Requests" : request.status}
 
                       </td>
 
@@ -1947,13 +1993,9 @@ function LibrarianDashboard({ onLogout }) {
                           </ul>
                         </td>
                         <td>
-                          <div className="ls-batch-actions">
-                            {group.items.map((item, index) => (
-                              <div key={item.request_id ?? item.id ?? index}>
-                                {renderDecisionButtons(item)}
-                              </div>
-                            ))}
-                          </div>
+                          <button type="button" className="ls-records-view-button" onClick={() => void openBorrowDetails(group)}>
+                            <i className="bi bi-eye" aria-hidden="true" /> View Details
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1972,6 +2014,84 @@ function LibrarianDashboard({ onLogout }) {
       )}
 
 
+
+      {selectedBorrowGroup && activeSection === "requests" && (
+        <div className="ls-records-modal-backdrop ls-borrow-detail-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeBorrowDetails(); }}>
+          <section className="ls-borrow-detail-modal" role="dialog" aria-modal="true" aria-labelledby="ls-borrow-detail-title">
+            <header className="ls-borrow-detail-header">
+              <span className="ls-borrow-detail-header-icon"><i className="bi bi-person-vcard" aria-hidden="true" /></span>
+              <div className="ls-borrow-detail-header-copy">
+                <span className="ls-borrow-detail-eyebrow">LIBSYNC / REQUEST REVIEW</span>
+                <h2 id="ls-borrow-detail-title">Borrow Request Details</h2>
+                <p>Review the student's borrowing activity and decide on pending books.</p>
+              </div>
+              <button className="ls-borrow-detail-close" type="button" aria-label="Close details" disabled={processingRequestId !== null} onClick={closeBorrowDetails}><i className="bi bi-x-lg" /></button>
+            </header>
+            <div className="ls-borrow-detail-content">
+              <div className="ls-borrow-detail-student-grid">
+                <div><span>STUDENT</span><strong>{selectedBorrowGroup.first.user_name || selectedBorrowGroup.first.student_name || "Unknown student"}</strong></div>
+                <div><span>EMAIL</span><strong>{selectedBorrowGroup.first.user_email || selectedBorrowGroup.first.student_email || "—"}</strong></div>
+                <div><span>BATCH</span><strong>#{selectedBorrowGroup.batchId ?? "—"}</strong></div>
+                <div><span>REQUESTED</span><strong>{selectedBorrowGroup.first.requested_at ? new Date(selectedBorrowGroup.first.requested_at).toLocaleString() : "—"}</strong></div>
+              </div>
+              <section className="ls-borrow-detail-section" aria-labelledby="ls-borrow-performance-title">
+                <div className="ls-borrow-detail-section-heading"><div><span className="ls-borrow-detail-section-icon"><i className="bi bi-speedometer2" /></span><h3 id="ls-borrow-performance-title">Borrower Performance</h3></div><span className="ls-borrow-detail-subtitle">Return history score</span></div>
+                {borrowerPerformanceLoading ? (
+                  <div className="ls-borrow-detail-notice"><i className="bi bi-arrow-repeat" /> Loading performance score...</div>
+                ) : borrowerPerformanceError ? (
+                  <div className="ls-borrow-detail-notice is-error" role="alert">
+                    <i className="bi bi-exclamation-triangle" />
+                    <div><strong>Performance score unavailable</strong><p>{borrowerPerformanceError}. Check that the Flask backend is running and the librarian performance route is registered. Manual decisions remain available.</p></div>
+                    <button type="button" onClick={() => void loadBorrowerPerformance(selectedBorrowGroup.first?.user_id ?? selectedBorrowGroup.first?.student_id)}>Retry</button>
+                  </div>
+                ) : borrowerPerformance ? (
+                  <div className="ls-borrow-detail-performance">
+                    <div className="ls-borrow-detail-score-panel">
+                      <span>PERFORMANCE SCORE</span>
+                      <div className="ls-borrow-detail-score-number">{borrowerPerformance.performance_score}<small>/100</small></div>
+                      <span className={`ls-borrow-detail-level level-${String(borrowerPerformance.performance_level || "").toLowerCase()}`}>{borrowerPerformance.performance_level} Performance</span>
+                      <div className="ls-borrow-detail-meter"><span style={{ width: `${Math.max(0, Math.min(100, Number(borrowerPerformance.performance_score) || 0))}%` }} /></div>
+                    </div>
+                    <div className="ls-borrow-detail-metrics">
+                      <div><i className="bi bi-check-circle" /><span>On-time Returns</span><strong>{borrowerPerformance.on_time_returns}</strong></div>
+                      <div><i className="bi bi-clock-history" /><span>Late Returns</span><strong>{borrowerPerformance.late_returns}</strong></div>
+                      <div><i className="bi bi-journal-check" /><span>Completed Returns</span><strong>{borrowerPerformance.completed_returns}</strong></div>
+                    </div>
+                  </div>
+                ) : <div className="ls-borrow-detail-notice">Performance data unavailable. You may still review requests manually.</div>}
+                <p className="ls-borrow-detail-hint">High: 80–100 · Medium: 50–79 · Low: 0–49. Performance is advisory only; it does not automatically approve or reject a request.</p>
+              </section>
+              <section className="ls-borrow-detail-section" aria-labelledby="ls-borrow-books-title">
+                <div className="ls-borrow-detail-section-heading"><div><span className="ls-borrow-detail-section-icon"><i className="bi bi-book" /></span><h3 id="ls-borrow-books-title">Requested Books</h3></div><span className="ls-borrow-detail-count">{selectedBorrowGroup.items.length} book(s)</span></div>
+                <div className="ls-borrow-detail-book-list">
+                  {selectedBorrowGroup.items.map((item, index) => (
+                    <article className="ls-borrow-detail-book" key={item.request_id ?? item.id ?? index}>
+                      <span className="ls-borrow-detail-book-icon"><i className="bi bi-book-half" /></span>
+                      <div className="ls-borrow-detail-book-info"><strong>{item.book_title || `Book #${item.book_id}`}</strong><small>Request #{item.request_id ?? item.id ?? "—"}</small><span className={`ls-borrow-detail-status status-${String(item.status || "unknown").toLowerCase()}`}>{item.status || "Unknown"}</span></div>
+                      {String(item.status).toLowerCase() === "pending" && (
+                        <div className="ls-borrow-detail-decisions">
+                          <button type="button" className="ls-borrow-detail-approve" disabled={processingRequestId !== null} onClick={() => void handleDecision(item.request_id ?? item.id, "approved")}><i className="bi bi-check-lg" /> {processingRequestId === (item.request_id ?? item.id) ? "Saving..." : "Approve"}</button>
+                          <button type="button" className="ls-borrow-detail-decline" disabled={processingRequestId !== null} onClick={() => void handleDecision(item.request_id ?? item.id, "declined")}><i className="bi bi-x-lg" /> Decline</button>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+                {!selectedBorrowGroup.items.some((item) => String(item.status).toLowerCase() === "pending") && <p className="ls-borrow-detail-hint">All requests in this batch already have a decision. Approve and Decline appear only for pending books.</p>}
+              </section>
+              <section className="ls-borrow-detail-section" aria-labelledby="ls-borrow-history-title">
+                <div className="ls-borrow-detail-section-heading"><div><span className="ls-borrow-detail-section-icon"><i className="bi bi-clock-history" /></span><h3 id="ls-borrow-history-title">Borrowing History</h3></div><span className="ls-borrow-detail-count">{selectedBorrowerRecords.length} record(s)</span></div>
+                {!recordsLoaded ? <p className="ls-borrow-detail-empty">Borrowing records are not loaded yet.</p> : selectedBorrowerRecords.length === 0 ? <p className="ls-borrow-detail-empty">No borrowing records found for this student.</p> : (
+                  <div className="ls-borrow-detail-table-wrap"><table className="ls-borrow-detail-table"><thead><tr><th>BOOK</th><th>DUE DATE</th><th>RETURNED</th><th>STATUS</th></tr></thead><tbody>
+                    {selectedBorrowerRecords.map((record, index) => <tr key={record.request_id ?? record.id ?? index}><td>{record.book_title || "—"}</td><td>{formatRecordDate(record.due_date)}</td><td>{formatRecordDate(record.returned_at)}</td><td><span className={`ls-borrow-detail-status status-${getRecordStatus(record)}`}>{getRecordStatus(record)}</span></td></tr>)}
+                  </tbody></table></div>
+                )}
+              </section>
+            </div>
+            <footer className="ls-borrow-detail-footer"><span><i className="bi bi-shield-check" /> Librarian decision required for pending requests</span><button type="button" disabled={processingRequestId !== null} onClick={closeBorrowDetails}>Close Details</button></footer>
+          </section>
+        </div>
+      )}
 
       {/* BOOKS MANAGEMENT */}
       {activeSection === "books" && (

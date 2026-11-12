@@ -99,8 +99,24 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
     String? qrType;
     String? qrCode;
 
-    final qrAvailable = selectedBatch['qr_available'] == true;
+    var qrAvailable = selectedBatch['qr_available'] == true;
     final batchId = _asInt(selectedBatch['id']);
+    final status = (selectedBatch['status'] ?? '').toString().toLowerCase();
+    final isReleased = selectedBatch['borrow_qr_used_at'] != null &&
+        (status == 'approved' || status == 'partially_returned');
+    String? qrError;
+
+    // Repair legacy released batches where the backend did not save a Return QR.
+    if (isReleased && !qrAvailable && batchId != null) {
+      final requested = await _borrowService.requestReturnQr(batchId: batchId);
+      if (!mounted) return;
+      if (requested['success'] == true) {
+        qrAvailable = true;
+      } else {
+        qrError = requested['message']?.toString() ??
+            'Unable to prepare Return QR.';
+      }
+    }
 
     if (qrAvailable && batchId != null) {
       final qrResult = await _borrowService.getBatchQr(
@@ -113,6 +129,9 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
       if (qrResult['success'] == true) {
         qrType = qrResult['qrType']?.toString();
         qrCode = qrResult['qrCode']?.toString();
+      } else {
+        qrError = qrResult['message']?.toString() ??
+            'Unable to load the QR image.';
       }
     }
 
@@ -120,6 +139,7 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
 
     setState(() {
       _loading = false;
+      _error = qrError ?? '';
       _batch = selectedBatch;
       _qrType = qrType;
       _qrCode = qrCode;
@@ -137,9 +157,7 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
     }
 
     try {
-      final encoded = dataUrl.contains(',')
-          ? dataUrl.split(',').last
-          : dataUrl;
+      final encoded = dataUrl.contains(',') ? dataUrl.split(',').last : dataUrl;
       return base64Decode(encoded);
     } catch (_) {
       return null;
@@ -216,26 +234,19 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
         children: [
           const Text(
             'Borrowing QR',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-            ),
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 5),
           const Text(
             'Borrow QR appears after approval. After checkout, it changes to a Return QR.',
-            style: TextStyle(
-              color: Color(0xFF77827B),
-            ),
+            style: TextStyle(color: Color(0xFF77827B)),
           ),
           const SizedBox(height: 24),
 
           if (_loading)
             const Padding(
               padding: EdgeInsets.only(top: 80),
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             )
           else if (_error.isNotEmpty)
             _MessageCard(
@@ -260,9 +271,7 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFFE4E8E5),
-                ),
+                border: Border.all(color: const Color(0xFFE4E8E5)),
               ),
               child: Column(
                 children: [
@@ -270,7 +279,7 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          _qrType == 'return'
+                          (_qrType == 'return' || batch['borrow_qr_used_at'] != null)
                               ? 'Return QR'
                               : 'Borrow QR',
                           style: const TextStyle(
@@ -288,7 +297,9 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(label).withValues(alpha: 0.10),
+                              color: _statusColor(
+                                label,
+                              ).withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -309,9 +320,7 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Batch ID: ${batch['id']}',
-                      style: const TextStyle(
-                        color: Color(0xFF77827B),
-                      ),
+                      style: const TextStyle(color: Color(0xFF77827B)),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -330,10 +339,10 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                       ),
                     )
                   else
-                    const Icon(
-                      Icons.qr_code_2_rounded,
-                      size: 130,
-                      color: Color(0xFFB7C0BB),
+                    const Text(
+                      'No scannable QR available. Tap Refresh Status.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFFB3261E)),
                     ),
 
                   const SizedBox(height: 18),
@@ -352,16 +361,11 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
-                          Icons.event_available_outlined,
-                          size: 18,
-                        ),
+                        const Icon(Icons.event_available_outlined, size: 18),
                         const SizedBox(width: 7),
                         Text(
                           'Due date: ${batch['due_date']}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -380,16 +384,13 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
 
             const SizedBox(height: 18),
 
-            if (batch['books'] is List &&
-                (batch['books'] as List).isNotEmpty)
+            if (batch['books'] is List && (batch['books'] as List).isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: const Color(0xFFE4E8E5),
-                  ),
+                  border: Border.all(color: const Color(0xFFE4E8E5)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,8 +407,9 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                       final book = rawBook is Map
                           ? Map<String, dynamic>.from(rawBook)
                           : <String, dynamic>{};
-                      final status =
-                          (book['status'] ?? '').toString().toLowerCase();
+                      final status = (book['status'] ?? '')
+                          .toString()
+                          .toLowerCase();
 
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
@@ -415,8 +417,8 @@ class _StudentQrScreenState extends State<StudentQrScreen> {
                           status == 'returned'
                               ? Icons.check_circle
                               : status == 'declined'
-                                  ? Icons.cancel_outlined
-                                  : Icons.menu_book,
+                              ? Icons.cancel_outlined
+                              : Icons.menu_book,
                           color: status == 'returned'
                               ? const Color(0xFF2E7D32)
                               : null,
@@ -463,34 +465,22 @@ class _MessageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE4E8E5),
-        ),
+        border: Border.all(color: const Color(0xFFE4E8E5)),
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 82,
-            color: const Color(0xFF0B6B57),
-          ),
+          Icon(icon, size: 82, color: const Color(0xFF0B6B57)),
           const SizedBox(height: 18),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
           const SizedBox(height: 7),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF77827B),
-              height: 1.4,
-            ),
+            style: const TextStyle(color: Color(0xFF77827B), height: 1.4),
           ),
           const SizedBox(height: 18),
           OutlinedButton.icon(

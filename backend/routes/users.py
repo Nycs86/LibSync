@@ -538,3 +538,106 @@ def remove_librarian(user_id):
         if connection:
             connection.close()
         
+
+# ADMIN EDITS A LIBRARIAN ACCOUNT (NAME AND EMAIL ONLY)
+@users_bp.route("/api/users/<int:user_id>/librarian", methods=["PUT"])
+@require_role("admin")
+def update_librarian(user_id):
+    connection = None
+    cursor = None
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "message": "A JSON object is required."}), 400
+        name = data.get("name")
+        email = data.get("email")
+        if not isinstance(name, str) or not name.strip() or not isinstance(email, str) or not email.strip():
+            return jsonify({"status": "error", "message": "Librarian name and email are required."}), 400
+        name, email = name.strip(), email.strip()
+        if len(name) > 100 or len(email) > 100:
+            return jsonify({"status": "error", "message": "Name and email must not exceed 100 characters."}), 400
+
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT id FROM users WHERE id = %s AND LOWER(role) = 'librarian' FOR UPDATE", (user_id,))
+        if cursor.fetchone() is None:
+            return jsonify({"status": "error", "message": "Librarian account not found."}), 404
+        cursor.execute(
+            "UPDATE users SET name = %s, email = %s WHERE id = %s AND LOWER(role) = 'librarian'",
+            (name, email, user_id),
+        )
+        connection.commit()
+        return jsonify({"status": "success", "message": "Librarian account updated successfully.",
+                        "user": {"id": user_id, "name": name, "email": email, "role": "librarian"}}), 200
+    except mysql.connector.IntegrityError as error:
+        if connection:
+            connection.rollback()
+        if getattr(error, "errno", None) == 1062:
+            return jsonify({"status": "error", "message": "That email address is already used by another account."}), 409
+        logger.exception("Integrity error updating librarian")
+        return jsonify({"status": "error", "message": "Unable to update librarian account."}), 500
+    except mysql.connector.Error:
+        if connection:
+            connection.rollback()
+        logger.exception("Database error updating librarian")
+        return jsonify({"status": "error", "message": "Unable to update librarian account right now."}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+# ADMIN DELETES A LIBRARIAN ACCOUNT WITHOUT DESTROYING LIBRARY HISTORY
+@users_bp.route("/api/users/<int:user_id>/librarian", methods=["DELETE"])
+@require_role("admin")
+def delete_librarian(user_id):
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, name FROM users WHERE id = %s AND LOWER(role) = 'librarian' FOR UPDATE",
+            (user_id,),
+        )
+        librarian = cursor.fetchone()
+        if not librarian:
+            return jsonify({"status": "error", "message": "Librarian account not found."}), 404
+
+        # Existing borrowing/QR history must never be silently deleted.
+        for table_name, description in (
+            ("borrowings", "borrowing records"),
+            ("borrow_requests", "borrow requests"),
+            ("borrow_batches", "QR borrowing batches"),
+        ):
+            cursor.execute(f"SELECT COUNT(*) AS total FROM {table_name} WHERE user_id = %s", (user_id,))
+            if int(cursor.fetchone()["total"]) > 0:
+                return jsonify({"status": "error", "message":
+                                f"This librarian has {description}. Account deletion is blocked to preserve library history."}), 409
+
+        cursor.execute("DELETE FROM librarians WHERE user_id = %s", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = %s AND LOWER(role) = 'librarian'", (user_id,))
+        connection.commit()
+        return jsonify({"status": "success", "message": f"Librarian account for {librarian['name']} was deleted.",
+                        "user_id": user_id}), 200
+    except mysql.connector.IntegrityError:
+        if connection:
+            connection.rollback()
+        logger.exception("Librarian deletion blocked by database references")
+        return jsonify({"status": "error", "message":
+                        "This librarian is referenced by other records. Deletion was blocked to preserve library history."}), 409
+    except mysql.connector.Error:
+        if connection:
+            connection.rollback()
+        logger.exception("Database error deleting librarian")
+        return jsonify({"status": "error", "message": "Unable to delete librarian account right now."}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()

@@ -41,6 +41,12 @@ function AdminDashboard({ onLogout }) {
   });
   const [studentSaving, setStudentSaving] = useState(false);
   const [studentDeletingId, setStudentDeletingId] = useState(null);
+  const [librarianEditorOpen, setLibrarianEditorOpen] = useState(false);
+  const [editingLibrarian, setEditingLibrarian] = useState(null);
+  const [librarianForm, setLibrarianForm] = useState({ name: "", email: "" });
+  const [librarianSaving, setLibrarianSaving] = useState(false);
+  const [librarianDeletingId, setLibrarianDeletingId] = useState(null);
+
 
   // All dashboard requests use the shared API client.
   // It automatically attaches the current Admin JWT from sessionStorage.
@@ -379,24 +385,62 @@ function AdminDashboard({ onLogout }) {
     }
   };
 
-  const removeLibrarian = async (librarianId) => {
-    const confirmed = window.confirm(
-      "Remove this librarian and return the account to Student?"
-    );
+  const openLibrarianEditor = (librarian) => {
+    setEditingLibrarian(librarian);
+    setLibrarianForm({ name: librarian.name || "", email: librarian.email || "" });
+    setLibrarianEditorOpen(true);
+    setMessage("");
+  };
 
-    if (!confirmed) return;
+  const closeLibrarianEditor = () => {
+    if (librarianSaving) return;
+    setLibrarianEditorOpen(false);
+    setEditingLibrarian(null);
+  };
 
+  const handleLibrarianUpdate = async (event) => {
+    event.preventDefault();
+    if (!editingLibrarian) return;
+    const name = librarianForm.name.trim();
+    const email = librarianForm.email.trim();
+    if (!name || !email) {
+      setMessage("Librarian name and email are required.");
+      return;
+    }
     try {
+      setLibrarianSaving(true);
       setMessage("");
-
-      const data = await api.put(`/api/users/${librarianId}/remove-librarian`, {});
-
-      setMessage(data.message || "Librarian returned to student successfully.");
-      const refreshedUsers = await fetchUsers();
-      setUsers(refreshedUsers);
+      const data = await api.put(`/api/users/${editingLibrarian.id}/librarian`, { name, email });
+      const updated = data.user || { ...editingLibrarian, name, email };
+      setUsers((current) => current.map((account) =>
+        Number(account.id) === Number(editingLibrarian.id)
+          ? { ...account, ...updated, role: "librarian" }
+          : account
+      ));
+      setLibrarianEditorOpen(false);
+      setEditingLibrarian(null);
+      setMessage(data.message || "Librarian updated successfully.");
     } catch (error) {
-      console.error("Remove librarian error:", error);
-      setMessage(error.message || "Unable to remove this librarian.");
+      setMessage(error.message || "Unable to update librarian.");
+    } finally {
+      setLibrarianSaving(false);
+    }
+  };
+
+  const handleLibrarianDelete = async (librarian) => {
+    if (!window.confirm(
+      `Permanently delete librarian account for ${librarian.name || librarian.email}? This cannot be undone. To keep the account as a student, use Remove instead.`
+    )) return;
+    try {
+      setLibrarianDeletingId(librarian.id);
+      setMessage("");
+      const data = await api.delete(`/api/users/${librarian.id}/librarian`);
+      setUsers((current) => current.filter((account) => Number(account.id) !== Number(librarian.id)));
+      setMessage(data.message || "Librarian deleted successfully.");
+    } catch (error) {
+      setMessage(error.message || "Unable to delete librarian.");
+    } finally {
+      setLibrarianDeletingId(null);
     }
   };
 
@@ -895,9 +939,10 @@ function AdminDashboard({ onLogout }) {
                               <td>{librarian.email}</td>
                               <td><span className="admin-status-pill active">Active</span></td>
                               <td>
-                                <button type="button" className="admin-danger-button" onClick={() => removeLibrarian(librarian.id)}>
-                                  Remove
-                                </button>
+                                <div className="admin-row-actions">
+                                  <button type="button" className="admin-edit-button" onClick={() => openLibrarianEditor(librarian)}><i className="bi bi-pencil-square" /> Edit</button>
+                                  <button type="button" className="admin-danger-button" onClick={() => handleLibrarianDelete(librarian)} disabled={librarianDeletingId === librarian.id}><i className="bi bi-trash" /> {librarianDeletingId === librarian.id ? "Deleting..." : "Delete"}</button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1021,7 +1066,7 @@ function AdminDashboard({ onLogout }) {
                   <div>
                     <h2>Librarian Accounts</h2>
                     <p>
-                      View librarian accounts. Add a registered student account to the librarian team or return a librarian account to student.
+                      View librarian accounts. Add, edit, or delete librarian accounts.
                     </p>
                   </div>
 
@@ -1058,15 +1103,10 @@ function AdminDashboard({ onLogout }) {
                             </span>
                           </td>
                           <td>
-                            <button
-                              className="admin-danger-button"
-                              onClick={() =>
-                                removeLibrarian(librarian.id)
-                              }
-                            >
-                              <i className="bi bi-trash"></i>
-                              Remove
-                            </button>
+                            <div className="admin-row-actions">
+                              <button type="button" className="admin-edit-button" onClick={() => openLibrarianEditor(librarian)}><i className="bi bi-pencil-square" /> Edit</button>
+                              <button type="button" className="admin-danger-button" onClick={() => handleLibrarianDelete(librarian)} disabled={librarianDeletingId === librarian.id}><i className="bi bi-trash" /> {librarianDeletingId === librarian.id ? "Deleting..." : "Delete"}</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1205,6 +1245,32 @@ function AdminDashboard({ onLogout }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {librarianEditorOpen && (
+        <div className="admin-modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeLibrarianEditor();
+        }}>
+          <form className="admin-modal admin-student-modal" onSubmit={handleLibrarianUpdate} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="admin-modal-header">
+              <div><h2>Edit Librarian Account</h2><p>Update the librarian's name and email address.</p></div>
+              <button type="button" onClick={closeLibrarianEditor} disabled={librarianSaving} aria-label="Close edit librarian dialog"><i className="bi bi-x-lg" /></button>
+            </div>
+            <label className="admin-form-field">
+              <span>Full Name</span>
+              <input type="text" value={librarianForm.name} onChange={(event) => setLibrarianForm((current) => ({ ...current, name: event.target.value }))} maxLength={100} required />
+            </label>
+            <label className="admin-form-field">
+              <span>Email Address</span>
+              <input type="email" value={librarianForm.email} onChange={(event) => setLibrarianForm((current) => ({ ...current, email: event.target.value }))} maxLength={100} required />
+            </label>
+            <p className="admin-form-hint">The librarian's password and role are not changed by this form.</p>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-secondary-button" onClick={closeLibrarianEditor} disabled={librarianSaving}>Cancel</button>
+              <button type="submit" className="admin-primary-button" disabled={librarianSaving}>{librarianSaving ? "Saving..." : "Save Changes"}</button>
+            </div>
+          </form>
         </div>
       )}
 
