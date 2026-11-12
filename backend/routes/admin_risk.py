@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from database import get_db_connection
 from .auth import require_role
 
@@ -133,6 +133,40 @@ def get_return_performance():
     except Exception:
         logger.exception("Failed to calculate student return performance scores.")
         return jsonify({"status": "error", "message": "Unable to calculate return performance scores."}), 500
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None:
+            connection.close()
+
+
+@admin_risk_bp.route("/api/student/return-performance", methods=["GET"])
+@require_role("student")
+def get_my_return_performance():
+    """Return only the authenticated student's book-return performance."""
+    connection = None
+    cursor = None
+    try:
+        user_id = request.authenticated_user_id
+        connection = get_db_connection()
+        if connection is None:
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
+
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT br.returned_at, bb.due_date
+            FROM borrow_requests br
+            INNER JOIN borrow_batches bb ON bb.id = br.batch_id
+            WHERE bb.user_id = %s
+              AND br.returned_at IS NOT NULL
+              AND bb.due_date IS NOT NULL
+            ORDER BY br.returned_at ASC, br.id ASC
+        """, (user_id,))
+        performance = _calculate_performance(cursor.fetchall())
+        return jsonify({"status": "success", "performance": performance}), 200
+    except Exception:
+        logger.exception("Failed to calculate student return performance.")
+        return jsonify({"status": "error", "message": "Unable to calculate return performance."}), 500
     finally:
         if cursor is not None:
             cursor.close()
