@@ -933,6 +933,28 @@ def generate_batch_qr(batch_id):
 
         qr_token, qr_type = _current_qr_for_batch(batch)
 
+        
+        qr_token, qr_type = _current_qr_for_batch(batch)
+
+        # Keep the original Receiving QR visible after release.
+        # The librarian release endpoint still rejects duplicate scans.
+        if (
+            not qr_token
+            and batch["status"] == "approved"
+            and batch["borrow_qr_used_at"] is not None
+            and batch["return_qr_token"] is None
+            and batch["borrow_qr_token"]
+        ):
+            qr_token = batch["borrow_qr_token"]
+            qr_type = "borrow"
+
+        if not qr_token:
+            return jsonify({
+                "status": "error",
+                "message": "QR code is not available for this batch yet."
+            }), 400
+
+
         if not qr_token:
             return jsonify({
                 "status": "error",
@@ -1131,6 +1153,13 @@ def lookup_borrow_batch_by_qr():
         """, (batch["id"],))
         batch_requests = cursor.fetchall()
 
+        # Persist every successful QR scan; never store the secret QR token.
+        cursor.execute("""INSERT INTO librarian_qr_scan_events
+                          (batch_id, librarian_id, qr_type)
+                          VALUES (%s, %s, %s)""",
+                       (batch["id"], request.authenticated_user_id, qr_type))
+        conn.commit()
+
         batch["requests"] = batch_requests
         batch["total_books"] = len(batch_requests)
         batch["qr_type"] = qr_type
@@ -1249,15 +1278,14 @@ def release_borrow_batch(batch_id):
 
         return_qr_token = batch["return_qr_token"] or str(uuid.uuid4())
         cursor.execute("""
-            UPDATE borrow_batches
-            SET
-                borrow_qr_used_at = UTC_TIMESTAMP(),
-                return_qr_token = %s,
-                loan_days = 1,
-                due_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
-            WHERE id = %s
-              AND borrow_qr_used_at IS NULL
-        """, (return_qr_token, batch_id))
+                UPDATE borrow_batches
+                SET
+                    borrow_qr_used_at = UTC_TIMESTAMP(),
+                    loan_days = 1,
+                    due_date = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR)
+                WHERE id = %s
+                AND borrow_qr_used_at IS NULL
+            """, (batch_id,))
 
         if cursor.rowcount != 1:
             conn.rollback()
@@ -1305,7 +1333,7 @@ def release_borrow_batch(batch_id):
             "message": "Books released successfully.",
             "batch_id": batch_id,
             "borrow_qr_used": True,
-            "return_qr_available": True,
+            "return_qr_available": False,
             "return_qr_token": return_qr_token,
             "due_date": due_date_utc
         }), 200
@@ -1330,6 +1358,118 @@ def release_borrow_batch(batch_id):
     "/api/borrow-batches/<int:batch_id>/return",
     methods=["PUT"]
 )
+
+
+@borrow_requests_bp.route(
+    "/api/borrow-batches/<int:batch_id>/request-return",
+    methods=["POST"]
+)
+@require_role("student")
+def request_return_qr(batch_id):
+    student_id = request.authenticated_user_id
+
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({
+            "status": "error",
+            "message": "Database connection failed."
+        }), 500
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("""
+            SELECT id, user_id, status,
+                   borrow_qr_used_at,
+                   return_qr_token,
+                   return_qr_used_at
+            FROM borrow_batches
+            WHERE id = %s
+            FOR UPDATE
+        """, (batch_id,))
+
+        batch = cursor.fetchone()
+
+        if not batch:
+            conn.rollback()
+            return jsonify({
+                "status": "error",
+                "message": "Borrow batch not found."
+            }), 404
+
+        if int(batch["user_id"]) != int(student_id):
+            conn.rollback()
+            return jsonify({
+                "status": "error",
+                "message": "Access denied."
+            }), 403
+
+        if (
+            batch["status"] not in ("approved", "partially_returned")
+            or batch["borrow_qr_used_at"] is None
+            or batch["return_qr_used_at"] is not None
+        ):
+            conn.rollback()
+            return jsonify({
+                "status": "error",
+                "message": "This batch is not ready for return."
+            }), 409
+
+        cursor.execute("""
+            SELECT COUNT(*) AS outstanding_count
+            FROM borrow_requests
+            WHERE batch_id = %s
+              AND status = 'approved'
+              AND returned_at IS NULL
+        """, (batch_id,))
+
+        outstanding = int(
+            cursor.fetchone()["outstanding_count"] or 0
+        )
+
+        if outstanding == 0:
+            conn.rollback()
+            return jsonify({
+                "status": "error",
+                "message": "No outstanding books to return."
+            }), 409
+
+        # Reuse the token if Return Books was already pressed.
+        token = batch["return_qr_token"]
+
+        if not token:
+            token = str(uuid.uuid4())
+
+            cursor.execute("""
+                UPDATE borrow_batches
+                SET return_qr_token = %s
+                WHERE id = %s
+                  AND return_qr_token IS NULL
+            """, (token, batch_id))
+
+        conn.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "Return QR is ready.",
+            "batch_id": batch_id,
+            "qr_type": "return"
+        }), 200
+
+    except Exception:
+        conn.rollback()
+        logger.exception("Request Return QR failed")
+
+        return jsonify({
+            "status": "error",
+            "message": "Unable to prepare Return QR."
+        }), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
 @require_role("librarian")
 def return_borrow_batch_by_qr(batch_id):
     data, error_response = _get_json_object()

@@ -3,6 +3,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from routes.student import student_bp
+from routes.librarian_qr_history import bp as librarian_qr_history_bp
 from routes.librarian_students import librarian_students_bp
 from routes import (
     auth_bp,
@@ -53,8 +54,9 @@ app.register_blueprint(books_bp)
 app.register_blueprint(borrowings_bp)
 app.register_blueprint(borrow_requests_bp)
 app.register_blueprint(student_bp)
-app.register_blueprint(librarian_students_bp)
 app.register_blueprint(admin_risk_bp)
+app.register_blueprint(librarian_qr_history_bp)
+app.register_blueprint(librarian_students_bp)
 
 
 @app.route("/")
