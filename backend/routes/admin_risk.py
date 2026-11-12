@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from flask import Blueprint, jsonify
 from database import get_db_connection
 from .auth import require_role
@@ -6,154 +7,123 @@ from .auth import require_role
 admin_risk_bp = Blueprint("admin_risk", __name__)
 logger = logging.getLogger(__name__)
 
-@admin_risk_bp.route("/api/admin/overdue-risk", methods=["GET"])
+
+def _utc_datetime(value):
+    """Normalize MySQL DATETIME or ISO timestamps for consistent UTC comparison."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _calculate_performance(returns):
+    """Apply book-level penalties/recovery in chronological return order."""
+    score = 100
+    on_time_returns = 0
+    late_returns = 0
+
+    for record in returns:
+        returned_at = _utc_datetime(record["returned_at"])
+        due_date = _utc_datetime(record["due_date"])
+        if returned_at is None or due_date is None:
+            continue
+
+        if returned_at <= due_date:
+            on_time_returns += 1
+            score = min(100, score + 5)
+        else:
+            late_returns += 1
+            seconds_late = (returned_at - due_date).total_seconds()
+            days_late = max(1, int((seconds_late + 86400 - 1) // 86400))
+            score = max(0, score - min(days_late * 10, 50))
+
+    level = "High" if score >= 80 else "Medium" if score >= 50 else "Low"
+    return {
+        "performance_score": score,
+        "performance_level": level,
+        "completed_returns": on_time_returns + late_returns,
+        "on_time_returns": on_time_returns,
+        "late_returns": late_returns,
+    }
+
+
+@admin_risk_bp.route("/api/admin/return-performance", methods=["GET"])
 @require_role("admin")
-def get_overdue_risk():
-    """Return rule-based overdue risk scores using real LibSync data only."""
+def get_return_performance():
+    """Return rule-based book-return performance scores for students."""
     connection = None
     cursor = None
 
     try:
         connection = get_db_connection()
         if connection is None:
-            return jsonify({
-                "status": "error",
-                "message": "Database connection failed.",
-            }), 500
+            return jsonify({"status": "error", "message": "Database connection failed."}), 500
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute("""
             SELECT
-                risk_data.*,
-                CASE
-                    WHEN risk_score >= 60 THEN 'High'
-                    WHEN risk_score >= 25 THEN 'Medium'
-                    ELSE 'Low'
-                END AS risk_level
-            FROM (
-                SELECT
-                    u.id AS user_id,
-                    u.name,
-                    u.email,
-                    s.student_number,
-                    s.program,
-                    s.college,
-                    s.year_level,
-                    s.gender,
-
-                    COUNT(DISTINCT CASE
-                        WHEN bb.status IN ('approved', 'partially_returned')
-                        THEN bb.id
-                    END) AS active_loans,
-
-                    COUNT(DISTINCT CASE
-                        WHEN bb.due_date < UTC_TIMESTAMP()
-                         AND bb.status IN ('approved', 'partially_returned')
-                        THEN bb.id
-                    END) AS current_overdue_loans,
-
-                    COALESCE(
-                        MAX(
-                            CASE
-                                WHEN bb.due_date < UTC_TIMESTAMP()
-                                 AND bb.status IN ('approved', 'partially_returned')
-                                THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS max_days_overdue,
-
-                    COUNT(DISTINCT CASE
-                        WHEN br.returned_at IS NOT NULL
-                         AND bb.due_date IS NOT NULL
-                         AND br.returned_at > bb.due_date
-                        THEN br.id
-                    END) AS past_late_returns,
-
-                    LEAST(
-                        100,
-                        COUNT(DISTINCT CASE
-                            WHEN bb.due_date < UTC_TIMESTAMP()
-                             AND bb.status IN ('approved', 'partially_returned')
-                            THEN bb.id
-                        END) * 50
-                        +
-                        LEAST(
-                            COALESCE(
-                                MAX(
-                                    CASE
-                                        WHEN bb.due_date < UTC_TIMESTAMP()
-                                         AND bb.status IN ('approved', 'partially_returned')
-                                        THEN TIMESTAMPDIFF(DAY, bb.due_date, UTC_TIMESTAMP())
-                                        ELSE 0
-                                    END
-                                ),
-                                0
-                            ) * 2,
-                            40
-                        )
-                        +
-                        LEAST(
-                            COUNT(DISTINCT CASE
-                                WHEN br.returned_at IS NOT NULL
-                                 AND bb.due_date IS NOT NULL
-                                 AND br.returned_at > bb.due_date
-                                THEN br.id
-                            END) * 15,
-                            30
-                        )
-                        +
-                        GREATEST(
-                            COUNT(DISTINCT CASE
-                                WHEN bb.status IN ('approved', 'partially_returned')
-                                THEN bb.id
-                            END) - 1,
-                            0
-                        ) * 5
-                    ) AS risk_score
-
-                FROM users u
-                LEFT JOIN students s ON s.user_id = u.id
-                LEFT JOIN borrow_batches bb ON bb.user_id = u.id
-                LEFT JOIN borrow_requests br ON br.batch_id = bb.id
-                WHERE u.role = 'student'
-                GROUP BY
-                    u.id,
-                    u.name,
-                    u.email,
-                    s.student_number,
-                    s.program,
-                    s.college,
-                    s.year_level,
-                    s.gender
-            ) AS risk_data
-            ORDER BY
-                risk_score DESC,
-                current_overdue_loans DESC,
-                max_days_overdue DESC,
-                name ASC
+                u.id AS user_id,
+                u.name,
+                u.email,
+                s.student_number,
+                s.program,
+                s.college,
+                s.year_level,
+                s.gender
+            FROM users u
+            LEFT JOIN students s ON s.user_id = u.id
+            WHERE u.role = 'student'
+            ORDER BY u.name ASC
         """)
-
         students = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT
+                bb.user_id,
+                br.id AS return_id,
+                br.returned_at,
+                bb.due_date
+            FROM borrow_requests br
+            INNER JOIN borrow_batches bb ON bb.id = br.batch_id
+            INNER JOIN users u ON u.id = bb.user_id
+            WHERE u.role = 'student'
+              AND br.returned_at IS NOT NULL
+              AND bb.due_date IS NOT NULL
+            ORDER BY br.returned_at ASC, br.id ASC
+        """)
+        return_rows = cursor.fetchall()
+        returns_by_student = {}
+        for row in return_rows:
+            returns_by_student.setdefault(row["user_id"], []).append(row)
+
+        for student in students:
+            student.update(_calculate_performance(returns_by_student.get(student["user_id"], [])))
+
+        students.sort(key=lambda row: (row["performance_score"], row["name"] or ""))
 
         summary = {
             "total_students": len(students),
-            "high_risk": sum(1 for row in students if row["risk_level"] == "High"),
-            "medium_risk": sum(1 for row in students if row["risk_level"] == "Medium"),
-            "low_risk": sum(1 for row in students if row["risk_level"] == "Low"),
+            "high_performance": sum(s["performance_level"] == "High" for s in students),
+            "medium_performance": sum(s["performance_level"] == "Medium" for s in students),
+            "low_performance": sum(s["performance_level"] == "Low" for s in students),
         }
 
         return jsonify({
             "status": "success",
             "model": {
-                "type": "rule_based_overdue_risk_scoring",
+                "type": "rule_based_return_performance_scoring",
                 "version": "1.0",
                 "score_range": {"minimum": 0, "maximum": 100},
-                "levels": {
-                    "low": "0-24",
-                    "medium": "25-59",
-                    "high": "60-100",
+                "levels": {"low": "0-49", "medium": "50-79", "high": "80-100"},
+                "rules": {
+                    "initial_score": 100,
+                    "on_time_recovery": 5,
+                    "late_penalty_per_day": 10,
+                    "maximum_late_penalty_per_book": 50,
+                    "partial_day_counts_as_full_day": True,
                 },
             },
             "summary": summary,
@@ -161,12 +131,8 @@ def get_overdue_risk():
         }), 200
 
     except Exception:
-        logger.exception("Failed to calculate admin overdue risk scores.")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to calculate overdue risk scores.",
-        }), 500
-
+        logger.exception("Failed to calculate student return performance scores.")
+        return jsonify({"status": "error", "message": "Unable to calculate return performance scores."}), 500
     finally:
         if cursor is not None:
             cursor.close()

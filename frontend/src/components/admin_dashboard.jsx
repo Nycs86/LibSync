@@ -15,15 +15,15 @@ function AdminDashboard({ onLogout }) {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
 
-  const [riskStudents, setRiskStudents] = useState([]);
-  const [riskSummary, setRiskSummary] = useState({
+  const [performanceStudents, setPerformanceStudents] = useState([]);
+  const [performanceSummary, setPerformanceSummary] = useState({
     total_students: 0,
-    high_risk: 0,
-    medium_risk: 0,
-    low_risk: 0,
+    high_performance: 0,
+    medium_performance: 0,
+    low_performance: 0,
   });
-  const [riskLoading, setRiskLoading] = useState(true);
-  const [riskError, setRiskError] = useState("");
+  const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [performanceError, setPerformanceError] = useState("");
 
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignSearch, setAssignSearch] = useState("");
@@ -64,41 +64,40 @@ function AdminDashboard({ onLogout }) {
     return Array.isArray(data) ? data : data.requests || [];
   }, []);
 
-  const fetchOverdueRisk = useCallback(async () => {
-    const data = await api.get("/api/admin/overdue-risk");
+  const fetchReturnPerformance = useCallback(async () => {
+    const data = await api.get("/api/admin/return-performance");
     return {
       students: Array.isArray(data?.students) ? data.students : [],
       summary: data?.summary || {
         total_students: 0,
-        high_risk: 0,
-        medium_risk: 0,
-        low_risk: 0,
+        high_performance: 0,
+        medium_performance: 0,
+        low_performance: 0,
       },
     };
   }, []);
 
-  const loadOverdueRisk = useCallback(async () => {
+  const loadReturnPerformance = useCallback(async () => {
     try {
-      setRiskLoading(true);
-      setRiskError("");
-
-      const data = await fetchOverdueRisk();
-      setRiskStudents(data.students);
-      setRiskSummary(data.summary);
+      setPerformanceLoading(true);
+      setPerformanceError("");
+      const data = await fetchReturnPerformance();
+      setPerformanceStudents(data.students);
+      setPerformanceSummary(data.summary);
     } catch (error) {
-      console.error("Load overdue risk error:", error);
-      setRiskStudents([]);
-      setRiskSummary({
+      console.error("Load return performance error:", error);
+      setPerformanceStudents([]);
+      setPerformanceSummary({
         total_students: 0,
-        high_risk: 0,
-        medium_risk: 0,
-        low_risk: 0,
+        high_performance: 0,
+        medium_performance: 0,
+        low_performance: 0,
       });
-      setRiskError(error.message || "Unable to load overdue risk data.");
+      setPerformanceError(error.message || "Unable to load return performance data.");
     } finally {
-      setRiskLoading(false);
+      setPerformanceLoading(false);
     }
-  }, [fetchOverdueRisk]);
+  }, [fetchReturnPerformance]);
 
   // Used by the manual Refresh button. Each setter runs only after all
   // requested data has been received successfully.
@@ -122,14 +121,14 @@ function AdminDashboard({ onLogout }) {
       setBorrowings(borrowingsData);
       setRequests(requestsData);
 
-      void loadOverdueRisk();
+      void loadReturnPerformance();
     } catch (error) {
       console.error(error);
       setMessage(error.message || "Unable to load dashboard data.");
     } finally {
       setLoading(false);
     }
-  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadOverdueRisk]);
+  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadReturnPerformance]);
 
   // Initial loading: fetch first, then update React state after the awaits.
   useEffect(() => {
@@ -152,7 +151,7 @@ function AdminDashboard({ onLogout }) {
         setBorrowings(borrowingsData);
         setRequests(requestsData);
 
-        void loadOverdueRisk();
+        void loadReturnPerformance();
       } catch (error) {
         console.error(error);
         if (!cancelled) {
@@ -170,7 +169,7 @@ function AdminDashboard({ onLogout }) {
     return () => {
       cancelled = true;
     };
-  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadOverdueRisk]);
+  }, [fetchUsers, fetchBooks, fetchBorrowings, fetchBorrowRequests, loadReturnPerformance]);
 
   const students = useMemo(
     () => users.filter((account) => account.role === "student"),
@@ -322,16 +321,13 @@ function AdminDashboard({ onLogout }) {
       .slice(0, 5);
   }, [books]);
 
-  const topRiskStudents = useMemo(
-    () =>
-      [...riskStudents]
-        .sort(
-          (a, b) =>
-            Number(b.risk_score || 0) - Number(a.risk_score || 0) ||
-            String(a.name || "").localeCompare(String(b.name || ""))
-        )
-        .slice(0, 6),
-    [riskStudents]
+  const displayedPerformanceStudents = useMemo(
+    () => [...performanceStudents].sort(
+      (a, b) =>
+        Number(a.performance_score ?? 100) - Number(b.performance_score ?? 100) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+    ),
+    [performanceStudents]
   );
 
   // The Users section is dedicated to student accounts only.
@@ -710,101 +706,63 @@ function AdminDashboard({ onLogout }) {
                 <section className="admin-panel">
                   <div className="admin-panel-heading">
                     <div>
-                      <h2>Overdue Risk Monitoring</h2>
-                      <p>Rule-based risk scoring from real LibSync borrowing and overdue data.</p>
+                      <h2>Student Return Performance Monitoring</h2>
+                      <p>Rule-based scores from librarian-confirmed book returns. Higher scores mean better returning performance.</p>
                     </div>
                     <button
                       type="button"
                       className="admin-secondary-button"
-                      onClick={() => void loadOverdueRisk()}
-                      disabled={riskLoading}
+                      onClick={() => void loadReturnPerformance()}
+                      disabled={performanceLoading}
                     >
-                      <i className={`bi bi-arrow-clockwise ${riskLoading ? "admin-spin" : ""}`} />
-                      Refresh Risk
+                      <i className={`bi bi-arrow-clockwise ${performanceLoading ? "admin-spin" : ""}`} />
+                      Refresh Performance
                     </button>
                   </div>
 
                   <div className="admin-stat-grid admin-stat-grid-overview">
-                    <StatCard
-                      icon="bi-exclamation-octagon"
-                      label="High Risk"
-                      value={riskSummary.high_risk || 0}
-                      note="students requiring immediate attention"
-                    />
-                    <StatCard
-                      icon="bi-exclamation-triangle"
-                      label="Medium Risk"
-                      value={riskSummary.medium_risk || 0}
-                      note="students to monitor closely"
-                    />
-                    <StatCard
-                      icon="bi-shield-check"
-                      label="Low Risk"
-                      value={riskSummary.low_risk || 0}
-                      note="no significant overdue risk detected"
-                    />
-                    <StatCard
-                      icon="bi-people"
-                      label="Students Scored"
-                      value={riskSummary.total_students || 0}
-                      note="based on actual system records"
-                    />
+                    <StatCard icon="bi-shield-check" label="High Performance" value={performanceSummary.high_performance || 0} note="80–100 points · good returning record" />
+                    <StatCard icon="bi-exclamation-triangle" label="Medium Performance" value={performanceSummary.medium_performance || 0} note="50–79 points · needs improvement" />
+                    <StatCard icon="bi-exclamation-octagon" label="Low Performance" value={performanceSummary.low_performance || 0} note="0–49 points · poor returning record" />
+                    <StatCard icon="bi-people" label="Students Scored" value={performanceSummary.total_students || 0} note="including students with no returns yet" />
                   </div>
 
-                  {riskError ? (
-                    <div className="admin-message">
-                      {riskError}
-                    </div>
-                  ) : riskLoading && riskStudents.length === 0 ? (
-                    <div className="admin-loading">Loading overdue risk data...</div>
-                  ) : topRiskStudents.length === 0 ? (
-                    <div className="admin-empty-cell">No student risk data available yet.</div>
+                  {performanceError ? (
+                    <div className="admin-message">{performanceError}</div>
+                  ) : performanceLoading && performanceStudents.length === 0 ? (
+                    <div className="admin-loading">Loading return performance data...</div>
+                  ) : displayedPerformanceStudents.length === 0 ? (
+                    <div className="admin-empty-cell">No student performance data available yet.</div>
                   ) : (
                     <div className="admin-table-wrap">
                       <table className="admin-table">
                         <thead>
                           <tr>
                             <th>Student</th>
-                            <th>Active Loans</th>
-                            <th>Overdue Loans</th>
-                            <th>Max Days Overdue</th>
-                            <th>Past Late Returns</th>
-                            <th>Risk Score</th>
-                            <th>Risk Level</th>
+                            <th>Completed Returns</th>
+                            <th>On-Time Returns</th>
+                            <th>Late Returns</th>
+                            <th>Performance Score</th>
+                            <th>Performance Level</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {topRiskStudents.map((student) => (
+                          {displayedPerformanceStudents.map((student) => (
                             <tr key={student.user_id}>
-                              <td>
-                                <strong>{student.name || `User #${student.user_id}`}</strong>
-                              </td>
-                              <td>{Number(student.active_loans || 0)}</td>
-                              <td>{Number(student.current_overdue_loans || 0)}</td>
-                              <td>{Number(student.max_days_overdue || 0)}</td>
-                              <td>{Number(student.past_late_returns || 0)}</td>
-                              <td>
-                                <strong>{Number(student.risk_score || 0)}</strong>/100
-                              </td>
+                              <td><strong>{student.name || `User #${student.user_id}`}</strong></td>
+                              <td>{Number(student.completed_returns || 0)}</td>
+                              <td>{Number(student.on_time_returns || 0)}</td>
+                              <td>{Number(student.late_returns || 0)}</td>
+                              <td><strong>{Number(student.performance_score ?? 100)}</strong>/100</td>
                               <td>
                                 <span
                                   className="admin-status-pill"
                                   style={{
-                                    background:
-                                      student.risk_level === "High"
-                                        ? "#FDE8E7"
-                                        : student.risk_level === "Medium"
-                                        ? "#FFF3D6"
-                                        : "#E4F7EF",
-                                    color:
-                                      student.risk_level === "High"
-                                        ? "#B42318"
-                                        : student.risk_level === "Medium"
-                                        ? "#9A6700"
-                                        : "#147A5A",
+                                    background: student.performance_level === "High" ? "#E4F7EF" : student.performance_level === "Medium" ? "#FFF3D6" : "#FDE8E7",
+                                    color: student.performance_level === "High" ? "#147A5A" : student.performance_level === "Medium" ? "#9A6700" : "#B42318",
                                   }}
                                 >
-                                  {student.risk_level || "Low"}
+                                  {student.performance_level || "High"}
                                 </span>
                               </td>
                             </tr>
@@ -815,9 +773,9 @@ function AdminDashboard({ onLogout }) {
                   )}
 
                   <p className="admin-report-note">
-                    Scoring model: +50 per current overdue loan, up to +40 for days overdue,
-                    up to +30 for historical late returns, and +5 for each extra active loan.
-                    This is a rule-based operational score, not a machine-learning prediction.
+                    Scoring model: start at 100; deduct 10 points per day late (maximum 50 per returned book);
+                    restore 5 points for each on-time return, capped at 100. A partial day late counts as one day.
+                    Scores update from confirmed returns, not active borrowing counts. High (80–100) is best.
                   </p>
                 </section>
 
