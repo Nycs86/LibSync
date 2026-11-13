@@ -20,16 +20,24 @@ def _utc_datetime(value):
 
 
 def _calculate_performance(returns):
-    """Apply book-level penalties/recovery in chronological return order."""
+    """Apply the existing book-level performance model in chronological return order.
+
+    Trend metadata is derived from the score immediately before the latest valid
+    completed return. The existing performance scoring rules are unchanged.
+    """
     score = 100
     on_time_returns = 0
     late_returns = 0
+    previous_performance_score = None
 
     for record in returns:
         returned_at = _utc_datetime(record["returned_at"])
         due_date = _utc_datetime(record["due_date"])
         if returned_at is None or due_date is None:
             continue
+
+        # Remember the score before applying the latest valid return event.
+        score_before_return = score
 
         if returned_at <= due_date:
             on_time_returns += 1
@@ -40,20 +48,38 @@ def _calculate_performance(returns):
             days_late = max(1, int((seconds_late + 86400 - 1) // 86400))
             score = max(0, score - min(days_late * 10, 50))
 
+        previous_performance_score = score_before_return
+
     level = "High" if score >= 80 else "Medium" if score >= 50 else "Low"
+
+    if previous_performance_score is None:
+        performance_change = None
+        performance_trend = "baseline"
+    else:
+        performance_change = score - previous_performance_score
+        if performance_change > 0:
+            performance_trend = "up"
+        elif performance_change < 0:
+            performance_trend = "down"
+        else:
+            performance_trend = "unchanged"
+
     return {
         "performance_score": score,
         "performance_level": level,
         "completed_returns": on_time_returns + late_returns,
         "on_time_returns": on_time_returns,
         "late_returns": late_returns,
+        "previous_performance_score": previous_performance_score,
+        "performance_change": performance_change,
+        "performance_trend": performance_trend,
     }
 
 
 @admin_risk_bp.route("/api/admin/return-performance", methods=["GET"])
 @require_role("admin")
 def get_return_performance():
-    """Return rule-based book-return performance scores for students."""
+    """Return rule-based book-return performance scores and trends for students."""
     connection = None
     cursor = None
 

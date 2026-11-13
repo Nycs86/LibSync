@@ -751,7 +751,7 @@ function AdminDashboard({ onLogout }) {
                   <div className="admin-panel-heading">
                     <div>
                       <h2>Student Return Performance Monitoring</h2>
-                      <p>Rule-based scores from librarian-confirmed book returns. Higher scores mean better returning performance.</p>
+                      <p>Rule-based scores from librarian-confirmed returns. Higher scores mean better performance; trend compares the latest return with the score immediately before it.</p>
                     </div>
                     <button
                       type="button"
@@ -786,7 +786,9 @@ function AdminDashboard({ onLogout }) {
                             <th>Completed Returns</th>
                             <th>On-Time Returns</th>
                             <th>Late Returns</th>
-                            <th>Performance Score</th>
+                            <th>Previous Score</th>
+                            <th>Current Score</th>
+                            <th>Trend</th>
                             <th>Performance Level</th>
                           </tr>
                         </thead>
@@ -797,7 +799,25 @@ function AdminDashboard({ onLogout }) {
                               <td>{Number(student.completed_returns || 0)}</td>
                               <td>{Number(student.on_time_returns || 0)}</td>
                               <td>{Number(student.late_returns || 0)}</td>
+                              <td>
+                                {student.previous_performance_score == null
+                                  ? "—"
+                                  : <><strong>{Number(student.previous_performance_score)}</strong>/100</>}
+                              </td>
                               <td><strong>{Number(student.performance_score ?? 100)}</strong>/100</td>
+                              <td>
+                                <span className={`admin-performance-trend ${student.performance_trend || "baseline"}`}>
+                                  {student.performance_trend === "up" ? (
+                                    <><i className="bi bi-arrow-up-right" aria-hidden="true" /> Improved +{Number(student.performance_change || 0)}</>
+                                  ) : student.performance_trend === "down" ? (
+                                    <><i className="bi bi-arrow-down-right" aria-hidden="true" /> Declined {Number(student.performance_change || 0)}</>
+                                  ) : student.performance_trend === "unchanged" ? (
+                                    <><i className="bi bi-arrow-right" aria-hidden="true" /> No change</>
+                                  ) : (
+                                    <><i className="bi bi-dash" aria-hidden="true" /> Baseline</>
+                                  )}
+                                </span>
+                              </td>
                               <td>
                                 <span
                                   className="admin-status-pill"
@@ -820,6 +840,10 @@ function AdminDashboard({ onLogout }) {
                     Scoring model: start at 100; deduct 10 points per day late (maximum 50 per returned book);
                     restore 5 points for each on-time return, capped at 100. A partial day late counts as one day.
                     Scores update from confirmed returns, not active borrowing counts. High (80–100) is best.
+                  </p>
+                  <p className="admin-report-note">
+                    Trend compares the latest completed return with the score immediately before it. Green means improved,
+                    red means declined, gray means no change, and Baseline means the student has no completed return yet.
                   </p>
                 </section>
 

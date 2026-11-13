@@ -799,3 +799,46 @@
   .admin-mini-metrics { grid-template-columns: 1fr; }
   .admin-row-actions { flex-direction: row; }
 }
+
+/* Per-student return performance movement (based on the existing score model). */
+.admin-performance-table {
+  min-width: 900px;
+}
+
+.admin-performance-trend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.admin-performance-trend i {
+  font-size: 12px;
+}
+
+.admin-performance-trend.up {
+  color: #08744E;
+  background: #E1F7E9;
+}
+
+.admin-performance-trend.down {
+  color: #B42335;
+  background: #FDE7E9;
+}
+
+.admin-performance-trend.unchanged {
+  color: #596A61;
+  background: #EEF2EF;
+}
+
+.admin-performance-trend.baseline {
+  color: #176B8A;
+  background: #E7F5FA;
+}
