@@ -875,115 +875,6 @@ function LibrarianDashboard({ onLogout }) {
   };
 
   // ==========================================
-
-  // REUSABLE APPROVE / DECLINE BUTTONS
-
-  // ==========================================
-
-  const renderDecisionButtons = (request) => {
-
-    if (request.status !== "pending") {
-
-      return (
-
-        <span>
-
-          {request.status}
-
-        </span>
-
-      );
-
-    }
-
-
-
-    const busy = processingRequestId !== null;
-
-
-
-    return (
-
-      <div
-
-        style={{
-
-          display: "flex",
-
-          gap: "8px",
-
-          flexWrap: "wrap",
-
-        }}
-
-      >
-
-        <button
-
-          type="button"
-
-          disabled={busy}
-
-          onClick={() =>
-
-            handleDecision(
-
-              request.request_id ?? request.id,
-
-              "approved"
-
-            )
-
-          }
-
-        >
-
-          {processingRequestId ===
-
-          (request.request_id ?? request.id)
-
-            ? "Processing..."
-
-            : "Approve"}
-
-        </button>
-
-
-
-        <button
-
-          type="button"
-
-          disabled={busy}
-
-          onClick={() =>
-
-            handleDecision(
-
-              request.request_id ?? request.id,
-
-              "declined"
-
-            )
-
-          }
-
-        >
-
-          Decline
-
-        </button>
-
-      </div>
-
-    );
-
-  };
-
-
-
-  // ==========================================
-
   // Borrowing Records filtering, summaries, and pagination.
   const formatRecordDate = (value) => {
     if (!value) return "—";
@@ -1946,8 +1837,6 @@ function LibrarianDashboard({ onLogout }) {
 
                     <th>Status</th>
 
-                    <th>Action</th>
-
                   </tr>
 
                 </thead>
@@ -1959,7 +1848,20 @@ function LibrarianDashboard({ onLogout }) {
                   {groupedBorrowRequests.map((group) => {
                     const request = group.first;
                     return (
-                      <tr key={group.id}>
+                      <tr
+                        key={group.id}
+                        className="ls-borrow-request-row"
+                        tabIndex={0}
+                        aria-label={`Open borrowing request details for ${request.user_name || request.student_name || "student"}, batch ${group.batchId ?? "not assigned"}`}
+                        aria-haspopup="dialog"
+                        onClick={() => void openBorrowDetails(group)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            void openBorrowDetails(group);
+                          }
+                        }}
+                      >
                         <td>
                           {group.items.map((item, index) => (
                             <div key={item.request_id ?? item.id ?? item.borrowing_id ?? index}>
@@ -1984,18 +1886,20 @@ function LibrarianDashboard({ onLogout }) {
                             : "N/A"}
                         </td>
                         <td>
-                          <ul className="ls-batch-book-list ls-batch-status-list">
-                            {group.items.map((item, index) => (
-                              <li key={item.request_id ?? item.id ?? index}>
-                                {String(item.status || "unknown").replace(/_/g, " ")}
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td>
-                          <button type="button" className="ls-records-view-button" onClick={() => void openBorrowDetails(group)}>
-                            <i className="bi bi-eye" aria-hidden="true" /> View Details
-                          </button>
+                          <div className="ls-borrow-request-status-list">
+                            {group.items.map((item, index) => {
+                              const status = String(item.status || "unknown").toLowerCase();
+                              const statusClass = status.replace(/_/g, "-");
+                              return (
+                                <span
+                                  key={item.request_id ?? item.id ?? index}
+                                  className={`ls-borrow-request-status is-${statusClass}`}
+                                >
+                                  {status.replace(/_/g, " ")}
+                                </span>
+                              );
+                            })}
+                          </div>
                         </td>
                       </tr>
                     );

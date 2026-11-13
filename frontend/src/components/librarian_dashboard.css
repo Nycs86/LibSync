@@ -1165,3 +1165,85 @@
     grid-column: auto;
   }
 }
+
+
+/* Borrow Requests: clickable rows and clear approval-status badges. */
+.ls-librarian-table.management-table tbody tr.ls-borrow-request-row {
+  cursor: pointer;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+
+.ls-librarian-table.management-table tbody tr.ls-borrow-request-row:hover td {
+  background: #F0FAF4;
+}
+
+.ls-librarian-table.management-table tbody tr.ls-borrow-request-row:focus {
+  outline: none;
+}
+
+.ls-librarian-table.management-table tbody tr.ls-borrow-request-row:focus-visible td {
+  background: #F0FAF4;
+  box-shadow: inset 0 2px 0 #75C9A0, inset 0 -2px 0 #75C9A0;
+}
+
+.ls-borrow-request-status-list {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 82px;
+}
+
+.ls-borrow-request-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  min-height: 25px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.ls-borrow-request-status.is-approved {
+  color: #166534;
+  background: #DCFCE7;
+}
+
+.ls-borrow-request-status.is-declined {
+  color: #991B1B;
+  background: #FEE2E2;
+}
+
+.ls-borrow-request-status.is-pending {
+  color: #925B08;
+  background: #FEF3C7;
+}
+
+.ls-borrow-request-status.is-partially-approved,
+.ls-borrow-request-status.is-partially-returned {
+  color: #155E75;
+  background: #E0F2FE;
+}
+
+.ls-borrow-request-status.is-returned {
+  color: #475569;
+  background: #E2E8F0;
+}
+
+.ls-borrow-request-status.is-unknown {
+  color: #475569;
+  background: #F1F5F9;
+}
+
+@media (max-width: 760px) {
+  .ls-borrow-request-status {
+    min-width: 72px;
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+}
