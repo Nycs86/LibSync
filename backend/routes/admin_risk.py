@@ -174,16 +174,64 @@ def get_my_return_performance():
 
         cursor = connection.cursor(dictionary=True)
         cursor.execute("""
-            SELECT br.returned_at, bb.due_date
+            SELECT
+                br.id AS request_id,
+                b.title AS book_title,
+                br.returned_at,
+                bb.due_date
             FROM borrow_requests br
             INNER JOIN borrow_batches bb ON bb.id = br.batch_id
+            INNER JOIN books b ON b.id = br.book_id
             WHERE bb.user_id = %s
               AND br.returned_at IS NOT NULL
               AND bb.due_date IS NOT NULL
             ORDER BY br.returned_at ASC, br.id ASC
         """, (user_id,))
-        performance = _calculate_performance(cursor.fetchall())
-        return jsonify({"status": "success", "performance": performance}), 200
+        returns = cursor.fetchall()
+        performance = _calculate_performance(returns)
+
+        # Reconstruct a book-by-book audit trail using the EXACT same rules as
+        # _calculate_performance. No extra penalty applies to active overdue loans.
+        history = []
+        score = 100
+        for record in returns:
+            returned_at = _utc_datetime(record["returned_at"])
+            due_date = _utc_datetime(record["due_date"])
+            if returned_at is None or due_date is None:
+                continue
+
+            previous_score = score
+            if returned_at <= due_date:
+                days_late = 0
+                rule_points = 5
+                score = min(100, score + rule_points)
+                outcome = "on_time"
+            else:
+                seconds_late = (returned_at - due_date).total_seconds()
+                days_late = max(1, int((seconds_late + 86400 - 1) // 86400))
+                rule_points = -min(days_late * 10, 50)
+                score = max(0, score + rule_points)
+                outcome = "late"
+
+            history.append({
+                "request_id": record["request_id"],
+                "book_title": record["book_title"],
+                "due_date": due_date.isoformat(),
+                "returned_at": returned_at.isoformat(),
+                "outcome": outcome,
+                "days_late": days_late,
+                "rule_points": rule_points,
+                "points_change": score - previous_score,
+                "score_before": previous_score,
+                "score_after": score,
+            })
+
+        # Latest return first, while computing scores in chronological order.
+        return jsonify({
+            "status": "success",
+            "performance": performance,
+            "history": list(reversed(history)),
+        }), 200
     except Exception:
         logger.exception("Failed to calculate student return performance.")
         return jsonify({"status": "error", "message": "Unable to calculate return performance."}), 500

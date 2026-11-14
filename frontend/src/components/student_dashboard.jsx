@@ -2,6 +2,7 @@
 import { QRCodeCanvas } from "qrcode.react";
 import { apiRequest, getStoredUser } from "../services/api";
 import "./student_dashboard.css";
+import "./student_return_performance.css";
 
 const COVER_COLORS = [
   "#E1F2E7",
@@ -349,44 +350,52 @@ function StudentDashboard({ onLogout }) {
   const [batchStatusError, setBatchStatusError] = useState("");
   const [batchRefreshVersion, setBatchRefreshVersion] = useState(0);
   const [inventoryRefreshVersion, setInventoryRefreshVersion] = useState(0);
-  const [borrowingRisk, setBorrowingRisk] = useState(null);
-  const [isRiskLoading, setIsRiskLoading] = useState(false);
-  const [riskError, setRiskError] = useState("");
+  const [returnPerformance, setReturnPerformance] = useState(null);
+  const [returnScoreHistory, setReturnScoreHistory] = useState([]);
+  const [scoreHistoryExpanded, setScoreHistoryExpanded] = useState(false);
+  const [isPerformanceLoading, setIsPerformanceLoading] = useState(false);
+  const [performanceError, setPerformanceError] = useState("");
 
-  // Load the authenticated student's personal borrowing risk score.
-  // This endpoint uses the same rule-based scoring model as the Admin dashboard.
+  // Match the Admin and Librarian dashboards: scoring is based on confirmed
+  // book returns, not the legacy borrowing-risk endpoint.
   useEffect(() => {
     if (!userId) return undefined;
-
     const controller = new AbortController();
 
-    const loadBorrowingRisk = async () => {
-      setIsRiskLoading(true);
-      setRiskError("");
-
+    const loadReturnPerformance = async () => {
+      setIsPerformanceLoading(true);
+      setPerformanceError("");
       try {
-        const data = await apiRequest("/api/student/borrowing-risk", {
+        const data = await apiRequest("/api/student/return-performance", {
           method: "GET",
           signal: controller.signal,
         });
-
         if (!controller.signal.aborted) {
-          if (data?.status !== "success" || !data.risk) {
-            throw new Error(data?.message || "Unable to load your borrowing risk score.");
+          const performance = data?.performance;
+          if (
+            data?.status !== "success" ||
+            !performance ||
+            !Number.isFinite(Number(performance.performance_score)) ||
+            performance.performance_score == null
+          ) {
+            throw new Error(data?.message || "Performance data is unavailable.");
           }
-          setBorrowingRisk(data.risk);
+          setReturnPerformance(performance);
+          setReturnScoreHistory(Array.isArray(data.history) ? data.history : []);
         }
       } catch (error) {
         if (error.name !== "AbortError" && !controller.signal.aborted) {
-          console.error("Load student borrowing risk error:", error);
-          setRiskError(error.message || "Unable to load your borrowing risk score.");
+          console.error("Load student return performance error:", error);
+          setReturnPerformance(null);
+          setReturnScoreHistory([]);
+          setPerformanceError(error.message || "Unable to load return performance.");
         }
       } finally {
-        if (!controller.signal.aborted) setIsRiskLoading(false);
+        if (!controller.signal.aborted) setIsPerformanceLoading(false);
       }
     };
 
-    loadBorrowingRisk();
+    void loadReturnPerformance();
     return () => controller.abort();
   }, [userId, batchRefreshVersion]);
 
@@ -1280,86 +1289,129 @@ function StudentDashboard({ onLogout }) {
           {activeMenu === "books" && (
             <section className="student-home-grid">
               <div className="student-home-primary">
-                <section className="student-risk-card" aria-labelledby="student-risk-title">
+                <section className="student-risk-card student-performance-card" aria-labelledby="student-performance-title">
                   <div className="student-risk-card-heading">
-                    <h2 id="student-risk-title">My Borrowing Risk</h2>
-                    {!isRiskLoading && borrowingRisk && (
-                      <span className={`student-risk-badge student-risk-badge--${String(borrowingRisk.risk_level || "low").toLowerCase()}`}>
-                        {borrowingRisk.risk_level || "Low"} Risk
+                    <h2 id="student-performance-title">My Return Performance</h2>
+                    {returnPerformance && !isPerformanceLoading && (
+                      <span className={`student-risk-badge performance-badge--${String(returnPerformance.performance_level || "").toLowerCase()}`}>
+                        {returnPerformance.performance_level || "Unknown"} Performance
                       </span>
                     )}
                   </div>
 
-                  {isRiskLoading && !borrowingRisk ? (
-                    <div className="student-risk-message"><i className="bi bi-arrow-repeat"></i> Calculating your borrowing risk...</div>
-                  ) : riskError && !borrowingRisk ? (
-                    <div className="student-risk-message student-risk-message--error" role="alert">{riskError}</div>
-                  ) : borrowingRisk ? (
+                  {isPerformanceLoading && !returnPerformance ? (
+                    <div className="student-risk-message"><i className="bi bi-arrow-repeat" /> Loading your return performance...</div>
+                  ) : performanceError ? (
+                    <div className="student-risk-message student-risk-message--error" role="alert">
+                      {performanceError} Please refresh to try again.
+                    </div>
+                  ) : returnPerformance ? (
                     <>
                       <div className="student-risk-score-block">
-                        <span className="student-risk-label">Your current risk score</span>
+                        <span className="student-risk-label">Your current performance score</span>
                         <div className="student-risk-score-line">
-                          <strong>{Number(borrowingRisk.risk_score || 0)}</strong>
-                          <span>/ 100</span>
+                          <strong>{Number(returnPerformance.performance_score)}</strong><span>/ 100</span>
                         </div>
                         <div
                           className="student-risk-progress"
                           role="progressbar"
-                          aria-label="Borrowing risk score"
+                          aria-label="Return performance score"
                           aria-valuemin="0"
                           aria-valuemax="100"
-                          aria-valuenow={Number(borrowingRisk.risk_score || 0)}
+                          aria-valuenow={Number(returnPerformance.performance_score)}
                         >
                           <span
-                            className={`student-risk-progress-fill student-risk-progress-fill--${String(borrowingRisk.risk_level || "low").toLowerCase()}`}
-                            style={{ width: `${Math.max(0, Math.min(100, Number(borrowingRisk.risk_score || 0)))}%` }}
-                          ></span>
+                            className={`student-risk-progress-fill performance-fill--${String(returnPerformance.performance_level || "").toLowerCase()}`}
+                            style={{ width: `${Math.max(0, Math.min(100, Number(returnPerformance.performance_score)))}%` }}
+                          />
                         </div>
-                        <small>Calculated from your LibSync borrowing and return records.</small>
+                        <small>Based on completed returns confirmed by the librarian. Higher is better.</small>
                       </div>
 
                       <div className="student-risk-factors">
-                        <h3>What affects your score?</h3>
+                        <h3>Your return record</h3>
                         <div className="student-risk-factor-row">
-                          <span>Previous late returns</span>
-                          <strong className={Number(borrowingRisk.past_late_returns || 0) > 0 ? "is-contributing" : "is-clear"}>
-                            {Number(borrowingRisk.past_late_returns || 0) > 0
-                              ? `${borrowingRisk.past_late_returns} late ${Number(borrowingRisk.past_late_returns) === 1 ? "return" : "returns"}`
-                              : "None"}
+                          <span>On-time returns</span>
+                          <strong className="is-clear">{Number(returnPerformance.on_time_returns ?? 0)}</strong>
+                        </div>
+                        <div className="student-risk-factor-row">
+                          <span>Late returns</span>
+                          <strong className={Number(returnPerformance.late_returns ?? 0) > 0 ? "is-contributing" : "is-clear"}>
+                            {Number(returnPerformance.late_returns ?? 0)}
                           </strong>
                         </div>
                         <div className="student-risk-factor-row">
-                          <span>Current overdue books</span>
-                          <strong className={Number(borrowingRisk.current_overdue_books || 0) > 0 ? "is-contributing" : "is-clear"}>
-                            {Number(borrowingRisk.current_overdue_books || 0) > 0
-                              ? `${borrowingRisk.current_overdue_books} overdue ${Number(borrowingRisk.current_overdue_books) === 1 ? "book" : "books"}`
-                              : "None"}
-                          </strong>
+                          <span>Completed returns</span>
+                          <strong className="is-clear">{Number(returnPerformance.completed_returns ?? 0)}</strong>
                         </div>
                       </div>
 
                       <div className="student-risk-improve">
-                        <h3><i className="bi bi-lightbulb"></i> How to improve your score</h3>
-                        <p>
-                          Return borrowed books on or before their due dates to maintain a good borrowing record.
-                          {Number(borrowingRisk.current_overdue_books || 0) > 0
-                            ? " Please return your overdue books as soon as possible."
-                            : ""}
-                        </p>
+                        <h3><i className="bi bi-lightbulb" /> How to improve your score</h3>
+                        <p>Each on-time book return restores 5 points, up to 100. Late returns deduct 10 points per day (maximum 50 per book). A partial day late counts as a full day. Active overdue books affect this score when they are returned.</p>
+                        {Number(returnPerformance.completed_returns ?? 0) === 0 && (
+                          <p className="student-performance-note">No completed returns yet. Your current score is the starting score, not a record of past returns.</p>
+                        )}
                       </div>
-
-                      <div className="student-risk-updated">
-                        Last updated: {borrowingRisk.calculated_at
-                          ? new Date(borrowingRisk.calculated_at).toLocaleString("en-PH", {
-                              dateStyle: "long",
-                              timeStyle: "short",
-                            })
-                          : "Just now"}
-                        {riskError && <span className="student-risk-refresh-note"> · Latest refresh unavailable</span>}
-                      </div>
+                      <section className="student-score-history" aria-labelledby="student-score-history-title">
+                        <div className="student-score-history-heading">
+                          <div>
+                            <h3 id="student-score-history-title"><i className="bi bi-clock-history" /> Score History</h3>
+                            <p>See how each confirmed book return changed your score.</p>
+                          </div>
+                          {returnScoreHistory.length > 0 && (
+                            <button
+                              type="button"
+                              className="student-score-history-toggle"
+                              onClick={() => setScoreHistoryExpanded((value) => !value)}
+                              aria-expanded={scoreHistoryExpanded}
+                            >
+                              {scoreHistoryExpanded ? "Show recent" : `View all (${returnScoreHistory.length})`}
+                              <i className={`bi ${scoreHistoryExpanded ? "bi-chevron-up" : "bi-chevron-down"}`} />
+                            </button>
+                          )}
+                        </div>
+                        {returnScoreHistory.length === 0 ? (
+                          <p className="student-score-history-empty">
+                            {Number(returnPerformance.completed_returns ?? 0) > 0
+                              ? "Detailed history is not available yet. Update the backend to enable the book-by-book breakdown."
+                              : "Your confirmed book returns will appear here."}
+                          </p>
+                        ) : (
+                          <div className="student-score-history-list">
+                            {(scoreHistoryExpanded ? returnScoreHistory : returnScoreHistory.slice(0, 4)).map((entry) => (
+                              <article className="student-score-history-item" key={entry.request_id}>
+                                <div className="student-score-history-item-top">
+                                  <div className="student-score-history-book">
+                                    <strong>{entry.book_title || `Book request #${entry.request_id}`}</strong>
+                                    <span>{entry.returned_at ? new Date(entry.returned_at).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : "Return date unavailable"}</span>
+                                  </div>
+                                  <span className={`student-score-history-change ${entry.outcome === "late" ? "is-late" : "is-on-time"}`}>
+                                    {Number(entry.points_change) > 0 ? "+" : ""}{Number(entry.points_change)} points
+                                  </span>
+                                </div>
+                                <div className="student-score-history-details">
+                                  <span className={`student-score-history-status ${entry.outcome === "late" ? "is-late" : "is-on-time"}`}>
+                                    {entry.outcome === "late" ? `${entry.days_late} ${Number(entry.days_late) === 1 ? "day" : "days"} late` : "On-time return"}
+                                  </span>
+                                  <span>Due: {entry.due_date ? new Date(entry.due_date).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : "—"}</span>
+                                  <span>Score: <strong>{entry.score_before} → {entry.score_after}</strong></span>
+                                </div>
+                                {Number(entry.points_change) !== Number(entry.rule_points) && (
+                                  <small className="student-score-history-cap-note">
+                                    {entry.outcome === "late" ? "Score cannot go below 0." : "Score is capped at 100."}
+                                  </small>
+                                )}
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                        <p className="student-score-history-footnote">+5 per on-time book · −10 per late day (maximum −50 per book). Scores stay between 0 and 100.</p>
+                      </section>
+                      <div className="student-risk-updated">High: 80–100 · Medium: 50–79 · Low: 0–49</div>
                     </>
                   ) : (
-                    <div className="student-risk-message">Your borrowing risk information will appear here.</div>
+                    <div className="student-risk-message">Return performance information is not available yet.</div>
                   )}
                 </section>
 

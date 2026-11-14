@@ -1,0 +1,35 @@
+/* Only changes the Student Dashboard performance card; other features retain their existing styling. */
+.student-performance-card .performance-badge--high { background: #dcfce7; color: #166534; }
+.student-performance-card .performance-badge--medium { background: #fef3c7; color: #92400e; }
+.student-performance-card .performance-badge--low { background: #fee2e2; color: #991b1b; }
+.student-performance-card .student-risk-progress-fill.performance-fill--high { background: #16a34a; }
+.student-performance-card .student-risk-progress-fill.performance-fill--medium { background: #d97706; }
+.student-performance-card .student-risk-progress-fill.performance-fill--low { background: #dc2626; }
+.student-performance-card .student-risk-progress-fill { background: #64748b; }
+.student-performance-card .student-risk-progress { background: #e5e7eb; }
+.student-performance-card .student-performance-note { margin-top: 10px; color: #64748b; font-size: 0.85rem; }
+
+/* Return score audit trail: scoped to the existing Student Performance card. */
+.student-performance-card .student-score-history { margin-top: 22px; padding-top: 18px; border-top: 1px solid #dce8e1; }
+.student-performance-card .student-score-history-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.student-performance-card .student-score-history-heading h3 { margin: 0 0 5px; font-size: 1.05rem; color: #123c30; }
+.student-performance-card .student-score-history-heading h3 i { margin-right: 8px; color: #168764; }
+.student-performance-card .student-score-history-heading p { margin: 0; font-size: .83rem; color: #688078; }
+.student-performance-card .student-score-history-toggle { border: 1px solid #cde0d5; border-radius: 10px; padding: 8px 12px; color: #116448; background: white; cursor: pointer; font-weight: 700; }
+.student-performance-card .student-score-history-toggle i { margin-left: 8px; }
+.student-performance-card .student-score-history-list { display: grid; gap: 10px; }
+.student-performance-card .student-score-history-item { padding: 13px 15px; border: 1px solid #dfebe4; background: #fcfefd; border-radius: 13px; }
+.student-performance-card .student-score-history-item-top { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 8px 14px; }
+.student-performance-card .student-score-history-book { display: grid; gap: 4px; min-width: 0; }
+.student-performance-card .student-score-history-book strong { color: #193d31; font-size: .91rem; overflow-wrap: anywhere; }
+.student-performance-card .student-score-history-book span { color: #6a8177; font-size: .78rem; }
+.student-performance-card .student-score-history-change { font-size: .86rem; font-weight: 800; white-space: nowrap; padding: 6px 10px; border-radius: 999px; }
+.student-performance-card .student-score-history-change.is-on-time { color: #116d49; background: #dcfce7; }
+.student-performance-card .student-score-history-change.is-late { color: #b42318; background: #fee2e2; }
+.student-performance-card .student-score-history-details { margin-top: 12px; display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; color: #566e63; font-size: .8rem; }
+.student-performance-card .student-score-history-status { font-weight: 700; }
+.student-performance-card .student-score-history-status.is-on-time { color: #15803d; }
+.student-performance-card .student-score-history-status.is-late { color: #b42318; }
+.student-performance-card .student-score-history-cap-note { display: block; color: #6a8177; margin-top: 8px; font-size: .75rem; }
+.student-performance-card .student-score-history-empty { padding: 15px; background: #f4faf6; border-radius: 10px; color: #61786c; font-size: .85rem; }
+.student-performance-card .student-score-history-footnote { margin: 13px 0 0; color: #647b70; font-size: .78rem; }
