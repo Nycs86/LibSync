@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/book.dart';
 import '../../services/book_service.dart';
+import 'student_performance_card.dart';
 
 class StudentHome extends StatefulWidget {
   const StudentHome({super.key});
@@ -18,6 +19,7 @@ class _StudentHomeState extends State<StudentHome> {
   static const muted = Color(0xFF71877D);
 
   late Future<List<Book>> _booksFuture;
+  int _performanceRefreshVersion = 0;
 
   final TextEditingController _searchController =
       TextEditingController();
@@ -41,6 +43,7 @@ class _StudentHomeState extends State<StudentHome> {
 
     setState(() {
       _booksFuture = future;
+      _performanceRefreshVersion += 1;
     });
 
     try {
@@ -212,6 +215,14 @@ class _StudentHomeState extends State<StudentHome> {
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 22),
+
+                // Same Return Performance Score and Score History as student web.
+                // A pull-to-refresh reloads this card together with the catalogue.
+                StudentPerformanceCard(
+                  key: ValueKey(_performanceRefreshVersion),
                 ),
 
                 const SizedBox(height: 22),
