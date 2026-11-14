@@ -7,11 +7,15 @@ import '../../services/book_service.dart';
 class BooksScreen extends StatefulWidget {
   final List<Book> selectedBooks;
   final ValueChanged<Book> onToggleBook;
+  final bool guestMode;
+  final VoidCallback? onGuestBorrow;
 
   const BooksScreen({
     super.key,
     required this.selectedBooks,
     required this.onToggleBook,
+    this.guestMode = false,
+    this.onGuestBorrow,
   });
 
   @override
@@ -193,6 +197,20 @@ class _BooksScreenState extends State<BooksScreen> {
 
                   const SizedBox(height: 20),
 
+                  if (widget.guestMode && book.isAvailable) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          widget.onGuestBorrow?.call();
+                        },
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text('Borrow Book · Login Required'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -329,8 +347,10 @@ class _BooksScreenState extends State<BooksScreen> {
                   ),
                 ),
                 const SizedBox(height: 5),
-                const Text(
-                  'Browse, explore, and select your next read.',
+                Text(
+                  widget.guestMode
+                      ? 'Guest access: browse and view books only.'
+                      : 'Browse, explore, and select your next read.',
                   style: TextStyle(
                     color: muted,
                     fontSize: 13,
@@ -516,8 +536,13 @@ class _BooksScreenState extends State<BooksScreen> {
                       ),
                       child: _BookCard(
                         book: book,
-                        selected: _isSelected(book),
+                        selected: !widget.guestMode && _isSelected(book),
+                        guestMode: widget.guestMode,
                         onToggle: () {
+                          if (widget.guestMode) {
+                            widget.onGuestBorrow?.call();
+                            return;
+                          }
                           widget.onToggleBook(book);
                           setState(() {});
                         },
@@ -543,12 +568,14 @@ class _BookCard extends StatelessWidget {
 
   final Book book;
   final bool selected;
+  final bool guestMode;
   final VoidCallback onToggle;
   final VoidCallback onViewDetails;
 
   const _BookCard({
     required this.book,
     required this.selected,
+    required this.guestMode,
     required this.onToggle,
     required this.onViewDetails,
   });
@@ -668,7 +695,7 @@ class _BookCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    selected ? 'Selected ✓' : 'Select Book',
+                    guestMode ? 'Borrow' : (selected ? 'Selected ✓' : 'Select Book'),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

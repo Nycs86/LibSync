@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/auth_session.dart';
 import 'student/student_shell.dart';
+import 'guest_catalog_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -415,6 +416,34 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
 
+                          const SizedBox(height: 14),
+                          OutlinedButton.icon(
+                            onPressed: _loading ? null : () {
+                              // Guest access never creates an authenticated session.
+                              AuthSession.clear();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const GuestCatalogScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.menu_book_outlined),
+                            label: const Text('Continue as Guest'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryGreen,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              side: const BorderSide(color: primaryGreen),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Guest access is view-only. Sign in to borrow books.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Color(0xFF647B72)),
+                          ),
                           const SizedBox(height: 14),
                           TextButton(
                             onPressed: _loading
