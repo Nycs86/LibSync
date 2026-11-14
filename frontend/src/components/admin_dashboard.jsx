@@ -2,6 +2,7 @@
 import LibraryReports from "./library_reports";
 import { api, getStoredUser } from "../services/api";
 import "./admin_dashboard.css";
+import "./admin_create_librarian.css";
 
 function AdminDashboard({ onLogout }) {
   const user = getStoredUser();
@@ -26,8 +27,10 @@ function AdminDashboard({ onLogout }) {
   const [performanceError, setPerformanceError] = useState("");
 
   const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignSearch, setAssignSearch] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [createLibrarianForm, setCreateLibrarianForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  const [createLibrarianSaving, setCreateLibrarianSaving] = useState(false);
+  const [createLibrarianError, setCreateLibrarianError] = useState("");
+  const [showLibrarianPassword, setShowLibrarianPassword] = useState(false);
   const [studentEditorOpen, setStudentEditorOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [studentForm, setStudentForm] = useState({
@@ -353,35 +356,55 @@ function AdminDashboard({ onLogout }) {
     );
   }, [students, search]);
 
-  const assignCandidates = useMemo(() => {
-    const term = assignSearch.trim().toLowerCase();
+  const openCreateLibrarian = () => {
+    setCreateLibrarianForm({ name: "", email: "", password: "", confirmPassword: "" });
+    setCreateLibrarianError("");
+    setShowLibrarianPassword(false);
+    setMessage("");
+    setAssignModalOpen(true);
+  };
 
-    if (!term) return students.slice(0, 6);
+  const closeCreateLibrarian = () => {
+    if (createLibrarianSaving) return;
+    setAssignModalOpen(false);
+    setCreateLibrarianForm({ name: "", email: "", password: "", confirmPassword: "" });
+    setCreateLibrarianError("");
+    setShowLibrarianPassword(false);
+  };
 
-    return students
-      .filter(
-        (student) =>
-          student.name?.toLowerCase().includes(term) ||
-          student.email?.toLowerCase().includes(term)
-      )
-      .slice(0, 6);
-  }, [students, assignSearch]);
-
-  const addStudentAsLibrarian = async (studentId) => {
+  const handleCreateLibrarian = async (event) => {
+    event.preventDefault();
+    if (createLibrarianSaving) return;
+    const name = createLibrarianForm.name.trim();
+    const email = createLibrarianForm.email.trim();
+    const { password, confirmPassword } = createLibrarianForm;
+    if (!name || !email || !password || !confirmPassword) {
+      setCreateLibrarianError("Please complete all required fields.");
+      return;
+    }
+    if (password.length < 8) {
+      setCreateLibrarianError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setCreateLibrarianError("Passwords do not match.");
+      return;
+    }
     try {
-      setMessage("");
-
-      const data = await api.put(`/api/users/${studentId}/assign-librarian`, {});
-
-      setMessage(data.message || "Student account added to the librarian team successfully.");
-      setAssignModalOpen(false);
-      setAssignSearch("");
-      setSelectedStudent(null);
+      setCreateLibrarianSaving(true);
+      setCreateLibrarianError("");
+      const data = await api.post("/api/admin/librarians", { name, email, password });
       const refreshedUsers = await fetchUsers();
       setUsers(refreshedUsers);
+      setAssignModalOpen(false);
+      setCreateLibrarianForm({ name: "", email: "", password: "", confirmPassword: "" });
+      setShowLibrarianPassword(false);
+      setMessage(data.message || "Librarian account created successfully.");
     } catch (error) {
-      console.error("Add librarian error:", error);
-      setMessage(error.message || "Unable to add this librarian.");
+      console.error("Create librarian error:", error);
+      setCreateLibrarianError(error.message || "Unable to create librarian account.");
+    } finally {
+      setCreateLibrarianSaving(false);
     }
   };
 
@@ -707,7 +730,7 @@ function AdminDashboard({ onLogout }) {
               {activeSection === "users" &&
                 "View and manage registered student accounts"}
               {activeSection === "librarians" &&
-                "Manage librarian accounts and add registered students to the librarian team"}
+                "Create and manage librarian accounts without changing student accounts"}
               {activeSection === "reports" &&
                 "Monitor library performance, inventory, borrowing, returns, overdue books, and student usage"}
               {activeSection === "activity" &&
@@ -947,7 +970,7 @@ function AdminDashboard({ onLogout }) {
                       <button
                         type="button"
                         className="admin-primary-button"
-                        onClick={() => setAssignModalOpen(true)}
+                        onClick={openCreateLibrarian}
                       >
                         <i className="bi bi-plus-lg" />
                         Add Librarian
@@ -1096,7 +1119,7 @@ function AdminDashboard({ onLogout }) {
 
                   <button
                     className="admin-primary-button"
-                    onClick={() => setAssignModalOpen(true)}
+                    onClick={openCreateLibrarian}
                   >
                     <i className="bi bi-plus-lg"></i>
                     Add Librarian
@@ -1189,86 +1212,56 @@ function AdminDashboard({ onLogout }) {
       </main>
 
       {assignModalOpen && (
-        <div
-          className="admin-modal-backdrop"
-          onMouseDown={() => setAssignModalOpen(false)}
-        >
-          <div
-            className="admin-modal"
+        <div className="admin-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCreateLibrarian(); }}>
+          <form
+            className="admin-modal admin-create-librarian-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-create-librarian-title"
             onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={handleCreateLibrarian}
           >
             <div className="admin-modal-header">
               <div>
-                <h2>Add Librarian</h2>
-                <p>Select a registered student account to add to the librarian team.</p>
+                <div className="admin-create-librarian-eyebrow"><i className="bi bi-shield-lock" /> ADMIN / STAFF ACCOUNTS</div>
+                <h2 id="admin-create-librarian-title">Create Librarian Account</h2>
+                <p>Create a separate staff login. Existing student accounts will not be changed.</p>
               </div>
-              <button onClick={() => setAssignModalOpen(false)}>
-                <i className="bi bi-x-lg"></i>
+              <button type="button" onClick={closeCreateLibrarian} disabled={createLibrarianSaving} aria-label="Close create librarian dialog">
+                <i className="bi bi-x-lg" />
               </button>
             </div>
-
-            <div className="admin-search admin-modal-search">
-              <i className="bi bi-search"></i>
-              <input
-                value={assignSearch}
-                onChange={(event) => {
-                  setAssignSearch(event.target.value);
-                  setSelectedStudent(null);
-                }}
-                placeholder="Search eligible students by name or email"
-                autoFocus
-              />
-            </div>
-
-            <div className="admin-candidate-list">
-              {assignCandidates.map((student) => (
-                <button
-                  key={student.id}
-                  className={
-                    selectedStudent?.id === student.id ? "selected" : ""
-                  }
-                  onClick={() => setSelectedStudent(student)}
-                >
-                  <div className="admin-avatar small">
-                    {student.name?.charAt(0)?.toUpperCase() || "S"}
-                  </div>
-                  <div>
-                    <strong>{student.name}</strong>
-                    <span>{student.email}</span>
-                  </div>
-                  <span className="admin-role-pill student">
-                    Student · eligible
-                  </span>
-                </button>
-              ))}
-
-              {assignCandidates.length === 0 && (
-                <div className="admin-empty-state">
-                  No matching students found.
+            <div className="admin-create-librarian-body">
+              <div className="admin-create-librarian-note"><i className="bi bi-person-badge" /><span>Role: <strong>Librarian</strong> — assigned automatically on account creation</span></div>
+              <label className="admin-form-field">
+                <span>Full Name <b>*</b></span>
+                <input type="text" autoComplete="name" value={createLibrarianForm.name} onChange={(event) => setCreateLibrarianForm((current) => ({ ...current, name: event.target.value }))} placeholder="Enter librarian's full name" maxLength={100} disabled={createLibrarianSaving} required autoFocus />
+              </label>
+              <label className="admin-form-field">
+                <span>Email Address <b>*</b></span>
+                <input type="email" autoComplete="email" value={createLibrarianForm.email} onChange={(event) => setCreateLibrarianForm((current) => ({ ...current, email: event.target.value }))} placeholder="librarian@example.com" maxLength={100} disabled={createLibrarianSaving} required />
+              </label>
+              <label className="admin-form-field">
+                <span>Initial Password <b>*</b></span>
+                <div className="admin-create-librarian-password">
+                  <input type={showLibrarianPassword ? "text" : "password"} autoComplete="new-password" value={createLibrarianForm.password} onChange={(event) => setCreateLibrarianForm((current) => ({ ...current, password: event.target.value }))} placeholder="At least 8 characters" minLength={8} maxLength={128} disabled={createLibrarianSaving} required />
+                  <button type="button" onClick={() => setShowLibrarianPassword((current) => !current)} aria-label={showLibrarianPassword ? "Hide password" : "Show password"} disabled={createLibrarianSaving}><i className={`bi ${showLibrarianPassword ? "bi-eye-slash" : "bi-eye"}`} /></button>
                 </div>
-              )}
+              </label>
+              <label className="admin-form-field">
+                <span>Confirm Password <b>*</b></span>
+                <input type={showLibrarianPassword ? "text" : "password"} autoComplete="new-password" value={createLibrarianForm.confirmPassword} onChange={(event) => setCreateLibrarianForm((current) => ({ ...current, confirmPassword: event.target.value }))} placeholder="Re-enter password" minLength={8} maxLength={128} disabled={createLibrarianSaving} required />
+              </label>
+              <p className="admin-form-hint">Use a unique email address. Share the initial password with the librarian securely.</p>
+              {createLibrarianError && <div className="admin-create-librarian-error" role="alert"><i className="bi bi-exclamation-circle" /> {createLibrarianError}</div>}
             </div>
-
             <div className="admin-modal-actions">
-              <button
-                className="admin-secondary-button"
-                onClick={() => setAssignModalOpen(false)}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="admin-primary-button"
-                disabled={!selectedStudent}
-                onClick={() =>
-                  selectedStudent &&
-                  addStudentAsLibrarian(selectedStudent.id)
-                }
-              >
-                Add as Librarian
+              <button type="button" className="admin-secondary-button" onClick={closeCreateLibrarian} disabled={createLibrarianSaving}>Cancel</button>
+              <button type="submit" className="admin-primary-button" disabled={createLibrarianSaving}>
+                <i className={`bi ${createLibrarianSaving ? "bi-hourglass-split" : "bi-person-plus"}`} /> {createLibrarianSaving ? "Creating..." : "Create Librarian"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
@@ -1372,7 +1365,20 @@ function AdminDashboard({ onLogout }) {
 
             <label className="admin-form-field">
               <span>Gender</span>
-              <input type="text" value={studentForm.gender} onChange={(event) => setStudentForm((current) => ({ ...current, gender: event.target.value }))} maxLength={50} required />
+              <select
+                value={studentForm.gender}
+                onChange={(event) => setStudentForm((current) => ({ ...current, gender: event.target.value }))}
+                required
+              >
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+                <option value="Prefer not to say">Prefer not to say</option>
+                {studentForm.gender && !["Male", "Female", "Other", "Prefer not to say"].includes(studentForm.gender) && (
+                  <option value={studentForm.gender}>{studentForm.gender}</option>
+                )}
+              </select>
             </label>
 
             <p className="admin-form-hint">The student's password is not changed by this form.</p>

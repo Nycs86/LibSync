@@ -1,0 +1,19 @@
+/* Isolated styling for Admin > Create Librarian; no existing modal rules replaced. */
+.admin-create-librarian-modal { width: min(540px, calc(100vw - 32px)); max-height: min(90vh, 820px); overflow-y: auto; border-radius: 22px; }
+.admin-create-librarian-modal .admin-modal-header { padding-bottom: 18px; }
+.admin-create-librarian-eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; color: #11775f; font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+.admin-create-librarian-body { display: grid; gap: 15px; padding: 5px 0 12px; }
+.admin-create-librarian-note { display: flex; align-items: center; gap: 12px; border: 1px solid #cceadf; background: #edf9f3; color: #245a4b; border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+.admin-create-librarian-note i { font-size: 19px; color: #128268; }
+.admin-create-librarian-modal .admin-form-field { display: grid; gap: 7px; margin: 0; }
+.admin-create-librarian-modal .admin-form-field > span { font-weight: 700; color: #22443b; font-size: 13px; }
+.admin-create-librarian-modal .admin-form-field b { color: #b54708; }
+.admin-create-librarian-modal .admin-form-field input { box-sizing: border-box; width: 100%; min-height: 45px; padding: 10px 13px; border: 1px solid #d5e4dc; border-radius: 11px; background: #fff; color: #1a3029; outline: none; font: inherit; font-size: 14px; }
+.admin-create-librarian-modal .admin-form-field input:focus { border-color: #3fb98e; box-shadow: 0 0 0 3px rgba(63,185,142,.12); }
+.admin-create-librarian-password { position: relative; }
+.admin-create-librarian-password input { padding-right: 48px !important; }
+.admin-create-librarian-password button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 36px; border: 0; background: transparent; color: #527267; cursor: pointer; }
+.admin-create-librarian-modal .admin-form-hint { font-size: 12px; color: #657f73; margin: 0; }
+.admin-create-librarian-error { display: flex; gap: 10px; align-items: flex-start; border: 1px solid #ffd0c4; background: #fff3f0; color: #a13825; border-radius: 10px; padding: 11px 13px; font-size: 13px; }
+.admin-create-librarian-modal .admin-modal-actions { margin-top: 15px; padding-top: 19px; border-top: 1px solid #e8efe9; }
+@media (max-width: 560px) { .admin-create-librarian-modal { border-radius: 15px; } .admin-create-librarian-modal .admin-modal-actions { flex-wrap: wrap; } }
