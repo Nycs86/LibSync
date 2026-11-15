@@ -4,8 +4,8 @@ import "./student_login.css";
 
 import { api, saveAuthSession } from "../services/api";
 
-function StudentLogin({ onBack, onLoginSuccess }) {
-  const [showRegister, setShowRegister] = useState(false);
+function StudentLogin({ onBack, onLoginSuccess, onBrowseAsGuest, initialView = "login" }) {
+  const [showRegister, setShowRegister] = useState(initialView === "register");
   const [loginError, setLoginError] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerSuccess, setRegisterSuccess] = useState("");
@@ -590,6 +590,13 @@ function StudentLogin({ onBack, onLoginSuccess }) {
                 Register
               </button>
             </div>
+
+            {onBrowseAsGuest && (
+              <div className="ls-student-guest-switch">
+                Want to explore first?{" "}
+                <button type="button" onClick={onBrowseAsGuest}>Browse the Library as Guest</button>
+              </div>
+            )}
 
             <div className="ls-student-login-notice">
               <i

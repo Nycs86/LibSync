@@ -9,6 +9,7 @@ import LibrarianLogin from "./components/librarian_login";
 import LibrarianDashboard from "./components/librarian_dashboard";
 import StudentLogin from "./components/student_login";
 import StudentDashboard from "./components/student_dashboard";
+import GuestDashboard from "./components/guest_dashboard";
 
 import {
   getAccessToken,
@@ -20,6 +21,8 @@ function App() {
   const [selectedRole, setSelectedRole] = useState(() =>
     window.location.hash === "#admin-login" ? "Admin" : ""
   );
+  const [isGuestBrowsing, setIsGuestBrowsing] = useState(false);
+  const [studentLoginView, setStudentLoginView] = useState("login");
 
   // Restore session when the page is refreshed
   const [currentUser, setCurrentUser] = useState(() => {
@@ -86,6 +89,8 @@ function App() {
 
     setCurrentUser(authenticatedUser);
     setSelectedRole("");
+    setIsGuestBrowsing(false);
+    setStudentLoginView("login");
     clearLoginHash();
   };
 
@@ -94,6 +99,8 @@ function App() {
     clearAuthSession();
     setCurrentUser(null);
     setSelectedRole("");
+    setIsGuestBrowsing(false);
+    setStudentLoginView("login");
 
     clearLoginHash();
   };
@@ -113,6 +120,24 @@ function App() {
     if (role === "student") {
       return <StudentDashboard onLogout={handleLogout} />;
     }
+  }
+
+  // PUBLIC GUEST CATALOGUE — browsing only; no guest role or auth session.
+  if (isGuestBrowsing) {
+    return (
+      <GuestDashboard
+        onLogin={() => {
+          setIsGuestBrowsing(false);
+          setStudentLoginView("login");
+          setSelectedRole("Student");
+        }}
+        onRegister={() => {
+          setIsGuestBrowsing(false);
+          setStudentLoginView("register");
+          setSelectedRole("Student");
+        }}
+      />
+    );
   }
 
   // ADMIN LOGIN
@@ -142,7 +167,17 @@ function App() {
   if (selectedRole === "Student") {
     return (
       <StudentLogin
-        onBack={() => setSelectedRole("")}
+        key={studentLoginView}
+        initialView={studentLoginView}
+        onBack={() => {
+          setSelectedRole("");
+          setStudentLoginView("login");
+        }}
+        onBrowseAsGuest={() => {
+          setSelectedRole("");
+          setIsGuestBrowsing(true);
+          setStudentLoginView("login");
+        }}
         onLoginSuccess={handleLoginSuccess}
       />
     );

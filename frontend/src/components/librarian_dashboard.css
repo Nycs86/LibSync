@@ -1247,3 +1247,476 @@
     font-size: 9px;
   }
 }
+
+
+
+/* =========================================================
+   LIBSYNC LIBRARIAN DASHBOARD — VISUAL ALIGNMENT
+   CSS-only update. Existing React behavior and section markup
+   are intentionally left unchanged.
+========================================================= */
+
+.ls-librarian-shell {
+  --ls-lib-emerald: #006149;
+  --ls-lib-emerald-deep: #00513C;
+  --ls-lib-mint: #A8EFD2;
+  --ls-lib-cream: #FFF9EC;
+  --ls-lib-bg: #FFF9EC;
+  --ls-lib-text: #17342A;
+  --ls-lib-muted: #718078;
+  --ls-lib-border: #E8ECE4;
+  --ls-lib-shadow: 0 8px 26px rgba(35, 66, 45, .045);
+  grid-template-columns: 264px minmax(0, 1fr);
+  background: #FFF9EC;
+  color: #17342A;
+}
+
+/* Sidebar: same dimensions, emerald, mint active item, and leaf detail. */
+.ls-librarian-sidebar {
+  flex: 0 0 264px;
+  width: 264px;
+  min-height: 100vh;
+  padding: 28px 16px 22px;
+  overflow: hidden;
+  background: #006149;
+  box-shadow: none;
+}
+
+.ls-librarian-sidebar-leaves {
+  left: -10px;
+  bottom: -4px;
+  width: 205px;
+  height: 240px;
+  color: #A8EFD2;
+  opacity: .17;
+}
+
+.ls-leaf-stem {
+  stroke: currentColor;
+  stroke-width: 2.2;
+}
+
+.ls-leaf-shape {
+  fill: currentColor;
+  stroke: rgba(168, 239, 210, .36);
+  stroke-width: .8;
+}
+
+.ls-librarian-brand {
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 78px;
+  margin: 0 12px 37px;
+  padding: 0;
+  gap: 0;
+  text-align: left;
+}
+
+.ls-librarian-brand-logo {
+  display: block;
+  width: min(190px, 100%);
+  height: 58px;
+  max-height: 58px;
+  object-fit: contain;
+  object-position: left center;
+  background: transparent;
+  filter: brightness(0) invert(1);
+}
+
+.ls-librarian-sidebar-label {
+  margin: 0 14px 16px;
+  color: #A8EFD2;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.3px;
+}
+
+.ls-librarian-navigation {
+  gap: 8px;
+}
+
+.ls-librarian-nav-item {
+  min-height: 56px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, .92);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.ls-librarian-nav-item i {
+  flex-basis: 22px;
+  width: 22px;
+  color: #A8EFD2;
+  font-size: 20px;
+}
+
+.ls-librarian-nav-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .10);
+}
+
+.ls-librarian-nav-item.active {
+  border-color: transparent;
+  color: #07543F;
+  background: #A8EFD2;
+  box-shadow: none;
+}
+
+.ls-librarian-nav-item.active i {
+  color: #07543F;
+}
+
+.ls-librarian-sidebar-bottom {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .20);
+}
+
+.ls-librarian-profile {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(168, 239, 210, .34);
+  border-radius: 15px;
+  background: rgba(0, 77, 58, .38);
+}
+
+.ls-librarian-avatar,
+.ls-librarian-topbar-avatar {
+  color: #07543F;
+  background: #A8EFD2;
+}
+
+.ls-librarian-profile-name {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ls-librarian-profile-role {
+  color: rgba(255, 255, 255, .76);
+  font-size: 11px;
+}
+
+.ls-librarian-logout {
+  min-height: 48px;
+  border: 1px solid rgba(168, 239, 210, .34);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, .09);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.ls-librarian-logout i {
+  color: #A8EFD2;
+}
+
+.ls-librarian-logout:hover {
+  border-color: #A8EFD2;
+  color: #07543F;
+  background: #A8EFD2;
+}
+
+.ls-librarian-logout:hover i {
+  color: #07543F;
+}
+
+/* Workspace and welcome banner: same cream canvas and hero proportions. */
+.ls-librarian-workspace {
+  min-width: 0;
+  padding: clamp(22px, 2.5vw, 36px);
+  background: #FFF9EC;
+}
+
+.ls-librarian-topbar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 190px;
+  min-height: 190px;
+  max-height: 190px;
+  margin: 0 0 25px;
+  padding: 24px 30px;
+  overflow: hidden;
+  border: 1px solid #E6EADF;
+  border-radius: 18px;
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .94) 0%,
+      rgba(255, 255, 255, .82) 39%,
+      rgba(255, 255, 255, .12) 76%,
+      rgba(255, 255, 255, .02) 100%
+    ),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 7px 24px rgba(29, 61, 43, .045);
+}
+
+.ls-librarian-topbar > div {
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+}
+
+/* Visually matches the Student/Guest "YOUR LIBRARY SPACE" eyebrow
+   while retaining the original dynamic breadcrumb in the JSX. */
+.ls-librarian-eyebrow {
+  margin: 0 0 7px;
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+}
+
+.ls-librarian-eyebrow::before {
+  display: block;
+  content: "YOUR LIBRARY SPACE";
+  color: #006149;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 1.4px;
+}
+
+.ls-librarian-topbar h1 {
+  margin: 0 0 5px;
+  color: #17342A;
+  font-size: clamp(25px, 2.2vw, 29px);
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -.65px;
+}
+
+.ls-librarian-welcome {
+  margin: 0;
+  color: #526B60;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Preserve the current panel and data-table structure while aligning
+   their borders, corners, and focus states with the LibSync palette. */
+.ls-librarian-panel,
+.ls-librarian-overview-card,
+.ls-librarian-stat-card,
+.ls-librarian-feature-card {
+  border-color: #E8ECE4;
+  box-shadow: 0 7px 22px rgba(35, 66, 45, .045);
+}
+
+.ls-librarian-panel {
+  border-radius: 18px;
+  background: #fff;
+}
+
+.ls-librarian-panel-header {
+  border-bottom-color: #E8ECE4;
+}
+
+.ls-librarian-table thead th {
+  color: #006149;
+  background: #EDF8F2;
+}
+
+.ls-librarian-table tbody tr:hover td {
+  background: #F7FCF8;
+}
+
+.ls-librarian-panel button:focus-visible,
+.ls-librarian-nav-item:focus-visible,
+.ls-librarian-logout:focus-visible {
+  outline: 3px solid rgba(168, 239, 210, .85);
+  outline-offset: 2px;
+}
+
+/* Responsive sizes track the same compact hero behavior as Student. */
+@media (max-width: 1120px) {
+  .ls-librarian-shell {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .ls-librarian-sidebar {
+    flex-basis: 230px;
+    width: 230px;
+  }
+}
+
+@media (max-width: 760px) {
+  .ls-librarian-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .ls-librarian-sidebar {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: 55dvh;
+    padding: 18px 16px;
+  }
+
+  .ls-librarian-brand {
+    align-items: flex-start;
+    min-height: 0;
+    margin: 0 5px 18px;
+    padding: 0;
+  }
+
+  .ls-librarian-brand-logo {
+    width: min(190px, 68vw);
+    height: 48px;
+    max-height: 48px;
+    object-position: left center;
+  }
+
+  .ls-librarian-sidebar-label {
+    margin: 0 5px 9px;
+  }
+
+  .ls-librarian-navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ls-librarian-nav-item {
+    min-height: 44px;
+    padding: 9px 10px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
+
+  .ls-librarian-nav-item i {
+    flex-basis: 18px;
+    width: 18px;
+    font-size: 16px;
+  }
+
+  .ls-librarian-sidebar-leaves {
+    bottom: 0;
+    height: 150px;
+    width: 58%;
+    opacity: .12;
+  }
+
+  .ls-librarian-sidebar-bottom {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .ls-librarian-profile {
+    display: flex;
+  }
+
+  .ls-librarian-workspace {
+    height: auto;
+    min-height: 0;
+    padding: 20px 18px 28px;
+    overflow: visible;
+  }
+
+  .ls-librarian-topbar {
+    height: 155px;
+    min-height: 155px;
+    max-height: 155px;
+    margin-bottom: 20px;
+    padding: 21px 25px;
+    background-position: center;
+  }
+
+  .ls-librarian-topbar h1 {
+    font-size: clamp(23px, 4.5vw, 27px);
+  }
+
+  .ls-librarian-welcome {
+    font-size: 12px;
+  }
+
+  .ls-librarian-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .ls-librarian-workspace {
+    padding: 16px 13px 24px;
+  }
+
+  .ls-librarian-topbar {
+    height: 140px;
+    min-height: 140px;
+    max-height: 140px;
+    margin-bottom: 19px;
+    padding: 18px 22px;
+    background-position: center;
+  }
+
+  .ls-librarian-topbar h1 {
+    font-size: 23px;
+  }
+
+  .ls-librarian-welcome {
+    font-size: 12px;
+  }
+
+  .ls-librarian-stats-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+
+/* =========================================================
+   LIBRARIAN SIDEBAR — SHARED PHOTO BACKGROUND
+   Uses /sidebar_background.png; no JSX or behavior changes.
+========================================================= */
+.ls-librarian-shell .ls-librarian-sidebar {
+  background-color: #004F3B;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(0, 69, 50, .48) 0%,
+      rgba(0, 67, 49, .56) 48%,
+      rgba(0, 58, 43, .70) 100%
+    ),
+    url('/sidebar_background.png');
+  background-repeat: no-repeat;
+  background-position: center, 68% center;
+  background-size: cover;
+}
+
+/* The photo already includes the plant, so hide the old leaf overlay. */
+.ls-librarian-shell .ls-librarian-sidebar-leaves {
+  display: none !important;
+}
+
+.ls-librarian-shell .ls-librarian-sidebar > *:not(.ls-librarian-sidebar-leaves) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep profile and logout legible against the photographic background. */
+.ls-librarian-shell .ls-librarian-profile {
+  background: rgba(0, 67, 49, .48);
+  border-color: rgba(168, 239, 210, .34);
+}
+
+.ls-librarian-shell .ls-librarian-logout {
+  background: rgba(0, 67, 49, .42);
+  border-color: rgba(168, 239, 210, .32);
+}
+
+@media (max-width: 760px) {
+  .ls-librarian-shell .ls-librarian-sidebar {
+    background-position: center, 68% 48%;
+    background-size: cover;
+  }
+}
+

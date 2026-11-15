@@ -25,6 +25,31 @@
   text-underline-offset: 3px;
 }
 
+
+.ls-student-guest-switch {
+  margin-top: 13px;
+  color: #718078;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.ls-student-guest-switch button {
+  padding: 2px 3px;
+  border: 0;
+  color: #07845f;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ls-student-guest-switch button:hover {
+  color: #064b3c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .ls-student-login-notice {
   margin-top: 22px;
 }

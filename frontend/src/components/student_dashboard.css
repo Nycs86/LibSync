@@ -5034,3 +5034,1352 @@
     font-size: 12px;
   }
 }
+
+/* =========================================================
+   GUEST BOOK CATALOGUE — public, view-only browsing
+   Reuses the Student book cards and preview modal.
+========================================================= */
+.ls-student-guest-mode {
+  display: block;
+  min-height: 100vh;
+  background: #FFF9EC;
+}
+
+.ls-guest-shell {
+  width: min(1440px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 38px);
+}
+
+.ls-guest-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+  padding: 15px 20px;
+  border: 1px solid #EEEBDD;
+  border-radius: 16px;
+  background: #FFFFFF;
+  box-shadow: 0 7px 22px rgba(39, 62, 47, .045);
+}
+
+.ls-guest-brand { display: inline-flex; align-items: center; min-width: 0; }
+.ls-guest-brand img { display: block; width: 176px; max-width: 100%; height: 52px; object-fit: contain; object-position: left center; }
+.ls-guest-topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+
+.ls-guest-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #08744E;
+  background: #E6F7ED;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ls-guest-login-button,
+.ls-guest-register-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 39px;
+  padding: 9px 15px;
+  border: 1px solid #006149;
+  border-radius: 10px;
+  color: #FFFFFF;
+  background: #006149;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease;
+}
+
+.ls-guest-login-button:hover,
+.ls-guest-register-button:hover { transform: translateY(-1px); background: #00513C; border-color: #00513C; }
+
+.ls-guest-register-button {
+  border-color: #B9E7CE;
+  color: #006149;
+  background: #EAF8F0;
+}
+.ls-guest-register-button:hover { border-color: #8ED5B1; color: #00513C; background: #DDF4E7; }
+
+.ls-guest-main { min-width: 0; }
+.ls-guest-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 208px;
+  margin-bottom: 17px;
+  padding: clamp(26px, 4vw, 46px);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid #DDE8E8;
+  border-radius: 18px;
+  background-color: #F5FAFC;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .98) 0%,
+      rgba(255, 255, 255, .94) 30%,
+      rgba(255, 255, 255, .76) 48%,
+      rgba(255, 255, 255, .12) 100%
+    ),
+    url("/guest-library-hero.jpg");
+  background-position: center, center 55%;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.ls-guest-hero-copy {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 650px);
+}
+
+.ls-guest-eyebrow { margin: 0 0 9px; color: #00845B; font-size: 10px; font-weight: 850; letter-spacing: 1.6px; }
+.ls-guest-hero h1 { margin: 0 0 8px; color: #172C27; font-size: clamp(27px, 3vw, 39px); font-weight: 850; letter-spacing: -1px; }
+.ls-guest-hero p:not(.ls-guest-eyebrow) { max-width: 620px; margin: 0; color: #536D68; font-size: 14px; line-height: 1.6; }
+
+.ls-guest-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 17px;
+  padding: 14px 17px;
+  border: 1px solid #CDEBDD;
+  border-radius: 12px;
+  color: #075B42;
+  background: #EFFAF3;
+}
+.ls-guest-notice > i { margin-top: 2px; font-size: 17px; }
+.ls-guest-notice > div { display: flex; flex-direction: column; gap: 3px; }
+.ls-guest-notice strong { font-size: 12px; font-weight: 850; }
+.ls-guest-notice span { color: #607A6D; font-size: 12px; line-height: 1.5; }
+
+.ls-guest-catalogue-panel {
+  min-width: 0;
+  padding: clamp(18px, 2.5vw, 28px);
+  border: 1px solid #EEEBDD;
+  border-radius: 17px;
+  background: #FFFFFF;
+  box-shadow: 0 7px 22px rgba(39, 62, 47, .045);
+}
+.ls-guest-catalogue-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 13px; margin-bottom: 22px; }
+.ls-guest-search { flex: 1 1 520px; width: auto; min-height: 45px; }
+.ls-guest-sort { flex: 0 0 auto; }
+.ls-guest-catalogue-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 17px; }
+.ls-guest-catalogue-heading h2 { margin: 0 0 5px; color: #172C27; font-size: 21px; font-weight: 850; letter-spacing: -.4px; }
+.ls-guest-catalogue-heading p { margin: 0; color: #718078; font-size: 12px; }
+.ls-guest-catalogue-heading > span { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 999px; color: #08744E; background: #EDF8F1; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.ls-guest-error { margin-bottom: 15px; }
+.ls-guest-shell .student-books-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ls-guest-shell .student-book-card-footer .select-book-button { min-height: 37px; }
+
+.ls-guest-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 8px 3px; color: #829087; font-size: 11px; }
+.ls-guest-footer button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border: 0; color: #006149; background: transparent; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.ls-guest-footer button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.ls-guest-auth-backdrop { z-index: 1105; }
+.ls-guest-auth-modal {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 34px 30px 26px;
+  border: 1px solid #DCEBE2;
+  border-radius: 20px;
+  background: #FFFFFF;
+  box-shadow: 0 24px 70px rgba(0,0,0,.2);
+  text-align: center;
+  animation: studentModalIn .18s ease both;
+}
+.ls-guest-auth-modal .student-preview-close { position: absolute; top: 13px; right: 13px; }
+.ls-guest-auth-icon { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 17px; border-radius: 17px; color: #006149; background: #DFF7E9; font-size: 25px; }
+.ls-guest-auth-modal .ls-guest-eyebrow { margin-bottom: 7px; }
+.ls-guest-auth-modal h2 { margin: 0 0 10px; color: #172C27; font-size: 22px; font-weight: 850; letter-spacing: -.5px; }
+.ls-guest-auth-book { margin: 0 0 8px; color: #006149; font-size: 13px; font-weight: 800; }
+.ls-guest-auth-copy { margin: 0 auto 20px; max-width: 350px; color: #718078; font-size: 12px; line-height: 1.65; }
+.ls-guest-auth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.ls-guest-auth-actions button { min-height: 43px; }
+.ls-guest-continue-button { margin-top: 15px; padding: 7px 10px; border: 0; color: #728078; background: transparent; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.ls-guest-continue-button:hover { color: #006149; text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 1080px) {
+  .ls-guest-shell .student-books-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ls-guest-shell { padding: 14px; }
+  .ls-guest-topbar { align-items: flex-start; flex-direction: column; }
+  .ls-guest-topbar-actions { width: 100%; justify-content: flex-start; }
+  .ls-guest-hero {
+    min-height: 175px;
+    padding: 23px;
+    background-position: center, 62% center;
+    background-image:
+      linear-gradient(90deg, rgba(255,255,255,.97) 0%, rgba(255,255,255,.9) 56%, rgba(255,255,255,.48) 100%),
+      url("/guest-library-hero.jpg");
+  }
+  .ls-guest-hero-copy { max-width: 100%; }
+  .ls-guest-catalogue-toolbar { align-items: stretch; flex-direction: column; }
+  .ls-guest-sort { width: 100%; }
+  .ls-guest-shell .student-books-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+  .ls-guest-shell .student-book-card { padding: 12px; }
+  .ls-guest-footer { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 440px) {
+  .ls-guest-shell .student-books-grid { grid-template-columns: 1fr; }
+  .ls-guest-auth-modal { padding: 30px 20px 22px; }
+}
+.ls-guest-category-select {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #E6EAE1;
+  border-radius: 10px;
+  color: #006149;
+  background: #FFFFFF;
+}
+.ls-guest-category-select select { min-width: 125px; border: 0; outline: 0; color: #365349; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+@media (max-width: 760px) { .ls-guest-category-select { width: 100%; } .ls-guest-category-select select { flex: 1; } }
+
+
+/* =========================================================
+   STUDENT SIDEBAR — exact Guest sidebar dimensions + leaf art
+   Welcome hero — matching LibSync library photo background
+   These are visual-only overrides; dashboard logic is unchanged.
+========================================================= */
+
+.student-dashboard {
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+.student-dashboard .student-sidebar {
+  flex: 0 0 264px;
+  width: 264px;
+  min-height: 100vh;
+  height: 100vh;
+  padding: 28px 16px 22px;
+  overflow: hidden;
+  background: #006149;
+}
+
+.student-dashboard .student-brand {
+  min-height: 78px;
+  margin: 0 12px 42px;
+  padding: 0;
+  gap: 4px;
+}
+
+.student-dashboard .student-brand-logo {
+  display: block;
+  width: min(100%, 190px);
+  max-width: 100%;
+  max-height: 58px;
+  height: 58px;
+  object-fit: contain;
+  object-position: center;
+  filter: brightness(0) invert(1);
+}
+
+.student-dashboard .student-sidebar-label {
+  margin: 0 14px 16px;
+  color: #A8EFD2;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.3px;
+}
+
+.student-dashboard .student-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.student-dashboard .student-sidebar .student-menu {
+  min-height: 56px;
+  padding: 0 18px;
+  gap: 14px;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, .9);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.student-dashboard .student-sidebar .student-menu i {
+  flex: 0 0 22px;
+  width: 22px;
+  color: #A8EFD2;
+  font-size: 21px;
+}
+
+.student-dashboard .student-sidebar .student-menu:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .10);
+}
+
+.student-dashboard .student-sidebar .student-menu.active {
+  border-color: transparent;
+  color: #07543F;
+  background: #A8EFD2;
+  box-shadow: none;
+}
+
+.student-dashboard .student-sidebar .student-menu.active i {
+  color: #07543F;
+}
+
+.student-dashboard .student-sidebar .menu-count {
+  color: #07543F;
+  background: #A8EFD2;
+}
+
+/* Reuse the exact decorative leaf asset used by the Guest sidebar. */
+.student-dashboard .student-sidebar-leaves {
+  position: absolute;
+  z-index: 0;
+  left: -10px;
+  bottom: -12px;
+  width: 100%;
+  height: 310px;
+  opacity: .42;
+  background-image: url('/guest-sidebar-leaves.png');
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% auto;
+  pointer-events: none;
+}
+
+.student-dashboard .student-sidebar-leaf {
+  display: none;
+}
+
+.student-dashboard .student-sidebar-bottom {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding-top: 17px;
+  border-top: 1px solid rgba(255, 255, 255, .18);
+}
+
+/* Use the exact guest-library-hero image supplied for the Student welcome banner. */
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact {
+  min-height: 190px;
+  border: 1px solid #E6EADF;
+  border-radius: 18px;
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, .94) 0%, rgba(255, 255, 255, .82) 39%, rgba(255, 255, 255, .12) 76%, rgba(255, 255, 255, .02) 100%),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center, center;
+  background-size: cover;
+  box-shadow: 0 7px 24px rgba(29, 61, 43, .045);
+}
+
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact::before {
+  display: none;
+}
+
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact .libsync-page-hero-copy {
+  padding-left: 0;
+  max-width: 660px;
+}
+
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact .student-header-label {
+  color: #006149;
+}
+
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact h1 {
+  color: #17342A;
+}
+
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact p {
+  color: #526B60;
+}
+
+@media (max-width: 1100px) {
+  .student-dashboard {
+    grid-template-columns: 264px minmax(0, 1fr);
+  }
+
+  .student-dashboard .student-sidebar {
+    width: 264px;
+  }
+}
+
+@media (max-width: 760px) {
+  .student-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .student-dashboard .student-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 18px 16px;
+  }
+
+  .student-dashboard .student-brand {
+    min-height: 0;
+    margin: 0 4px 18px;
+    padding: 0 4px 0;
+  }
+
+  .student-dashboard .student-brand-logo {
+    width: min(190px, 68vw);
+    max-height: 58px;
+  }
+
+  .student-dashboard .student-sidebar-leaves {
+    height: 180px;
+    width: 58%;
+    background-size: 100% auto;
+  }
+
+  .student-dashboard .student-workspace .student-header.libsync-page-hero--compact {
+    min-height: 155px;
+    background-position: center, 58% center;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-dashboard .student-sidebar {
+    padding: 16px 13px;
+  }
+
+  .student-dashboard .student-workspace .student-header.libsync-page-hero--compact {
+    min-height: 140px;
+    background-position: center, 61% center;
+  }
+}
+
+
+/* =========================================================
+   STUDENT BOOK CARDS — match the Guest Catalog card design
+   Keeps the existing preview and Select Book interactions.
+========================================================= */
+.student-dashboard .student-workspace .student-books-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.student-dashboard .student-workspace .student-home-primary .student-books-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) {
+  padding: 14px;
+  border: 1px solid #E8ECE4;
+  border-radius: 17px;
+  background: #FFFFFF;
+  box-shadow: none;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card):hover {
+  transform: translateY(-2px);
+  border-color: #BCE8D2;
+  box-shadow: 0 9px 23px rgba(23, 69, 45, .075);
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-preview-button {
+  flex: 1 1 auto;
+  padding: 0;
+  gap: 0;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover--card {
+  height: 190px;
+  margin-bottom: 13px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #F1F6F1;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover--card > img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 6px 14px rgba(20, 42, 29, .13);
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover-placeholder {
+  width: 138px;
+  height: 166px;
+  padding: 15px 13px;
+  border: 1px solid rgba(85, 117, 92, .14);
+  border-radius: 7px;
+  color: #214A3A;
+  box-shadow: 0 7px 15px rgba(20, 42, 29, .12);
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover-placeholder::before {
+  width: 38px;
+  height: 4px;
+  background: #4D9478;
+  opacity: 1;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover-placeholder > i {
+  margin: 4px 0;
+  color: #0D7758;
+  font-size: 30px;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover-placeholder > span {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover-placeholder > small {
+  margin-top: 6px;
+  color: #557365;
+  font-size: 8px;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info h3 {
+  display: -webkit-box;
+  min-height: 40px;
+  margin: 0 0 4px;
+  overflow: hidden;
+  color: #1B352B;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info .book-author {
+  display: block;
+  min-height: 20px;
+  margin: 0 0 8px;
+  overflow: hidden;
+  color: #718078;
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info .book-status {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 23px;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info .book-status.available {
+  color: #17633C;
+  background: #E7F7E9;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-info .book-status.unavailable {
+  color: #945B35;
+  background: #FFF0DD;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer {
+  justify-content: center;
+  margin-top: 13px;
+  padding: 0;
+  border: 0;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer .select-book-button {
+  width: 72%;
+  max-width: 180px;
+  min-height: 50px;
+  padding: 0 12px;
+  border: 1px solid #006149;
+  border-radius: 11px;
+  color: #FFFFFF;
+  background: #006149;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: normal;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer .select-book-button:hover:not(:disabled) {
+  border-color: #047857;
+  background: #047857;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer .select-book-button:disabled {
+  border-color: #DDE9E0;
+  color: #FFFFFF;
+  background: #8AB7AA;
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1450px) {
+  .student-dashboard .student-workspace .student-books-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .student-dashboard .student-workspace .student-books-grid,
+  .student-dashboard .student-workspace .student-home-primary .student-books-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .student-dashboard .student-workspace .student-books-grid,
+  .student-dashboard .student-workspace .student-home-primary .student-books-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) {
+    padding: 12px;
+  }
+
+  .student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-cover--card {
+    height: 180px;
+  }
+}
+
+
+/* Large white catalogue panel behind the Student Dashboard book cards */
+.student-dashboard .student-workspace .student-library-books-panel {
+  width: 100%;
+  margin-top: 24px;
+  padding: 26px;
+  border: 1px solid #E8ECE4;
+  border-radius: 22px;
+  background: #FFFFFF;
+  box-shadow: 0 8px 28px rgba(35, 66, 45, .045);
+}
+
+.student-dashboard .student-workspace .student-library-books-panel .student-catalog-heading-row {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.student-dashboard .student-workspace .student-library-books-panel .student-books-grid {
+  margin-top: 0;
+}
+
+.student-dashboard .student-workspace .student-library-books-panel-page {
+  margin-top: 22px;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-library-books-panel {
+    margin-top: 18px;
+    padding: 15px;
+    border-radius: 17px;
+  }
+
+  .student-dashboard .student-workspace .student-library-books-panel .student-catalog-heading-row {
+    gap: 12px;
+  }
+}
+
+
+/* =========================================================
+   STUDENT BOOK CATALOG TOOLBAR — match the Guest catalog
+========================================================= */
+.student-dashboard .student-workspace .student-library-books-panel {
+  padding: 26px;
+}
+
+.student-dashboard .student-workspace .student-library-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 235px 230px;
+  gap: 14px;
+  margin: 0 0 26px;
+}
+
+.student-dashboard .student-workspace .student-library-search,
+.student-dashboard .student-workspace .student-library-category-filter,
+.student-dashboard .student-workspace .student-library-sort {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 0 17px;
+  border: 1px solid #E5EADF;
+  border-radius: 14px;
+  color: #006149;
+  background: #FFFFFF;
+  box-shadow: 0 4px 15px rgba(26, 55, 38, .025);
+}
+
+.student-dashboard .student-workspace .student-library-search {
+  gap: 13px;
+}
+
+.student-dashboard .student-workspace .student-library-search > i,
+.student-dashboard .student-workspace .student-library-category-filter > i,
+.student-dashboard .student-workspace .student-library-sort > i {
+  flex: 0 0 auto;
+  font-size: 19px;
+}
+
+.student-dashboard .student-workspace .student-library-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #244237;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+}
+
+.student-dashboard .student-workspace .student-library-search input::placeholder {
+  color: #98A29B;
+  opacity: 1;
+}
+
+.student-dashboard .student-workspace .student-library-search button {
+  display: inline-flex;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  color: #71847A;
+  background: #F1F5F1;
+  cursor: pointer;
+}
+
+.student-dashboard .student-workspace .student-library-category-filter {
+  gap: 11px;
+}
+
+.student-dashboard .student-workspace .student-library-category-filter select,
+.student-dashboard .student-workspace .student-library-sort select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #365448;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.student-dashboard .student-workspace .student-library-sort {
+  gap: 9px;
+}
+
+.student-dashboard .student-workspace .student-library-sort > span {
+  flex: 0 0 auto;
+  color: #75857B;
+  font-size: 13px;
+}
+
+.student-dashboard .student-workspace .student-library-sort select {
+  color: #006149;
+  font-weight: 750;
+}
+
+.student-dashboard .student-workspace .student-library-heading {
+  align-items: center;
+  margin: 0 0 20px;
+}
+
+.student-dashboard .student-workspace .student-library-heading h2 {
+  margin: 0 0 3px;
+  color: #16372B;
+  font-size: 23px;
+  font-weight: 850;
+  letter-spacing: -.5px;
+}
+
+.student-dashboard .student-workspace .student-library-heading p {
+  margin: 0;
+  color: #7A8980;
+  font-size: 13px;
+}
+
+.student-dashboard .student-workspace .student-library-view-only {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border-radius: 24px;
+  color: #006149;
+  background: #EDF8F2;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Make the Select Book / Selected state sit at a consistent card bottom. */
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) {
+  min-height: 100%;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-preview-button {
+  flex: 1 1 auto;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.student-dashboard .student-workspace .student-book-card:not(.student-online-book-card) .student-book-card-footer .select-book-button {
+  width: 72%;
+  max-width: 190px;
+  min-height: 48px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1100px) {
+  .student-dashboard .student-workspace .student-library-controls {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+
+  .student-dashboard .student-workspace .student-library-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-library-books-panel {
+    padding: 17px 14px 22px;
+  }
+
+  .student-dashboard .student-workspace .student-library-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .student-dashboard .student-workspace .student-library-search {
+    grid-column: 1 / -1;
+    min-height: 48px;
+  }
+
+  .student-dashboard .student-workspace .student-library-category-filter,
+  .student-dashboard .student-workspace .student-library-sort {
+    min-height: 46px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .student-dashboard .student-workspace .student-library-category-filter select,
+  .student-dashboard .student-workspace .student-library-sort select {
+    font-size: 11px;
+  }
+
+  .student-dashboard .student-workspace .student-library-sort > span {
+    font-size: 11px;
+  }
+
+  .student-dashboard .student-workspace .student-library-heading h2 {
+    font-size: 19px;
+  }
+
+  .student-dashboard .student-workspace .student-library-heading p {
+    font-size: 11px;
+  }
+
+  .student-dashboard .student-workspace .student-library-view-only {
+    padding: 7px 9px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 420px) {
+  .student-dashboard .student-workspace .student-library-heading {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .student-dashboard .student-workspace .student-library-view-only {
+    font-size: 8px;
+  }
+}
+
+
+/* =========================================================
+   STUDENT HOME LAYOUT — prioritize a full-width book catalogue
+   Return Performance is placed after the main LibSync catalogue.
+========================================================= */
+.student-dashboard .student-workspace .student-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.student-dashboard .student-workspace .student-home-primary {
+  width: 100%;
+  min-width: 0;
+}
+
+.student-dashboard .student-workspace .student-home-primary .student-stats {
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.student-dashboard .student-workspace .student-library-books-panel {
+  width: 100%;
+  margin-top: 22px;
+}
+
+.student-dashboard .student-workspace .student-library-books-panel .student-books-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+
+.student-dashboard .student-workspace .student-performance-card {
+  width: 100%;
+  margin: 0;
+}
+
+.student-dashboard .student-workspace .student-home-aside {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  width: 100%;
+  gap: 18px;
+  padding: 0;
+}
+
+.student-dashboard .student-workspace .student-home-aside .student-side-panel {
+  min-width: 0;
+  height: 100%;
+}
+
+@media (max-width: 1250px) {
+  .student-dashboard .student-workspace .student-library-books-panel .student-books-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .student-dashboard .student-workspace .student-library-books-panel .student-books-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-home-primary .student-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .student-dashboard .student-workspace .student-home-aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .student-dashboard .student-workspace .student-home-primary .student-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-dashboard .student-workspace .student-library-books-panel .student-books-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* Student Dashboard Categories page: use one compact dropdown instead of tiles */
+.student-dashboard .student-workspace .student-category-dropdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 16px 0 22px;
+}
+
+.student-dashboard .student-workspace .student-category-dropdown-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 420px);
+  min-height: 56px;
+  padding: 0 17px;
+  border: 1px solid #E5EADF;
+  border-radius: 13px;
+  color: #006149;
+  background: #FFFFFF;
+  box-shadow: 0 4px 15px rgba(26, 55, 38, .025);
+}
+
+.student-dashboard .student-workspace .student-category-dropdown-control > i {
+  flex: 0 0 auto;
+  font-size: 19px;
+}
+
+.student-dashboard .student-workspace .student-category-dropdown-control select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #244237;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+@media (max-width: 620px) {
+  .student-dashboard .student-workspace .student-category-dropdown-row {
+    margin: 12px 0 18px;
+  }
+
+  .student-dashboard .student-workspace .student-category-dropdown-control {
+    min-height: 48px;
+    padding: 0 12px;
+  }
+}
+
+
+/* Categories page: include search, category dropdown and sort inside the white catalogue panel */
+.student-dashboard .student-workspace .student-category-page-panel {
+  margin-top: 0;
+}
+
+.student-dashboard .student-workspace .student-category-panel-intro {
+  margin: 0 0 20px;
+}
+
+.student-dashboard .student-workspace .student-category-panel-intro h2 {
+  margin-bottom: 5px;
+}
+
+.student-dashboard .student-workspace .student-category-page-controls {
+  margin-top: 0;
+}
+
+@media (max-width: 1100px) {
+  .student-dashboard .student-workspace .student-category-page-controls {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+
+  .student-dashboard .student-workspace .student-category-page-controls .student-library-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-category-page-panel {
+    padding: 17px 14px 22px;
+  }
+
+  .student-dashboard .student-workspace .student-category-page-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+
+/* Explore More Books now appears after all dashboard panels, at the bottom. */
+.student-dashboard .student-workspace .student-online-catalog-section--bottom {
+  width: 100%;
+  margin-top: 30px;
+  padding-top: 26px;
+  border-top: 1px solid #E3EADF;
+}
+
+.student-dashboard .student-workspace .student-online-catalog-section--bottom .student-online-heading-row {
+  align-items: flex-start;
+}
+
+.student-dashboard .student-workspace .student-online-catalog-section--bottom .student-online-heading-row .student-section-heading p {
+  max-width: 860px;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-online-catalog-section--bottom {
+    margin-top: 22px;
+    padding-top: 20px;
+  }
+}
+
+
+/* Borrowing & Return QR hero — shared LibSync library welcome photo */
+.student-dashboard .student-workspace .libsync-qr-hero {
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .95) 0%,
+      rgba(255, 255, 255, .86) 38%,
+      rgba(255, 255, 255, .43) 66%,
+      rgba(255, 255, 255, .10) 100%
+    ),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center, center;
+  background-size: cover;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero-copy h2 {
+  color: #17342A;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero-copy p {
+  color: #526B60;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .libsync-qr-hero {
+    background-position: center, 58% center;
+  }
+}
+
+
+/* QR hero must match the Books welcome hero width, height and spacing */
+.student-dashboard .student-workspace .libsync-qr-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-height: 164px;
+  margin: 0 0 25px;
+  padding: 24px 27px 24px 30px;
+  border-radius: 18px;
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .95) 0%,
+      rgba(255, 255, 255, .86) 38%,
+      rgba(255, 255, 255, .43) 66%,
+      rgba(255, 255, 255, .10) 100%
+    ),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center, center;
+  background-size: cover;
+}
+
+/* Remove the green vertical accent line from the QR banner only. */
+.student-dashboard .student-workspace .libsync-qr-hero::before {
+  content: none !important;
+  display: none !important;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero-copy {
+  max-width: 100%;
+  padding-left: 10px;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .libsync-qr-hero {
+    min-height: 145px;
+    padding: 21px 20px 21px 25px;
+    margin-bottom: 20px;
+    background-position: center, 58% center;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-dashboard .student-workspace .libsync-qr-hero {
+    min-height: 135px;
+    padding: 18px 16px 18px 22px;
+    margin-bottom: 19px;
+    background-position: center, 61% center;
+  }
+
+  .student-dashboard .student-workspace .libsync-qr-hero-copy {
+    padding-left: 7px;
+  }
+}
+
+
+/* =========================================================
+   FINAL HERO ALIGNMENT
+   Books welcome banner and Borrowing & Return QR banner
+   use identical dimensions, width, spacing, and background.
+========================================================= */
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact,
+.student-dashboard .student-workspace .libsync-qr-hero {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  height: 190px;
+  min-height: 190px;
+  max-height: 190px;
+  margin: 0 0 25px;
+  padding: 24px 30px;
+  overflow: hidden;
+  border: 1px solid #E6EADF;
+  border-radius: 18px;
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .94) 0%,
+      rgba(255, 255, 255, .82) 39%,
+      rgba(255, 255, 255, .12) 76%,
+      rgba(255, 255, 255, .02) 100%
+    ),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  box-shadow: 0 7px 24px rgba(29, 61, 43, .045);
+}
+
+/* There should be no vertical accent line on either hero. */
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact::before,
+.student-dashboard .student-workspace .libsync-qr-hero::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Keep both banners' text aligned to the same left inset. */
+.student-dashboard .student-workspace .student-header.libsync-page-hero--compact .libsync-page-hero-copy,
+.student-dashboard .student-workspace .libsync-qr-hero .libsync-qr-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 660px;
+  padding-left: 0;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .student-header.libsync-page-hero--compact,
+  .student-dashboard .student-workspace .libsync-qr-hero {
+    height: 155px;
+    min-height: 155px;
+    max-height: 155px;
+    margin-bottom: 20px;
+    padding: 21px 25px;
+    background-position: center center;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-dashboard .student-workspace .student-header.libsync-page-hero--compact,
+  .student-dashboard .student-workspace .libsync-qr-hero {
+    height: 140px;
+    min-height: 140px;
+    max-height: 140px;
+    margin-bottom: 19px;
+    padding: 18px 22px;
+  }
+}
+
+
+/* QR hero typography — match the Books welcome banner exactly */
+.student-dashboard .student-workspace .libsync-qr-hero-copy > span {
+  color: #006149;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 1.4px;
+  line-height: 1.4;
+  margin-bottom: 7px;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero-copy h2 {
+  color: #17342A;
+  font-size: clamp(25px, 2.2vw, 29px);
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -0.65px;
+  margin: 0 0 5px;
+}
+
+.student-dashboard .student-workspace .libsync-qr-hero-copy p {
+  color: #526B60;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-workspace .libsync-qr-hero-copy h2 {
+    font-size: clamp(23px, 4.5vw, 27px);
+  }
+
+  .student-dashboard .student-workspace .libsync-qr-hero-copy p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .student-dashboard .student-workspace .libsync-qr-hero-copy h2 {
+    font-size: 23px;
+  }
+
+  .student-dashboard .student-workspace .libsync-qr-hero-copy p {
+    font-size: 12px;
+  }
+}
+
+
+
+/* =========================================================
+   STUDENT SIDEBAR — SHARED PHOTO BACKGROUND
+   Uses /sidebar_background.png; no JSX or behavior changes.
+========================================================= */
+.student-dashboard .student-sidebar {
+  background-color: #004F3B;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(0, 69, 50, .48) 0%,
+      rgba(0, 67, 49, .56) 48%,
+      rgba(0, 58, 43, .70) 100%
+    ),
+    url('/sidebar_background.png');
+  background-repeat: no-repeat;
+  background-position: center, 68% center;
+  background-size: cover;
+}
+
+/* The photo already includes the plant, so hide the old leaf overlay. */
+.student-dashboard .student-sidebar-leaves {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .student-dashboard .student-sidebar {
+    background-position: center, 68% 48%;
+    background-size: cover;
+  }
+}
+

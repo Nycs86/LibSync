@@ -1650,7 +1650,7 @@ function LibrarianDashboard({ onLogout }) {
                       onClick={() => openConfirmationModal({
                         type: "return",
                         title: "Confirm Book Return",
-                        message: `Have all ${selectedReturnBookIds.length} selected book(s) been physically returned? The available book count will be restored after confirmation.`,
+                        
                         confirmLabel: "Confirm Return",
                         onConfirm: handleReturnBooks,
                       })}

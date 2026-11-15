@@ -416,7 +416,31 @@ function StudentDashboard({ onLogout }) {
           throw new Error("The books API returned an unexpected response.");
         }
 
-        setBooks(data.map(mapApiBook));
+        const mappedBooks = data.map(mapApiBook);
+        setBooks(mappedBooks);
+
+        // A guest may request to select a title before signing in. Restore that
+        // choice only after the authenticated catalogue confirms it is still available.
+        try {
+          const pendingGuestBook = sessionStorage.getItem("libsyncGuestPendingBook");
+          if (pendingGuestBook) {
+            sessionStorage.removeItem("libsyncGuestPendingBook");
+            const pending = JSON.parse(pendingGuestBook);
+            const matchingBook = mappedBooks.find((book) => book.id === Number(pending.id));
+            if (matchingBook?.available) {
+              setSelectedBooks((previous) =>
+                previous.some((book) => book.id === matchingBook.id)
+                  ? previous
+                  : [...previous, matchingBook]
+              );
+            } else if (pending.title) {
+              setPageError(`“${pending.title}” is no longer available. Please choose another book.`);
+            }
+          }
+        } catch (restoreError) {
+          console.warn("Could not restore guest-selected book:", restoreError);
+          sessionStorage.removeItem("libsyncGuestPendingBook");
+        }
       } catch (error) {
         if (error.name !== "AbortError") {
           console.error("Load books error:", error);
@@ -1110,19 +1134,15 @@ function StudentDashboard({ onLogout }) {
                   variant="card"
                 />
                 <div className="student-book-info">
-                  <span className="student-book-category-tag">{book.category}</span>
                   <h3>{book.title}</h3>
-                  <p className="book-author">{book.author}</p>
-                  {book.yearPublished ? (
-                    <p className="student-book-year">Published {book.yearPublished}</p>
-                  ) : null}
+                  <p className="book-author">By: {book.author}</p>
+                  <span className={`book-status ${book.available ? "available" : "unavailable"}`}>
+                    {book.available ? `Available (${book.availableQuantity})` : "Unavailable"}
+                  </span>
                 </div>
               </button>
 
               <div className="student-book-card-footer">
-                <span className={`book-status ${book.available ? "available" : "unavailable"}`}>
-                  {book.available ? `Available (${book.availableQuantity})` : "Unavailable"}
-                </span>
                 <button
                   type="button"
                   className="select-book-button"
@@ -1209,7 +1229,7 @@ function StudentDashboard({ onLogout }) {
             src="/libsync-logo.svg"
             alt="LibSync"
             draggable="false"
-            style={{ width: "205px", maxWidth: "100%", height: "68px", objectFit: "contain", objectPosition: "center" }}
+            style={{ width: "190px", maxWidth: "100%", height: "58px", objectFit: "contain", objectPosition: "center" }}
           />
         </div>
 
@@ -1230,12 +1250,7 @@ function StudentDashboard({ onLogout }) {
           </button>
         </nav>
 
-        <div className="student-sidebar-leaves" aria-hidden="true">
-          <span className="student-sidebar-leaf student-sidebar-leaf--one"></span>
-          <span className="student-sidebar-leaf student-sidebar-leaf--two"></span>
-          <span className="student-sidebar-leaf student-sidebar-leaf--three"></span>
-          <span className="student-sidebar-leaf student-sidebar-leaf--four"></span>
-        </div>
+        <div className="student-sidebar-leaves" aria-hidden="true" />
 
         <div className="student-sidebar-bottom">
           <div className="student-sidebar-student">
@@ -1252,26 +1267,6 @@ function StudentDashboard({ onLogout }) {
       </aside>
 
       <div className="student-workspace">
-        {(activeMenu === "books" || activeMenu === "categories") && (
-          <div className="student-topbar">
-            <label className="student-global-search">
-              <i className="bi bi-search"></i>
-              <input
-                type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search books by title, author, or category"
-                aria-label="Search books by title, author, or category"
-              />
-              {searchTerm && (
-                <button type="button" onClick={() => setSearchTerm("")} aria-label="Clear search">
-                  <i className="bi bi-x-lg"></i>
-                </button>
-              )}
-            </label>
-          </div>
-        )}
-
         {activeMenu !== "qr" && (
           <header className="student-header libsync-page-hero libsync-page-hero--compact">
             <div className="student-header-copy libsync-page-hero-copy">
@@ -1289,6 +1284,73 @@ function StudentDashboard({ onLogout }) {
           {activeMenu === "books" && (
             <section className="student-home-grid">
               <div className="student-home-primary">
+                <div className="student-stats">
+                  <article className="student-stat-card">
+                    <div className="student-stat-icon catalog"><i className="bi bi-collection"></i></div>
+                    <div className="student-stat-copy"><span>Books in catalogue</span><strong>{books.length}</strong></div>
+                  </article>
+                  <article className="student-stat-card">
+                    <div className="student-stat-icon available"><i className="bi bi-bookmark-check"></i></div>
+                    <div className="student-stat-copy"><span>Available titles</span><strong>{books.filter((book) => book.available).length}</strong></div>
+                  </article>
+                  <article className="student-stat-card">
+                    <div className="student-stat-icon selected"><i className="bi bi-bag-check"></i></div>
+                    <div className="student-stat-copy"><span>Selected books</span><strong>{selectedBooks.length}</strong></div>
+                  </article>
+                </div>
+
+                <section className="student-library-books-panel">
+                  <div className="student-library-controls">
+                    <label className="student-library-search">
+                      <i className="bi bi-search" aria-hidden="true"></i>
+                      <input
+                        type="search"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Search books by title, author, ISBN, or category..."
+                        aria-label="Search books by title, author, ISBN, or category"
+                      />
+                      {searchTerm && (
+                        <button type="button" onClick={() => setSearchTerm("")} aria-label="Clear search">
+                          <i className="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
+                      )}
+                    </label>
+
+                    <label className="student-library-category-filter">
+                      <i className="bi bi-grid" aria-hidden="true"></i>
+                      <select
+                        value={selectedCategory}
+                        onChange={(event) => setSelectedCategory(event.target.value)}
+                        aria-label="Filter books by category"
+                      >
+                        <option value="all">All categories</option>
+                        {categories.map((category) => (
+                          <option value={category} key={category}>{category}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="student-sort-control student-library-sort">
+                      <i className={`bi ${sortOrder === "az" ? "bi-sort-alpha-down" : "bi-sort-alpha-up"}`}></i>
+                      <span>Sort</span>
+                      <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
+                        <option value="az">Title: A to Z</option>
+                        <option value="za">Title: Z to A</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="student-catalog-heading-row student-library-heading">
+                    <div className="student-section-heading">
+                      <h2>Library Books</h2>
+                      <p>{visibleBooks.length} {visibleBooks.length === 1 ? "title" : "titles"} available to browse</p>
+                    </div>
+                  </div>
+
+                  {renderBookGrid(visibleBooks)}
+                </section>
+
                 <section className="student-risk-card student-performance-card" aria-labelledby="student-performance-title">
                   <div className="student-risk-card-heading">
                     <h2 id="student-performance-title">My Return Performance</h2>
@@ -1415,48 +1477,6 @@ function StudentDashboard({ onLogout }) {
                   )}
                 </section>
 
-                <div className="student-stats">
-                  <article className="student-stat-card">
-                    <div className="student-stat-icon catalog"><i className="bi bi-collection"></i></div>
-                    <div className="student-stat-copy"><span>Books in catalogue</span><strong>{books.length}</strong></div>
-                  </article>
-                  <article className="student-stat-card">
-                    <div className="student-stat-icon available"><i className="bi bi-bookmark-check"></i></div>
-                    <div className="student-stat-copy"><span>Available titles</span><strong>{books.filter((book) => book.available).length}</strong></div>
-                  </article>
-                  <article className="student-stat-card">
-                    <div className="student-stat-icon selected"><i className="bi bi-bag-check"></i></div>
-                    <div className="student-stat-copy"><span>Selected books</span><strong>{selectedBooks.length}</strong></div>
-                  </article>
-                </div>
-
-                <div className="student-catalog-heading-row">
-                  <div className="student-section-heading">
-                    <h2>All Books</h2>
-                    <p>Click a book to preview its details.</p>
-                  </div>
-                  <label className="student-sort-control">
-                    <i className={`bi ${sortOrder === "az" ? "bi-sort-alpha-down" : "bi-sort-alpha-up"}`}></i>
-                    <span>Sort</span>
-                    <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
-                      <option value="az">Title: A to Z</option>
-                      <option value="za">Title: Z to A</option>
-                    </select>
-                  </label>
-                </div>
-                {renderBookGrid(visibleBooks)}
-
-                <section className="student-online-catalog-section">
-                  <div className="student-catalog-heading-row student-online-heading-row">
-                    <div className="student-section-heading">
-                      <span className="student-header-label">ONLINE CATALOG</span>
-                      <h2>Explore More Books</h2>
-                      <p>Automatically loaded from Google Books. These titles are for discovery and are not yet in the LibSync borrowing inventory.</p>
-                    </div>
-                    <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "Loading..." : `${visibleOnlineBooks.length} titles`}</span>
-                  </div>
-                  {renderOnlineBookGrid()}
-                </section>
               </div>
 
               <aside className="student-home-aside" aria-label="Library recommendations and activity">
@@ -1534,36 +1554,64 @@ function StudentDashboard({ onLogout }) {
             </section>
           )}
 
+          {activeMenu === "books" && (
+            <section className="student-online-catalog-section student-online-catalog-section--bottom">
+              <div className="student-catalog-heading-row student-online-heading-row">
+                <div className="student-section-heading">
+                  <span className="student-header-label">ONLINE CATALOG</span>
+                  <h2>Explore More Books</h2>
+                  <p>Automatically loaded from Google Books. These titles are for discovery and are not yet in the LibSync borrowing inventory.</p>
+                </div>
+                <span className="student-online-count"><i className="bi bi-cloud-check"></i> {isOnlineLoading ? "Loading..." : `${visibleOnlineBooks.length} titles`}</span>
+              </div>
+              {renderOnlineBookGrid()}
+            </section>
+          )}
+
           {activeMenu === "categories" && (
-            <section>
-              <div className="student-section-heading">
+            <section className="student-library-books-panel student-library-books-panel-page student-category-page-panel">
+              <div className="student-section-heading student-category-panel-intro">
                 <h2>Browse Categories</h2>
                 <p>Select a category to narrow down the catalogue.</p>
               </div>
-              <div className="student-category-grid">
-                <button type="button" className={`student-category-card ${selectedCategory === "all" ? "active" : ""}`} onClick={() => setSelectedCategory("all")}>
-                  <span className="student-category-icon"><i className="bi bi-grid"></i></span>
-                  <span className="student-category-copy"><strong>All Categories</strong><small>{books.length} titles</small></span>
-                  <i className="bi bi-arrow-up-right student-category-arrow"></i>
-                </button>
-                {categories.map((category, index) => {
-                  const count = books.filter((book) => book.category === category).length;
-                  return (
-                    <button type="button" key={category} className={`student-category-card ${selectedCategory === category ? "active" : ""}`} onClick={() => setSelectedCategory(category)}>
-                      <span className={`student-category-icon tone-${index % 5}`}><i className="bi bi-bookmark"></i></span>
-                      <span className="student-category-copy"><strong>{category}</strong><small>{count} {count === 1 ? "title" : "titles"}</small></span>
-                      <i className="bi bi-arrow-up-right student-category-arrow"></i>
-                    </button>
-                  );
-                })}
-              </div>
 
-              <div className="student-catalog-heading-row student-category-results-heading">
-                <div className="student-section-heading">
-                  <h2>{selectedCategory === "all" ? "All Books" : selectedCategory}</h2>
-                  <p>{visibleBooks.length} matching {visibleBooks.length === 1 ? "title" : "titles"}</p>
-                </div>
-                <label className="student-sort-control">
+              <div className="student-library-controls student-category-page-controls">
+                <label className="student-library-search">
+                  <i className="bi bi-search" aria-hidden="true"></i>
+                  <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search books by title, author, ISBN, or category..."
+                    aria-label="Search books by title, author, ISBN, or category"
+                  />
+                  {searchTerm && (
+                    <button type="button" onClick={() => setSearchTerm("")} aria-label="Clear search">
+                      <i className="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
+                  )}
+                </label>
+
+                <label className="student-library-category-filter">
+                  <i className="bi bi-grid" aria-hidden="true"></i>
+                  <select
+                    value={selectedCategory}
+                    onChange={(event) => setSelectedCategory(event.target.value)}
+                    aria-label="Choose a book category"
+                  >
+                    <option value="all">All Categories ({books.length})</option>
+                    {categories.map((category) => {
+                      const count = books.filter((book) => book.category === category).length;
+                      return (
+                        <option value={category} key={category}>
+                          {category} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <label className="student-sort-control student-library-sort">
                   <i className={`bi ${sortOrder === "az" ? "bi-sort-alpha-down" : "bi-sort-alpha-up"}`}></i>
                   <span>Sort</span>
                   <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value)} aria-label="Sort books">
@@ -1572,6 +1620,14 @@ function StudentDashboard({ onLogout }) {
                   </select>
                 </label>
               </div>
+
+              <div className="student-catalog-heading-row student-library-heading">
+                <div className="student-section-heading">
+                  <h2>{selectedCategory === "all" ? "All Books" : selectedCategory}</h2>
+                  <p>{visibleBooks.length} matching {visibleBooks.length === 1 ? "title" : "titles"}</p>
+                </div>
+              </div>
+
               {renderBookGrid(visibleBooks)}
             </section>
           )}

@@ -842,3 +842,573 @@
   color: #176B8A;
   background: #E7F5FA;
 }
+
+
+
+/* =========================================================
+   LIBSYNC ADMIN DASHBOARD — SHARED STUDENT / LIBRARIAN THEME
+   Visual-only overrides. No component logic or markup changes.
+========================================================= */
+
+.admin-shell {
+  --admin-emerald: #006149;
+  --admin-emerald-deep: #00513C;
+  --admin-mint: #A8EFD2;
+  --admin-cream: #FFF9EC;
+  --admin-page: #FFF9EC;
+  --admin-text: #17342A;
+  --admin-muted: #718078;
+  --admin-border: #E8ECE4;
+  --admin-shadow: 0 8px 26px rgba(35, 66, 45, .045);
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+  color: #17342A;
+  background: #FFF9EC;
+}
+
+/* Sidebar — same width, dark green, and mint navigation as Student/Librarian. */
+.admin-shell .admin-sidebar {
+  position: sticky;
+  top: 0;
+  flex: 0 0 264px;
+  width: 264px;
+  height: 100vh;
+  min-height: 560px;
+  padding: 28px 16px 22px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #fff;
+  background: #006149;
+  box-shadow: none;
+}
+
+.admin-shell .admin-sidebar > *:not(.admin-sidebar-leaves) {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-shell .admin-sidebar-leaves {
+  position: absolute;
+  z-index: 0;
+  left: -10px;
+  bottom: -8px;
+  width: 210px;
+  height: 245px;
+  color: #A8EFD2;
+  opacity: .16;
+  pointer-events: none;
+}
+
+.admin-shell .admin-leaf-stem {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.admin-shell .admin-leaf-shape {
+  fill: currentColor;
+  stroke: rgba(168, 239, 210, .42);
+  stroke-width: .8;
+}
+
+.admin-shell .admin-leaf-two,
+.admin-shell .admin-leaf-four,
+.admin-shell .admin-leaf-six {
+  opacity: .82;
+}
+
+.admin-shell .admin-leaf-five,
+.admin-shell .admin-leaf-seven {
+  opacity: .64;
+}
+
+/* Official LibSync horizontal logo, white on transparent background. */
+.admin-shell .admin-brand {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 78px;
+  margin: 0 12px 37px;
+  padding: 0;
+}
+
+.admin-shell .admin-brand-logo {
+  display: block;
+  width: min(190px, 100%);
+  height: 58px;
+  max-height: 58px;
+  object-fit: contain;
+  object-position: left center;
+  background: transparent;
+  filter: brightness(0) invert(1);
+}
+
+/* Workspace label and navigation. */
+.admin-shell .admin-sidebar-label {
+  margin: 0 14px 16px;
+  color: #A8EFD2;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.3px;
+}
+
+.admin-shell .admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-shell .admin-nav button {
+  min-height: 56px;
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, .92);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.admin-shell .admin-nav button i {
+  flex: 0 0 22px;
+  width: 22px;
+  color: #A8EFD2;
+  font-size: 20px;
+}
+
+.admin-shell .admin-nav button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .10);
+}
+
+.admin-shell .admin-nav button.active {
+  border-color: transparent;
+  color: #07543F;
+  background: #A8EFD2;
+  box-shadow: none;
+}
+
+.admin-shell .admin-nav button.active i {
+  color: #07543F;
+}
+
+/* Profile and logout block at the bottom of the sidebar. */
+.admin-shell .admin-sidebar-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, .20);
+}
+
+.admin-shell .admin-sidebar-profile {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(168, 239, 210, .34);
+  border-radius: 15px;
+  background: rgba(0, 77, 58, .38);
+}
+
+.admin-shell .admin-avatar {
+  color: #07543F;
+  background: #A8EFD2;
+}
+
+.admin-shell .admin-sidebar-profile-copy strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-shell .admin-sidebar-profile-copy span {
+  color: rgba(255, 255, 255, .76);
+  font-size: 11px;
+}
+
+.admin-shell .admin-logout {
+  min-height: 48px;
+  border: 1px solid rgba(168, 239, 210, .34);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, .09);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.admin-shell .admin-logout i {
+  color: #A8EFD2;
+}
+
+.admin-shell .admin-logout:hover {
+  border-color: #A8EFD2;
+  color: #07543F;
+  background: #A8EFD2;
+}
+
+.admin-shell .admin-logout:hover i {
+  color: #07543F;
+}
+
+/* Main cream workspace. */
+.admin-shell .admin-main {
+  min-width: 0;
+  min-height: 100vh;
+  padding: clamp(22px, 2.5vw, 36px);
+  background: #FFF9EC;
+}
+
+/* Welcome banner matches the 190px Student/Librarian hero. */
+.admin-shell .admin-topbar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 190px;
+  min-height: 190px;
+  max-height: 190px;
+  margin: 0 0 25px;
+  padding: 24px 30px;
+  overflow: hidden;
+  border: 1px solid #E6EADF;
+  border-radius: 18px;
+  background-color: #F8F5EB;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .94) 0%,
+      rgba(255, 255, 255, .82) 39%,
+      rgba(255, 255, 255, .12) 76%,
+      rgba(255, 255, 255, .02) 100%
+    ),
+    url('/guest-library-hero.jpg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 7px 24px rgba(29, 61, 43, .045);
+}
+
+.admin-shell .admin-topbar > div {
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+}
+
+/* Replace the old "LIBSYNC / ADMIN" eyebrow visually without editing JSX. */
+.admin-shell .admin-eyebrow {
+  margin: 0 0 7px;
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+}
+
+.admin-shell .admin-eyebrow::before {
+  display: block;
+  content: "YOUR LIBRARY SPACE";
+  color: #006149;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.4;
+  letter-spacing: 1.4px;
+}
+
+.admin-shell .admin-topbar h1 {
+  margin: 0 0 5px;
+  color: #17342A;
+  font-size: clamp(25px, 2.2vw, 29px);
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -.65px;
+}
+
+.admin-shell .admin-welcome {
+  margin: 0;
+  color: #526B60;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Admin-specific cards, charts, and tables retain their own structure;
+   align only the shared panel treatment and green/mint palette. */
+.admin-shell .admin-stat-card,
+.admin-shell .admin-panel,
+.admin-shell .admin-loading,
+.admin-shell .admin-report-intro {
+  border-color: #E8ECE4;
+  border-radius: 17px;
+  box-shadow: 0 7px 22px rgba(35, 66, 45, .045);
+}
+
+.admin-shell .admin-panel {
+  background: #fff;
+}
+
+.admin-shell .admin-panel-heading h2,
+.admin-shell .admin-dashboard-heading h2,
+.admin-shell .admin-report-intro h2 {
+  color: #17342A;
+}
+
+.admin-shell .admin-table thead th,
+.admin-shell .admin-category-table th {
+  color: #006149;
+  background: #EDF8F2;
+}
+
+.admin-shell .admin-table tbody tr:hover td {
+  background: #F7FCF8;
+}
+
+.admin-shell .admin-primary-button {
+  border-color: #006149;
+  color: #fff;
+  background: #006149;
+}
+
+.admin-shell .admin-primary-button:hover {
+  background: #00513C;
+}
+
+.admin-shell .admin-secondary-button {
+  border-color: #DCEBE2;
+  color: #006149;
+  background: #fff;
+}
+
+.admin-shell .admin-secondary-button:hover {
+  border-color: #B8E7D0;
+  background: #EFFAF3;
+}
+
+.admin-shell .admin-search:focus-within,
+.admin-shell .admin-form-field input:focus,
+.admin-shell .admin-form-field select:focus {
+  border-color: #86C9A9;
+  box-shadow: 0 0 0 3px rgba(168, 239, 210, .25);
+}
+
+.admin-shell button:focus-visible,
+.admin-shell input:focus-visible,
+.admin-shell select:focus-visible {
+  outline: 3px solid rgba(168, 239, 210, .85);
+  outline-offset: 2px;
+}
+
+/* Responsive behavior aligned with the Librarian Dashboard. */
+@media (max-width: 1120px) {
+  .admin-shell {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .admin-shell .admin-sidebar {
+    flex-basis: 230px;
+    width: 230px;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell .admin-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: 55dvh;
+    padding: 18px 16px;
+  }
+
+  .admin-shell .admin-brand {
+    justify-content: flex-start;
+    min-height: 0;
+    margin: 0 5px 18px;
+    padding: 0;
+  }
+
+  .admin-shell .admin-brand-logo {
+    width: min(190px, 68vw);
+    height: 48px;
+    max-height: 48px;
+    object-position: left center;
+  }
+
+  .admin-shell .admin-sidebar-label {
+    margin: 0 5px 9px;
+  }
+
+  .admin-shell .admin-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .admin-shell .admin-nav button {
+    min-height: 44px;
+    padding: 9px 10px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
+
+  .admin-shell .admin-nav button i {
+    flex-basis: 18px;
+    width: 18px;
+    font-size: 16px;
+  }
+
+  .admin-shell .admin-sidebar-leaves {
+    bottom: 0;
+    height: 150px;
+    width: 58%;
+    opacity: .12;
+  }
+
+  .admin-shell .admin-sidebar-footer {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .admin-shell .admin-sidebar-profile {
+    display: flex;
+  }
+
+  .admin-shell .admin-main {
+    padding: 20px 18px 28px;
+  }
+
+  .admin-shell .admin-topbar {
+    height: 155px;
+    min-height: 155px;
+    max-height: 155px;
+    margin-bottom: 20px;
+    padding: 21px 25px;
+    background-position: center;
+  }
+
+  .admin-shell .admin-topbar h1 {
+    font-size: clamp(23px, 4.5vw, 27px);
+  }
+
+  .admin-shell .admin-welcome {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-shell .admin-main {
+    padding: 16px 13px 24px;
+  }
+
+  .admin-shell .admin-topbar {
+    height: 140px;
+    min-height: 140px;
+    max-height: 140px;
+    margin-bottom: 19px;
+    padding: 18px 22px;
+  }
+
+  .admin-shell .admin-topbar h1 {
+    font-size: 23px;
+  }
+
+  .admin-shell .admin-welcome {
+    font-size: 12px;
+  }
+}
+
+
+
+/* Admin sidebar photo background — matching the supplied LibSync sidebar reference */
+.admin-shell .admin-sidebar {
+  background-color: #004F3B;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(0, 75, 54, .64) 0%,
+      rgba(0, 71, 52, .72) 48%,
+      rgba(0, 65, 47, .82) 100%
+    ),
+    url('/sidebar_background.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
+
+/* The sidebar photo already contains the plant/leaf decoration. */
+.admin-shell .admin-sidebar-leaves {
+  display: none;
+}
+
+/* Keep the logo and navigation content above the photo overlay. */
+.admin-shell .admin-sidebar > *:not(.admin-sidebar-leaves) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Slightly stronger surface contrast for the profile/logout area. */
+.admin-shell .admin-sidebar-profile {
+  background: rgba(0, 77, 58, .48);
+  border-color: rgba(168, 239, 210, .32);
+}
+
+.admin-shell .admin-logout {
+  background: rgba(0, 77, 58, .42);
+  border-color: rgba(168, 239, 210, .30);
+}
+
+/* Mobile sidebar uses the same photo, with a little more overlay for legibility. */
+@media (max-width: 760px) {
+  .admin-shell .admin-sidebar {
+    background-image:
+      linear-gradient(
+        180deg,
+        rgba(0, 75, 54, .70) 0%,
+        rgba(0, 71, 52, .78) 100%
+      ),
+      url('/sidebar_background.png');
+    background-position: center 48%;
+    background-size: cover;
+  }
+}
+
+
+
+/* =========================================================
+   ADMIN SIDEBAR — EXACT STUDENT SIDEBAR PHOTO TREATMENT
+   Match the same image crop and dark overlay used by Student.
+   Other Admin layout and functionality remain unchanged.
+========================================================= */
+.admin-shell .admin-sidebar {
+  background-color: #004F3B;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(0, 69, 50, .48) 0%,
+      rgba(0, 67, 49, .56) 48%,
+      rgba(0, 58, 43, .70) 100%
+    ),
+    url('/sidebar_background.png');
+  background-repeat: no-repeat;
+  background-position: center, 68% center;
+  background-size: cover;
+}
+
+/* The photo itself already contains the plant decoration. */
+.admin-shell .admin-sidebar-leaves {
+  display: none !important;
+}
+
+/* Keep the Admin logo, navigation, profile and logout above the photo. */
+.admin-shell .admin-sidebar > *:not(.admin-sidebar-leaves) {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 760px) {
+  .admin-shell .admin-sidebar {
+    background-position: center, 68% 48%;
+    background-size: cover;
+  }
+}
+
