@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NULL,
+    user_name VARCHAR(120) NULL,
+    user_role VARCHAR(20) NULL,
+    action VARCHAR(40) NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    target_id VARCHAR(64) NULL,
+    outcome VARCHAR(12) NOT NULL DEFAULT 'SUCCESS',
+    ip_address VARCHAR(45) NULL,
+    user_agent VARCHAR(255) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_audit_created_at (created_at),
+    INDEX idx_audit_user_id (user_id),
+    INDEX idx_audit_action (action),
+    INDEX idx_audit_module (module),
+    INDEX idx_audit_role (user_role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
