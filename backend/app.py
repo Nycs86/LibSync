@@ -2,6 +2,8 @@
 from flask import Flask
 from flask_cors import CORS
 
+from audit import log_api_activity
+
 from routes.student import student_bp
 from routes.librarian_qr_history import bp as librarian_qr_history_bp
 from routes.librarian_students import librarian_students_bp
@@ -12,6 +14,7 @@ from routes import (
     borrowings_bp,
     borrow_requests_bp,
     admin_risk_bp,
+    audit_logs_bp,
 )
 
 app = Flask(__name__)
@@ -57,6 +60,11 @@ app.register_blueprint(student_bp)
 app.register_blueprint(admin_risk_bp)
 app.register_blueprint(librarian_qr_history_bp)
 app.register_blueprint(librarian_students_bp)
+app.register_blueprint(audit_logs_bp)
+
+# Save audit events after successful API requests. Logging failures are isolated
+# inside the hook so they never change the business API response.
+app.after_request(log_api_activity)
 
 
 @app.route("/")

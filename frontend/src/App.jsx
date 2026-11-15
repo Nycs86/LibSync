@@ -12,6 +12,7 @@ import StudentDashboard from "./components/student_dashboard";
 import GuestDashboard from "./components/guest_dashboard";
 
 import {
+  api,
   getAccessToken,
   getStoredUser,
   clearAuthSession,
@@ -94,15 +95,21 @@ function App() {
     clearLoginHash();
   };
 
-  // LOGOUT
-  const handleLogout = () => {
-    clearAuthSession();
-    setCurrentUser(null);
-    setSelectedRole("");
-    setIsGuestBrowsing(false);
-    setStudentLoginView("login");
-
-    clearLoginHash();
+  // LOGOUT — notify the API while the current JWT is still available.
+  const handleLogout = async () => {
+    try {
+      await api.post("/api/logout", {});
+    } catch (error) {
+      // Always clear the local session even when the network is unavailable.
+      console.warn("Could not record logout event:", error.message);
+    } finally {
+      clearAuthSession();
+      setCurrentUser(null);
+      setSelectedRole("");
+      setIsGuestBrowsing(false);
+      setStudentLoginView("login");
+      clearLoginHash();
+    }
   };
 
   // DASHBOARDS

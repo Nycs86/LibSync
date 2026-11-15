@@ -178,6 +178,11 @@ def login():
             connection.commit()
 
         access_token, expires_in = _create_access_token(user)
+        request.audit_actor = {
+            "id": user["id"],
+            "name": user.get("name"),
+            "role": user.get("role"),
+        }
 
         return jsonify({
             "status": "success",
@@ -394,3 +399,10 @@ def require_role(*required_roles):
 
         return wrapper
     return decorator
+
+
+@auth_bp.route("/api/logout", methods=["POST"])
+@require_role("admin", "librarian", "student")
+def logout():
+    """Record a logout request before the client clears its local session."""
+    return jsonify({"status": "success", "message": "Logout recorded."}), 200

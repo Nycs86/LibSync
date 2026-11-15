@@ -16,6 +16,18 @@ function AdminDashboard({ onLogout }) {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
 
+  // Full audit history is separate from the existing borrowing Activity view.
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [historySummary, setHistorySummary] = useState({ total: 0, today: 0, authentication: 0, changes: 0 });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [historyFilters, setHistoryFilters] = useState({ search: "", action: "", role: "" });
+  const [appliedHistoryFilters, setAppliedHistoryFilters] = useState({ search: "", action: "", role: "" });
+
   const [performanceStudents, setPerformanceStudents] = useState([]);
   const [performanceSummary, setPerformanceSummary] = useState({
     total_students: 0,
@@ -72,6 +84,45 @@ function AdminDashboard({ onLogout }) {
     const data = await api.get("/api/borrow-requests");
     return Array.isArray(data) ? data : data.requests || [];
   }, []);
+
+  // Fetch history as an external-system synchronization effect. State updates
+  // happen only in the asynchronous response handlers, never synchronously in
+  // the effect body. User actions set the loading state before changing inputs.
+  useEffect(() => {
+    if (activeSection !== "history") return undefined;
+
+    let isCurrentRequest = true;
+    const params = new URLSearchParams({
+      page: String(historyPage),
+      per_page: "20",
+    });
+    if (appliedHistoryFilters.search.trim()) params.set("search", appliedHistoryFilters.search.trim());
+    if (appliedHistoryFilters.action) params.set("action", appliedHistoryFilters.action);
+    if (appliedHistoryFilters.role) params.set("role", appliedHistoryFilters.role);
+
+    api.get(`/api/admin/history-logs?${params.toString()}`)
+      .then((data) => {
+        if (!isCurrentRequest) return;
+        setHistoryLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setHistorySummary(data?.summary || { total: 0, today: 0, authentication: 0, changes: 0 });
+        setHistoryTotal(Number(data?.total || 0));
+        setHistoryTotalPages(Math.max(1, Number(data?.total_pages || 1)));
+        setHistoryError("");
+      })
+      .catch((error) => {
+        if (!isCurrentRequest) return;
+        console.error("Load history logs error:", error);
+        setHistoryLogs([]);
+        setHistoryError(error.message || "Unable to load system history logs.");
+      })
+      .finally(() => {
+        if (isCurrentRequest) setHistoryLoading(false);
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [activeSection, historyPage, appliedHistoryFilters, historyRefreshKey]);
 
   const fetchReturnPerformance = useCallback(async () => {
     const data = await api.get("/api/admin/return-performance");
@@ -652,9 +703,15 @@ function AdminDashboard({ onLogout }) {
     ["librarians", "bi-person-badge", "Librarians"],
     ["reports", "bi-bar-chart-line", "Reports & Analytics"],
     ["activity", "bi-clock-history", "Activity"],
+    ["history", "bi-journal-text", "History Logs"],
   ];
 
   const openSection = (section) => {
+    if (section === "history") {
+      setHistoryLoading(true);
+      setHistoryError("");
+      setHistoryRefreshKey((key) => key + 1);
+    }
     setActiveSection(section);
     setMessage("");
     setSearch("");
@@ -723,6 +780,7 @@ function AdminDashboard({ onLogout }) {
               {activeSection === "librarians" && "Librarians"}
               {activeSection === "reports" && "Reports & Analytics"}
               {activeSection === "activity" && "System Activity"}
+              {activeSection === "history" && "History Logs"}
             </h1>
             <p className="admin-welcome">
               {activeSection === "dashboard" &&
@@ -735,6 +793,8 @@ function AdminDashboard({ onLogout }) {
                 "Monitor library performance, inventory, borrowing, returns, overdue books, and student usage"}
               {activeSection === "activity" &&
                 "Recent borrowing and request activity"}
+              {activeSection === "history" &&
+                "Review recorded sign-ins and important actions performed across LibSync."}
             </p>
           </div>
         </header>
@@ -1205,6 +1265,180 @@ function AdminDashboard({ onLogout }) {
                   activity={recentActivity}
                   formatDate={formatDate}
                 />
+              </section>
+            )}
+
+
+            {activeSection === "history" && (
+              <section className="admin-history-section">
+                <div className="admin-history-summary">
+                  <article className="admin-history-stat">
+                    <span className="admin-history-stat-icon"><i className="bi bi-journal-text" /></span>
+                    <div><small>Total recorded events</small><strong>{historySummary.total.toLocaleString()}</strong></div>
+                  </article>
+                  <article className="admin-history-stat">
+                    <span className="admin-history-stat-icon today"><i className="bi bi-calendar-check" /></span>
+                    <div><small>Events today</small><strong>{historySummary.today.toLocaleString()}</strong></div>
+                  </article>
+                  <article className="admin-history-stat">
+                    <span className="admin-history-stat-icon auth"><i className="bi bi-shield-lock" /></span>
+                    <div><small>Authentication events</small><strong>{historySummary.authentication.toLocaleString()}</strong></div>
+                  </article>
+                  <article className="admin-history-stat">
+                    <span className="admin-history-stat-icon changes"><i className="bi bi-pencil-square" /></span>
+                    <div><small>Data / workflow actions</small><strong>{historySummary.changes.toLocaleString()}</strong></div>
+                  </article>
+                </div>
+
+                <section className="admin-panel admin-history-panel">
+                  <div className="admin-panel-heading admin-history-heading">
+                    <div>
+                      <h2>System Audit Trail</h2>
+                      <p>Read-only history of account, catalogue, borrowing, return, and sign-in events.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-secondary-button"
+                      onClick={() => {
+                        setHistoryLoading(true);
+                        setHistoryError("");
+                        setHistoryRefreshKey((key) => key + 1);
+                      }}
+                      disabled={historyLoading}
+                    >
+                      <i className={`bi bi-arrow-clockwise ${historyLoading ? "admin-spin" : ""}`} />
+                      Refresh Logs
+                    </button>
+                  </div>
+
+                  <form
+                    className="admin-history-filters"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      setHistoryLoading(true);
+                      setHistoryError("");
+                      setHistoryPage(1);
+                      setAppliedHistoryFilters({ ...historyFilters });
+                      setHistoryRefreshKey((key) => key + 1);
+                    }}
+                  >
+                    <label className="admin-history-search">
+                      <i className="bi bi-search" aria-hidden="true" />
+                      <input
+                        type="search"
+                        value={historyFilters.search}
+                        onChange={(event) => setHistoryFilters((current) => ({ ...current, search: event.target.value }))}
+                        placeholder="Search user, action, module, or details..."
+                        aria-label="Search history logs"
+                      />
+                    </label>
+                    <label className="admin-history-select">
+                      <span>Action</span>
+                      <select value={historyFilters.action} onChange={(event) => setHistoryFilters((current) => ({ ...current, action: event.target.value }))}>
+                        <option value="">All actions</option>
+                        <option value="LOGIN">Login</option>
+                        <option value="LOGIN_FAILED">Failed login</option>
+                        <option value="LOGOUT">Logout</option>
+                        <option value="CREATE">Create</option>
+                        <option value="UPDATE">Update</option>
+                        <option value="DELETE">Delete</option>
+                        <option value="ASSIGN_ROLE">Assign role</option>
+                        <option value="REMOVE_ROLE">Remove role</option>
+                        <option value="REQUEST_BORROW">Borrow request</option>
+                        <option value="APPROVE">Approve</option>
+                        <option value="DECLINE">Decline</option>
+                        <option value="QR_LOOKUP">QR lookup</option>
+                        <option value="RELEASE">Release books</option>
+                        <option value="REQUEST_RETURN">Request return</option>
+                        <option value="RETURN">Return books</option>
+                      </select>
+                    </label>
+                    <label className="admin-history-select">
+                      <span>User role</span>
+                      <select value={historyFilters.role} onChange={(event) => setHistoryFilters((current) => ({ ...current, role: event.target.value }))}>
+                        <option value="">All roles</option>
+                        <option value="admin">Admin</option>
+                        <option value="librarian">Librarian</option>
+                        <option value="student">Student</option>
+                      </select>
+                    </label>
+                    <div className="admin-history-filter-actions">
+                      <button type="submit" className="admin-primary-button"><i className="bi bi-funnel" /> Apply</button>
+                      <button
+                        type="button"
+                        className="admin-secondary-button"
+                        onClick={() => {
+                          const emptyFilters = { search: "", action: "", role: "" };
+                          setHistoryLoading(true);
+                          setHistoryError("");
+                          setHistoryFilters(emptyFilters);
+                          setAppliedHistoryFilters(emptyFilters);
+                          setHistoryPage(1);
+                          setHistoryRefreshKey((key) => key + 1);
+                        }}
+                      >Clear</button>
+                    </div>
+                  </form>
+
+                  {historyError && (
+                    <div className="admin-history-error" role="alert">
+                      <i className="bi bi-exclamation-triangle" />
+                      <div><strong>History logs could not be loaded.</strong><span>{historyError}</span><small>Make sure the audit_logs SQL migration has been run on the LibSync database.</small></div>
+                    </div>
+                  )}
+
+                  <div className="admin-table-wrap admin-history-table-wrap">
+                    <table className="admin-table admin-history-table">
+                      <thead>
+                        <tr><th>Date &amp; Time</th><th>User</th><th>Role</th><th>Action</th><th>Module</th><th>Details</th><th>IP Address</th></tr>
+                      </thead>
+                      <tbody>
+                        {historyLoading ? (
+                          <tr><td colSpan="7" className="admin-empty-cell">Loading history logs...</td></tr>
+                        ) : historyLogs.length > 0 ? historyLogs.map((log) => (
+                          <tr key={log.id}>
+                            <td className="admin-history-date">{formatDate(log.created_at)}</td>
+                            <td><strong className="admin-history-user">{log.user_name || (log.user_id ? `User #${log.user_id}` : "Unknown user")}</strong>{log.user_id && <small className="admin-history-user-id">ID: {log.user_id}</small>}</td>
+                            <td><span className={`admin-role-pill ${log.user_role || "unknown"}`}>{log.user_role || "Unknown"}</span></td>
+                            <td><span className={`admin-history-action ${String(log.action || "").toLowerCase().replaceAll("_", "-")}`}>{String(log.action || "Event").replaceAll("_", " ")}</span>{log.outcome === "FAILED" && <small className="admin-history-outcome failed">Failed</small>}</td>
+                            <td>{log.module}</td>
+                            <td className="admin-history-description">{log.description}{log.target_id && <small>Reference: #{log.target_id}</small>}</td>
+                            <td className="admin-history-ip">{log.ip_address || "—"}</td>
+                          </tr>
+                        )) : (
+                          <tr><td colSpan="7" className="admin-empty-cell">{historyError ? "No logs to display." : "No history records found for the selected filters."}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="admin-history-pagination">
+                    <span>Showing {historyLogs.length ? ((historyPage - 1) * 20) + 1 : 0}–{Math.min((historyPage - 1) * 20 + historyLogs.length, historyTotal)} of {historyTotal.toLocaleString()} records</span>
+                    <div>
+                      <button
+                        type="button"
+                        className="admin-secondary-button"
+                        onClick={() => {
+                          setHistoryLoading(true);
+                          setHistoryError("");
+                          setHistoryPage((page) => Math.max(1, page - 1));
+                        }}
+                        disabled={historyPage <= 1 || historyLoading}
+                      >Previous</button>
+                      <span>Page {historyPage} of {historyTotalPages}</span>
+                      <button
+                        type="button"
+                        className="admin-secondary-button"
+                        onClick={() => {
+                          setHistoryLoading(true);
+                          setHistoryError("");
+                          setHistoryPage((page) => Math.min(historyTotalPages, page + 1));
+                        }}
+                        disabled={historyPage >= historyTotalPages || historyLoading}
+                      >Next</button>
+                    </div>
+                  </div>
+                </section>
               </section>
             )}
           </>

@@ -141,6 +141,7 @@ def add_user():
             (user_id,),
         )
         connection.commit()
+        request.audit_actor = {"id": user_id, "name": name, "role": "student"}
 
         return jsonify({
             "status": "success",
