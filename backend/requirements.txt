@@ -6,3 +6,4 @@ requests
 python-dotenv
 gunicorn
 PyJWT>=2.8,<3.0
+scikit-learn>=1.4,<2.0

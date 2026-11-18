@@ -15,6 +15,7 @@ from routes import (
     borrow_requests_bp,
     admin_risk_bp,
     audit_logs_bp,
+    predictive_analytics_bp,
 )
 
 app = Flask(__name__)
@@ -61,6 +62,7 @@ app.register_blueprint(admin_risk_bp)
 app.register_blueprint(librarian_qr_history_bp)
 app.register_blueprint(librarian_students_bp)
 app.register_blueprint(audit_logs_bp)
+app.register_blueprint(predictive_analytics_bp)
 
 # Save audit events after successful API requests. Logging failures are isolated
 # inside the hook so they never change the business API response.

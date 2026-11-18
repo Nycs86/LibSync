@@ -32,7 +32,8 @@
   flex-direction: column;
   width: 260px;
   height: 100vh;
-  min-height: 580px;
+  height: 100dvh;
+  min-height: 0;
   padding: 25px 15px 18px;
   overflow: hidden;
   isolation: isolate;
@@ -86,7 +87,23 @@
   letter-spacing: 1.3px;
 }
 
-.admin-nav { display: flex; flex-direction: column; gap: 7px; }
+.admin-nav {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+  scrollbar-color: rgba(167,243,208,.55) transparent;
+  scrollbar-width: thin;
+}
+.admin-nav::-webkit-scrollbar { width: 5px; }
+.admin-nav::-webkit-scrollbar-track { background: transparent; }
+.admin-nav::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(167,243,208,.45); }
+.admin-nav button { flex: 0 0 auto; }
 .admin-nav button {
   display: flex;
   align-items: center;
@@ -115,7 +132,7 @@
 }
 .admin-nav button.active i { color: var(--admin-emerald); }
 
-.admin-sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.18); }
+.admin-sidebar-footer { flex: 0 0 auto; margin-top: 10px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.18); }
 .admin-sidebar-profile { display: flex; align-items: center; gap: 10px; padding: 0 5px 14px; min-width: 0; }
 .admin-avatar {
   display: grid;
@@ -336,11 +353,11 @@
 
 @media (max-width: 760px) {
   .admin-shell { grid-template-columns: 1fr; }
-  .admin-sidebar { position: relative; width: 100%; height: auto; min-height: 0; padding: 15px; }
+  .admin-sidebar { position: relative; width: 100%; height: auto; min-height: 0; padding: 15px; overflow: visible; }
   .admin-brand { justify-content: flex-start; padding: 0 4px 16px; }
   .admin-brand-logo { width: min(225px, 100%); height: 48px; object-position: left center; }
   .admin-sidebar-label { margin-bottom: 8px; }
-  .admin-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .admin-nav { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-height: 0; overflow: visible; padding-right: 0; }
   .admin-nav button { min-height: 42px; padding: 9px; font-size: 12px; }
   .admin-nav button i { flex-basis: 17px; width: 17px; font-size: 15px; }
   .admin-sidebar-footer { margin-top: 14px; padding-top: 12px; }
@@ -1475,4 +1492,149 @@
   .admin-history-heading > button { width: 100%; }
   .admin-history-pagination { align-items: flex-start; flex-direction: column; }
   .admin-history-pagination > div { width: 100%; justify-content: space-between; }
+}
+
+
+/* =========================================================
+   ADMIN SIDEBAR — MATCH LIBRARIAN SCROLL BEHAVIOR
+   Scroll the entire sidebar (logo + menu + profile + logout),
+   not just the navigation list. Main content scrolls separately.
+========================================================= */
+.admin-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.admin-shell .admin-sidebar {
+  position: relative;
+  top: auto;
+  height: 100%;
+  min-height: 0;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 239, 210, .55) transparent;
+}
+
+/* The navigation itself stays natural-height; the aside owns scrolling. */
+.admin-shell .admin-brand,
+.admin-shell .admin-sidebar-label,
+.admin-shell .admin-nav,
+.admin-shell .admin-sidebar-footer {
+  flex-shrink: 0;
+}
+
+.admin-shell .admin-nav {
+  flex: 0 0 auto;
+  min-height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+  scrollbar-width: auto;
+}
+
+.admin-shell .admin-nav button {
+  flex: 0 0 auto;
+}
+
+.admin-shell .admin-sidebar-footer {
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+
+.admin-shell .admin-sidebar::-webkit-scrollbar {
+  width: 7px;
+}
+
+.admin-shell .admin-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-shell .admin-sidebar::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: rgba(168, 239, 210, .45);
+}
+
+.admin-shell .admin-main {
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bdd9cb transparent;
+}
+
+.admin-shell .admin-main::-webkit-scrollbar {
+  width: 7px;
+}
+
+.admin-shell .admin-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-shell .admin-main::-webkit-scrollbar-thumb {
+  border-radius: 20px;
+  background: #bdd9cb;
+}
+
+/* Same compact-screen behavior as the Librarian sidebar. */
+@media (max-width: 760px) {
+  .admin-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-shell .admin-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: 55dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 18px 16px;
+  }
+
+  .admin-shell .admin-nav {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    gap: 6px;
+  }
+
+  .admin-shell .admin-nav button {
+    min-height: 44px;
+    padding: 9px 10px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
+
+  .admin-shell .admin-nav button i {
+    flex-basis: 18px;
+    width: 18px;
+    font-size: 16px;
+  }
+
+  .admin-shell .admin-sidebar-footer {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+
+  .admin-shell .admin-main {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 20px 18px 28px;
+  }
 }

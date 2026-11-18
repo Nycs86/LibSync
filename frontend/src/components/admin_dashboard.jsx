@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import LibraryReports from "./library_reports";
+import PredictiveAnalytics from "./predictive_analytics";
 import { api, getStoredUser } from "../services/api";
 import "./admin_dashboard.css";
 import "./admin_create_librarian.css";
@@ -702,6 +703,7 @@ function AdminDashboard({ onLogout }) {
     ["users", "bi-people", "Users"],
     ["librarians", "bi-person-badge", "Librarians"],
     ["reports", "bi-bar-chart-line", "Reports & Analytics"],
+    ["predictive", "bi-diagram-3", "Predictive Analytics"],
     ["activity", "bi-clock-history", "Activity"],
     ["history", "bi-journal-text", "History Logs"],
   ];
@@ -779,6 +781,7 @@ function AdminDashboard({ onLogout }) {
               {activeSection === "users" && "Students"}
               {activeSection === "librarians" && "Librarians"}
               {activeSection === "reports" && "Reports & Analytics"}
+              {activeSection === "predictive" && "Predictive Analytics"}
               {activeSection === "activity" && "System Activity"}
               {activeSection === "history" && "History Logs"}
             </h1>
@@ -791,6 +794,8 @@ function AdminDashboard({ onLogout }) {
                 "Create and manage librarian accounts without changing student accounts"}
               {activeSection === "reports" &&
                 "Monitor library performance, inventory, borrowing, returns, overdue books, and student usage"}
+              {activeSection === "predictive" &&
+                "Explore experimental Decision Tree predictions based on historical student borrowing and return patterns"}
               {activeSection === "activity" &&
                 "Recent borrowing and request activity"}
               {activeSection === "history" &&
@@ -1230,6 +1235,8 @@ function AdminDashboard({ onLogout }) {
                 </div>
               </section>
             )}
+
+            {activeSection === "predictive" && <PredictiveAnalytics />}
 
             {activeSection === "reports" && (
               <LibraryReports
