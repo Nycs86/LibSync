@@ -541,3 +541,12 @@ body:has(.ls-login-page) #root {
   }
 }
 
+
+/* Hide the browser's built-in password reveal icon in the student
+   registration form. Keep the custom LibSync green eye button visible. */
+.ls-student-register-form input[type="password"]::-ms-reveal,
+.ls-student-register-form input[type="password"]::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
