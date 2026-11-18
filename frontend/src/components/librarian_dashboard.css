@@ -1720,3 +1720,67 @@
   }
 }
 
+/* =========================================================
+   LIBRARIAN SIDEBAR — KEEP LOGOUT ACCESSIBLE
+   The logout button already exists in librarian_dashboard.jsx.
+   Restore sidebar scrolling and slightly compact vertical spacing
+   so the profile and Logout control are reachable on shorter screens.
+========================================================= */
+.ls-librarian-shell .ls-librarian-sidebar {
+  height: 100dvh;
+  min-height: 0;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 239, 210, .55) transparent;
+}
+
+.ls-librarian-shell .ls-librarian-brand {
+  margin-bottom: 26px;
+}
+
+.ls-librarian-shell .ls-librarian-sidebar-label {
+  margin-bottom: 12px;
+}
+
+.ls-librarian-shell .ls-librarian-navigation {
+  gap: 6px;
+}
+
+.ls-librarian-shell .ls-librarian-nav-item {
+  min-height: 52px;
+}
+
+.ls-librarian-shell .ls-librarian-sidebar-bottom {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 14px;
+  padding-bottom: 2px;
+}
+
+.ls-librarian-shell .ls-librarian-profile {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+}
+
+.ls-librarian-shell .ls-librarian-logout {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  visibility: visible;
+  opacity: 1;
+}
+
+@media (max-width: 760px) {
+  .ls-librarian-shell .ls-librarian-sidebar {
+    height: auto;
+    min-height: 0;
+    max-height: 55dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}

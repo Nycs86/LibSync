@@ -76,6 +76,7 @@ function GuestDashboard({ onLogin, onRegister }) {
   const [sortOrder, setSortOrder] = useState("az");
   const [previewBook, setPreviewBook] = useState(null);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [activeNav, setActiveNav] = useState("home");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,27 +175,32 @@ function GuestDashboard({ onLogin, onRegister }) {
       <div className="guest-layout">
         <aside className="guest-sidebar" aria-label="Guest navigation">
           <div className="guest-sidebar-decoration" aria-hidden="true" />
-          <a className="guest-sidebar-brand" href="#guest-home" aria-label="LibSync Home">
+          <a
+            className="guest-sidebar-brand"
+            href="#guest-home"
+            aria-label="LibSync Home"
+            onClick={() => setActiveNav("home")}
+          >
             <img src="/libsync-logo.svg" alt="LibSync" />
           </a>
 
           <div className="guest-sidebar-section-label">WORKSPACE</div>
           <nav className="guest-sidebar-nav">
-            <a className="is-active" href="#guest-home">
+            <a
+              className={activeNav === "home" ? "is-active" : ""}
+              href="#guest-home"
+              onClick={() => setActiveNav("home")}
+            >
               <i className="bi bi-house-door" aria-hidden="true" />
               <span>Home</span>
             </a>
-            <a href="#guest-catalog">
-              <i className="bi bi-book" aria-hidden="true" />
-              <span>Book Catalog</span>
-            </a>
-            <a href="#guest-categories">
+            <a
+              className={activeNav === "categories" ? "is-active" : ""}
+              href="#guest-categories"
+              onClick={() => setActiveNav("categories")}
+            >
               <i className="bi bi-grid" aria-hidden="true" />
               <span>Categories</span>
-            </a>
-            <a href="#guest-about">
-              <i className="bi bi-info-circle" aria-hidden="true" />
-              <span>About</span>
             </a>
           </nav>
 
