@@ -118,6 +118,8 @@ def _describe_event(method, path, response_data):
         return "REQUEST_RETURN", "Returns", "Requested a return QR code."
     if normalized.startswith("/api/borrow-batches/") and normalized.endswith("/return") and method == "PUT":
         return "RETURN", "Returns", "Confirmed returned books after QR verification."
+    if normalized.startswith("/api/librarian/pending-returns/") and normalized.endswith("/resolve") and method == "POST":
+        return "RETURN_RECOVERY", "Returns", "Confirmed returned books from QR Scan History after the original Return QR scan."
 
     # Capture future write endpoints too, while giving them a neutral label.
     module = "System"

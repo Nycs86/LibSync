@@ -265,17 +265,35 @@ function LibrarianDashboard({ onLogout }) {
   const [recordPage, setRecordPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  const [qrAudit, setQrAudit] = useState({ events: [], pending: [] });
+  const [qrAudit, setQrAudit] = useState({ events: [], pending: [], pending_returns: [] });
   const [qrAuditLoading, setQrAuditLoading] = useState(false);
   const [qrAuditError, setQrAuditError] = useState("");
   const [recoverySavingId, setRecoverySavingId] = useState(null);
+  const [returnRecoverySelections, setReturnRecoverySelections] = useState({});
 
   const loadQrAudit = async () => {
     setQrAuditLoading(true);
     setQrAuditError("");
     try {
       const data = await api.get("/api/librarian/qr-history");
-      setQrAudit({ events: data.events || [], pending: data.pending || [] });
+      const pendingReturns = data.pending_returns || [];
+      setQrAudit({
+        events: data.events || [],
+        pending: data.pending || [],
+        pending_returns: pendingReturns,
+      });
+      setReturnRecoverySelections((current) => {
+        const next = {};
+        pendingReturns.forEach((item) => {
+          const validIds = new Set(
+            (item.outstanding_books || []).map((book) => Number(book.request_id))
+          );
+          next[item.batch_id] = (current[item.batch_id] || []).filter((id) =>
+            validIds.has(Number(id))
+          );
+        });
+        return next;
+      });
     } catch (error) {
       setQrAuditError(error.message || "Unable to load QR history.");
     } finally {
@@ -296,6 +314,39 @@ function LibrarianDashboard({ onLogout }) {
       void loadBorrowRecords();
     } catch (error) {
       setQrAuditError(error.message || "Unable to release this borrowing batch.");
+      throw error;
+    } finally {
+      setRecoverySavingId(null);
+    }
+  };
+
+  const toggleReturnRecoveryBook = (batchId, requestId) => {
+    setReturnRecoverySelections((current) => {
+      const selected = current[batchId] || [];
+      const next = selected.includes(requestId)
+        ? selected.filter((id) => id !== requestId)
+        : [...selected, requestId];
+      return { ...current, [batchId]: next };
+    });
+  };
+
+  const submitReturnRecovery = async (batchId, requestIds) => {
+    if (recoverySavingId !== null || !Array.isArray(requestIds) || requestIds.length === 0) return;
+    try {
+      setRecoverySavingId(batchId);
+      setQrAuditError("");
+      const result = await api.post(`/api/librarian/pending-returns/${batchId}/resolve`, {
+        action: "returned",
+        request_ids: requestIds,
+      });
+      setMessage(result.message || `Batch #${batchId} return confirmed successfully.`);
+      setReturnRecoverySelections((current) => ({ ...current, [batchId]: [] }));
+      await loadQrAudit();
+      void loadBooks();
+      void loadBorrowRecords();
+      void getBorrowRequests(false);
+    } catch (error) {
+      setQrAuditError(error.message || "Unable to confirm this pending return.");
       throw error;
     } finally {
       setRecoverySavingId(null);
@@ -2239,7 +2290,7 @@ function LibrarianDashboard({ onLogout }) {
           <div className="ls-librarian-panel-header ls-qr-history-header">
             <div>
               <h2><i className="bi bi-clock-history" aria-hidden="true" /> QR Scan History</h2>
-              <p>Review scanned QR codes and complete pending book releases.</p>
+              <p>Review scanned QR codes and resolve pending book releases or returns.</p>
             </div>
             <button type="button" className="ls-qr-history-refresh" disabled={qrAuditLoading} onClick={() => void loadQrAudit()}>
               <i className={`bi bi-arrow-clockwise ${qrAuditLoading ? "ls-librarian-spin" : ""}`} aria-hidden="true" />
@@ -2289,6 +2340,79 @@ function LibrarianDashboard({ onLogout }) {
           </div>
 
           <div className="ls-qr-history-section-heading ls-qr-history-section-heading--scans">
+            <div className="ls-qr-history-heading-icon"><i className="bi bi-box-arrow-in-down" aria-hidden="true" /></div>
+            <div>
+              <h3>Pending Returns <span className="ls-qr-history-count">{qrAudit.pending_returns.length}</span></h3>
+              <p>Return QR scans that were not confirmed. You can recover the confirmation even if the original QR is no longer available.</p>
+            </div>
+          </div>
+          <div className="ls-qr-history-table-wrap">
+            <table className="ls-librarian-table ls-qr-history-table">
+              <thead><tr><th>Batch</th><th>Student</th><th>Books to Confirm</th><th>Last Scanned</th><th>Scans</th><th>Action</th></tr></thead>
+              <tbody>
+                {qrAudit.pending_returns.length === 0 ? (
+                  <tr><td colSpan="6" className="ls-qr-history-empty"><i className="bi bi-check-circle" aria-hidden="true" /> No pending returns.</td></tr>
+                ) : qrAudit.pending_returns.map((item) => (
+                  <tr key={item.batch_id}>
+                    <td><span className="ls-qr-history-batch">#{item.batch_id}</span></td>
+                    <td><strong>{item.student_name || "Unknown student"}</strong><small className="ls-qr-history-subtext">{item.student_email}</small></td>
+                    <td>
+                      <div className="ls-qr-return-list">
+                        {(item.outstanding_books || []).map((book) => {
+                          const selectedIds = returnRecoverySelections[item.batch_id] || [];
+                          const requestId = Number(book.request_id);
+                          return (
+                            <label className="ls-qr-return-item" key={requestId}>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(requestId)}
+                                onChange={() => toggleReturnRecoveryBook(item.batch_id, requestId)}
+                                disabled={recoverySavingId !== null || confirmationLoading}
+                              />
+                              <span className="ls-qr-return-item__book">
+                                <strong>{book.title}</strong>
+                                <small>Request #{requestId}</small>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <small className="ls-qr-history-subtext">Select only the books physically received.</small>
+                    </td>
+                    <td>{item.last_scanned_at ? new Date(item.last_scanned_at).toLocaleString() : "—"}</td>
+                    <td>{item.scan_count ?? 0}</td>
+                    <td>
+                      {(() => {
+                        const selectedIds = returnRecoverySelections[item.batch_id] || [];
+                        const selectedBooks = (item.outstanding_books || []).filter((book) =>
+                          selectedIds.includes(Number(book.request_id))
+                        );
+                        return (
+                          <button
+                            type="button"
+                            className="ls-qr-history-save ls-qr-history-confirm-return"
+                            disabled={recoverySavingId !== null || confirmationLoading || selectedIds.length === 0}
+                            onClick={() => openConfirmationModal({
+                              type: "return",
+                              title: "Confirm Selected Book Returns",
+                              message: `Confirm that you physically received ${selectedBooks.length} selected book(s) from ${item.student_name || "this student"} in Batch #${item.batch_id}: ${selectedBooks.map((book) => book.title).join(", ")}. Only these selected books will be marked returned and their inventory restored.`,
+                              confirmLabel: "Confirm Selected Returns",
+                              onConfirm: () => submitReturnRecovery(item.batch_id, selectedIds),
+                            })}
+                          >
+                            <i className="bi bi-check2-circle" aria-hidden="true" />
+                            {recoverySavingId === item.batch_id ? "Saving..." : `Confirm Selected (${selectedIds.length})`}
+                          </button>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="ls-qr-history-section-heading ls-qr-history-section-heading--scans">
             <div className="ls-qr-history-heading-icon"><i className="bi bi-qr-code-scan" aria-hidden="true" /></div>
             <div><h3>Recent QR Scans <span className="ls-qr-history-count">{qrAudit.events.length}</span></h3><p>Recorded scan activity and release outcomes.</p></div>
           </div>
@@ -2299,14 +2423,24 @@ function LibrarianDashboard({ onLogout }) {
                 {qrAudit.events.length === 0 ? (
                   <tr><td colSpan="6" className="ls-qr-history-empty">No QR scans recorded yet.</td></tr>
                 ) : qrAudit.events.map((item) => {
-                  const outcome = item.disposition === "not_handed_over" ? "Not handed over" : item.released_at ? (item.disposition === "handed_over" ? "Recovered release" : "Released") : item.qr_type === "borrow" ? "Pending release" : item.batch_status;
+                  const outcome = item.disposition === "not_handed_over"
+                    ? "Not handed over"
+                    : item.qr_type === "return"
+                      ? item.batch_status === "returned"
+                        ? "Return confirmed"
+                        : item.batch_status === "partially_returned"
+                          ? "Partially returned"
+                          : "Pending return confirmation"
+                      : item.released_at
+                        ? (item.disposition === "handed_over" ? "Recovered release" : "Released")
+                        : "Pending release";
                   return <tr key={item.id}>
                     <td>{item.scanned_at ? new Date(item.scanned_at).toLocaleString() : "—"}</td>
                     <td><span className="ls-qr-history-batch">#{item.batch_id}</span></td>
                     <td>{item.student_name || "—"}</td>
                     <td><span className="ls-qr-history-type">{item.qr_type}</span></td>
                     <td>{item.librarian_name || "—"}</td>
-                    <td><span className={`ls-qr-history-status ${outcome === "Pending release" ? "is-pending" : outcome === "Not handed over" ? "is-neutral" : "is-released"}`}>{outcome || "—"}</span></td>
+                    <td><span className={`ls-qr-history-status ${outcome === "Pending release" || outcome === "Pending return confirmation" ? "is-pending" : outcome === "Not handed over" || outcome === "Partially returned" ? "is-neutral" : "is-released"}`}>{outcome || "—"}</span></td>
                   </tr>;
                 })}
               </tbody>
